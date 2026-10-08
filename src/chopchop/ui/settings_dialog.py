@@ -1,6 +1,7 @@
 """Настройки плеера: предпочитаемые языки и вид субтитров."""
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -10,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from chopchop.services.settings import PlayerPrefs, clean_langs
+from chopchop.services.settings import HWDEC_MODES, PlayerPrefs, clean_langs
 
 
 class SettingsDialog(QDialog):
@@ -28,12 +29,25 @@ class SettingsDialog(QDialog):
         self._margin = QSpinBox()
         self._margin.setRange(0, 300)
         self._margin.setValue(prefs.sub_margin)
+        self._hwdec = QComboBox()
+        titles = {
+            "auto-copy-safe": self.tr("Аппаратное, с копированием кадров (надёжно)"),
+            "auto-safe": self.tr("Аппаратное, без копирования (быстрее)"),
+            "no": self.tr("Программное (процессор)"),
+        }
+        for mode in HWDEC_MODES:
+            self._hwdec.addItem(titles[mode], mode)
+        self._hwdec.setCurrentIndex(max(self._hwdec.findData(prefs.hwdec), 0))
+        self._hwdec.setToolTip(
+            self.tr("Если в картинке мусор или полосы, выберите «Программное» или «с копированием»")
+        )
 
         form = QFormLayout()
         form.addRow(self.tr("Языки аудио (коды через запятую)"), self._audio)
         form.addRow(self.tr("Языки субтитров"), self._subs)
         form.addRow(self.tr("Размер шрифта субтитров"), self._font)
         form.addRow(self.tr("Отступ субтитров снизу"), self._margin)
+        form.addRow(self.tr("Декодирование видео"), self._hwdec)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -51,4 +65,5 @@ class SettingsDialog(QDialog):
             sub_langs=clean_langs(self._subs.text()),
             sub_font_size=self._font.value(),
             sub_margin=self._margin.value(),
+            hwdec=str(self._hwdec.currentData()),
         )

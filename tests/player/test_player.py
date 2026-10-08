@@ -269,3 +269,25 @@ def test_filter_does_not_reload_when_decoding_is_already_in_software_or_copy_mod
         player.set_video_filter("[vid1]hue=s=0[vo]")
         assert fake.loaded == []
         assert fake.hwdec == "auto-copy-safe"
+
+
+def test_changing_decoding_mode_restarts_the_decoder_at_the_same_place() -> None:
+    player, fake = _player()
+    player.load(Path("movie.mkv"))
+    fake.loaded.clear()
+    fake.hwdec = "auto-safe"
+    fake.time_pos = 4812.0
+    fake.pause = False
+    player.apply_prefs(PlayerPrefs(hwdec="no"))
+    assert fake.hwdec == "no"
+    assert fake.loaded == [("movie.mkv", {"start": "4812.000", "pause": "no"})]
+    fake.loaded.clear()
+    player.apply_prefs(PlayerPrefs(hwdec="no"))  # то же значение: ничего не перезапускается
+    assert fake.loaded == []
+
+
+def test_filter_keeps_the_users_decoding_choice() -> None:
+    player, fake = _player()
+    fake.hwdec = "no"
+    player.set_video_filter("[vid1]hue=s=0[vo]")
+    assert fake.hwdec == "no"  # программное декодирование не подменяется

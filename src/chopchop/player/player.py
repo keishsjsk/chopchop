@@ -248,6 +248,8 @@ class Player(QObject):
         if self._copy_decoding:
             return
         self._copy_decoding = True
+        if str(self._mpv.hwdec) != "auto-safe":
+            return  # уже копирующее или программное декодирование: фильтрам этого достаточно
         self._mpv.hwdec = "auto-copy-safe"
         current = str(self._mpv.hwdec_current or "")
         zero_copy = current not in ("", "no") and not current.endswith("-copy")
@@ -269,3 +271,9 @@ class Player(QObject):
         self._mpv.sub_margin_y = prefs.sub_margin
         self._mpv.alang = prefs.audio_langs
         self._mpv.slang = prefs.sub_langs
+        if str(self._mpv.hwdec) != prefs.hwdec:
+            self._mpv.hwdec = prefs.hwdec
+            self._copy_decoding = False  # следующий фильтр заново проверит режим
+            position = self._mpv.time_pos
+            if self._current is not None and position is not None:
+                self._reload(float(position), bool(self._mpv.pause))  # декодер перезапускается

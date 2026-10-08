@@ -70,7 +70,7 @@ def create_mpv(module: ModuleType, prefs: PlayerPrefs) -> Any:
         "input_vo_keyboard": False,
         "osc": False,
         "osd_level": 0,
-        "hwdec": "auto-safe",
+        "hwdec": prefs.hwdec,
         "keep_open": True,
         "sub_auto": "fuzzy",
         "volume_max": 130,

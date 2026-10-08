@@ -32,12 +32,18 @@ def default_settings() -> QSettings:
     return QSettings("CHOPCHOP", "CHOPCHOP")
 
 
+# режимы аппаратного декодирования видео: с копированием кадров (надёжнее), без копирования
+# (быстрее, но на некоторых видеокартах и файлах даёт мусор в картинке), программное
+HWDEC_MODES = ("auto-copy-safe", "auto-safe", "no")
+
+
 @dataclass
 class PlayerPrefs:
     audio_langs: str = ""  # предпочитаемые языки аудио через запятую: "rus,eng"
     sub_langs: str = ""
     sub_font_size: int = 55
     sub_margin: int = 22
+    hwdec: str = "auto-copy-safe"
 
 
 def clean_langs(text: str) -> str:
@@ -53,6 +59,7 @@ def load_player_prefs(settings: QSettings) -> PlayerPrefs:
         sub_langs=clean_langs(str(settings.value("player/sub_langs", defaults.sub_langs))),
         sub_font_size=_int(settings.value("player/sub_font_size"), defaults.sub_font_size),
         sub_margin=_int(settings.value("player/sub_margin"), defaults.sub_margin),
+        hwdec=_hwdec(settings.value("player/hwdec", defaults.hwdec), defaults.hwdec),
     )
 
 
@@ -61,6 +68,12 @@ def save_player_prefs(settings: QSettings, prefs: PlayerPrefs) -> None:
     settings.setValue("player/sub_langs", clean_langs(prefs.sub_langs))
     settings.setValue("player/sub_font_size", prefs.sub_font_size)
     settings.setValue("player/sub_margin", prefs.sub_margin)
+    settings.setValue("player/hwdec", _hwdec(prefs.hwdec, PlayerPrefs().hwdec))
+
+
+def _hwdec(value: object, default: str) -> str:
+    """Допустимый режим декодирования; неизвестное значение (из старой версии) — по умолчанию."""
+    return str(value) if str(value) in HWDEC_MODES else default
 
 
 def _int(value: object, default: int) -> int:
