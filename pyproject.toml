@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "quickedit"
+name = "chopchop"
 version = "0.1.0"
 description = "Лёгкий плеер и быстрый редактор фото и видео"
 readme = "README.md"
@@ -31,10 +31,10 @@ build = [
 ]
 
 [project.scripts]
-quickedit = "quickedit.__main__:main"
+chopchop = "chopchop.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/quickedit"]
+packages = ["src/chopchop"]
 
 [tool.ruff]
 line-length = 100

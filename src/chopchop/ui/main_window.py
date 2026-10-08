@@ -1,0 +1,556 @@
+"""Главное окно: стартовый экран, просмотр фото и плеер видео."""
+
+from collections.abc import Callable
+from pathlib import Path
+
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QKeySequence
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
+)
+
+from chopchop.core.document import (
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    MediaInfo,
+    MediaKind,
+    detect_kind,
+)
+from chopchop.core.video import Clip, VideoProject
+from chopchop.editor.session import EditSession
+from chopchop.editor.video_session import VideoSession
+from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
+from chopchop.engines.probe import probe
+from chopchop.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
+from chopchop.player.player import Player
+from chopchop.player.resume import ResumeStore
+from chopchop.services.settings import RecentFiles, load_player_prefs, save_player_prefs
+from chopchop.ui.drop_zone import DropZone
+from chopchop.ui.editor_page import EditorPage
+from chopchop.ui.pil_qt import qimage_to_pil
+from chopchop.ui.settings_dialog import SettingsDialog
+from chopchop.ui.video_editor_page import VideoEditorPage
+from chopchop.ui.video_page import VideoPage
+from chopchop.viewer.folder_nav import FolderNav
+from chopchop.viewer.image_viewer import ImageViewer
+from chopchop.viewer.prefetch import ImageCache
+from chopchop.workers.tasks import TaskRunner
+
+SUBTITLE_EXTENSIONS = frozenset({".srt", ".ass", ".ssa", ".vtt", ".sub"})
+SEEK_SECONDS = 5
+VOLUME_STEP = 5
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, settings: QSettings) -> None:
+        super().__init__()
+        self.setWindowTitle("CHOPCHOP")
+        self.resize(960, 600)
+        self.setAcceptDrops(True)
+
+        self._settings = settings
+        self._recent = RecentFiles(settings)
+        self._resume = ResumeStore(settings)
+        self.current_path: Path | None = None
+        self._nav: FolderNav | None = None
+        self._video_path: Path | None = None
+        self.video_page: VideoPage | None = None
+        self.editor: EditorPage | None = None
+        self.video_editor: VideoEditorPage | None = None
+        self._tasks = TaskRunner(self)
+        self._session: EditSession | None = None
+        self._cache = ImageCache(parent=self)
+        self._cache.loaded.connect(self._on_image_loaded)
+        self._cache.failed.connect(self._on_image_failed)
+
+        self._drop_zone = DropZone()
+        self._drop_zone.fileChosen.connect(self.open_file)
+        self._drop_zone.openRequested.connect(self.choose_file)
+        self._drop_zone.set_recent(self._recent.items())
+
+        self.viewer = ImageViewer()
+        self.viewer.setAcceptDrops(False)  # перетаскивание обрабатывает окно
+        self.viewer.doubleClicked.connect(self.toggle_fullscreen)
+        self.viewer.zoomChanged.connect(self._on_zoom_changed)
+
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._drop_zone)
+        self._stack.addWidget(self.viewer)
+        self.setCentralWidget(self._stack)
+
+        self._zoom_label = QLabel()
+        self.statusBar().addPermanentWidget(self._zoom_label)
+        self.statusBar().showMessage(self._tools_summary())
+
+        self._build_actions()
+
+    def _build_actions(self) -> None:
+        file_menu = self.menuBar().addMenu(self.tr("Файл"))
+        file_menu.addAction(
+            self._action(self.tr("Открыть…"), QKeySequence.StandardKey.Open, self.choose_file)
+        )
+        file_menu.addAction(self._action(self.tr("Настройки…"), "", self.show_settings))
+        file_menu.addSeparator()
+        file_menu.addAction(self._action(self.tr("Выход"), "Ctrl+Q", self.close))
+
+        edit_menu = self.menuBar().addMenu(self.tr("Правка"))
+        for text, shortcut, slot in (
+            (self.tr("Редактировать / назад к просмотру"), "Ctrl+E", self.toggle_editor),
+            (self.tr("Вставить картинку из буфера"), "Ctrl+V", self.paste_image),
+            (self.tr("Отменить"), "Ctrl+Z", lambda: self._with_editor(lambda e: e.undo())),
+            (self.tr("Повторить"), "Ctrl+Y", lambda: self._with_editor(lambda e: e.redo())),
+            (self.tr("Копировать результат"), "Ctrl+C", self._copy),
+            (self.tr("Сохранить"), "Ctrl+S", lambda: self._with_editor(lambda e: e.save_quick())),
+            (
+                self.tr("Сохранить как…"),
+                "Ctrl+Shift+S",
+                lambda: self._with_editor(lambda e: e.save_as()),
+            ),
+        ):
+            edit_menu.addAction(self._action(text, shortcut, slot))
+
+        def player_action(text: str, shortcut: str, do: Callable[[Player], object]) -> None:
+            self._add_action(text, shortcut, lambda: self._with_player(do))
+
+        add = self._add_action
+        add(self.tr("Следующее"), Qt.Key.Key_Right, lambda: self._horizontal(1))
+        add(self.tr("Предыдущее"), Qt.Key.Key_Left, lambda: self._horizontal(-1))
+        add(self.tr("Громче"), Qt.Key.Key_Up, lambda: self._volume(VOLUME_STEP))
+        add(self.tr("Тише"), Qt.Key.Key_Down, lambda: self._volume(-VOLUME_STEP))
+        player_action(self.tr("Пауза"), "Space", lambda p: p.toggle_pause())
+        player_action(self.tr("Аудиодорожка"), "A", lambda p: p.cycle_audio())
+        player_action(self.tr("Субтитры 1"), "S", lambda p: p.cycle_sub())
+        player_action(self.tr("Субтитры 2"), "Shift+S", lambda p: p.cycle_sub2())
+        player_action(self.tr("Субтитры 1 раньше"), "Z", lambda p: p.shift_sub(-1))
+        player_action(self.tr("Субтитры 1 позже"), "X", lambda p: p.shift_sub(1))
+        player_action(self.tr("Субтитры 2 раньше"), "Shift+Z", lambda p: p.shift_sub2(-1))
+        player_action(self.tr("Субтитры 2 позже"), "Shift+X", lambda p: p.shift_sub2(1))
+        add(self.tr("Полный экран"), Qt.Key.Key_F, self.toggle_fullscreen)
+        add(self.tr("Полный экран"), Qt.Key.Key_F11, self.toggle_fullscreen)
+        add(self.tr("Выйти из полного экрана"), Qt.Key.Key_Escape, self._escape)
+        add(self.tr("Начало здесь"), "I", lambda: self._with_video_editor(lambda e: e.set_in()))
+        add(self.tr("Конец здесь"), "O", lambda: self._with_video_editor(lambda e: e.set_out()))
+        for enter in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            add(self.tr("Применить"), enter, lambda: self._with_editor(lambda e: e.apply_pending()))
+        for key, tool in (
+            ("C", "crop"),
+            ("R", "rotate"),
+            ("B", "redact"),
+            ("D", "draw"),
+            ("T", "text"),
+        ):
+            add(tool, key, self._tool_slot(tool))
+        add(self.tr("Вписать в окно"), "Ctrl+0", self.viewer.fit_to_window)
+        add(self.tr("Масштаб 100%"), "Ctrl+1", self.viewer.actual_size)
+
+    def _action(
+        self,
+        text: str,
+        shortcut: QKeySequence.StandardKey | Qt.Key | str,
+        slot: Callable[[], object],
+    ) -> QAction:
+        action = QAction(text, self)
+        if shortcut:
+            action.setShortcut(QKeySequence(shortcut))
+        action.triggered.connect(slot)
+        return action
+
+    def _add_action(
+        self,
+        text: str,
+        shortcut: QKeySequence.StandardKey | Qt.Key | str,
+        slot: Callable[[], object],
+    ) -> None:
+        self.addAction(self._action(text, shortcut, slot))
+
+    def _tools_summary(self) -> str:
+        ffmpeg = self.tr("найден") if find_ffmpeg() else self.tr("не найден")
+        libmpv = self.tr("найден") if find_libmpv() else self.tr("не найден")
+        return f"ffmpeg: {ffmpeg} · libmpv: {libmpv}"
+
+    # --- открытие файлов ---------------------------------------------------------------------
+
+    def choose_file(self) -> None:
+        exts = " ".join(f"*{e}" for e in sorted(IMAGE_EXTENSIONS | VIDEO_EXTENSIONS))
+        name, _ = QFileDialog.getOpenFileName(
+            self, self.tr("Открыть"), "", self.tr("Фото и видео (%1)").replace("%1", exts)
+        )
+        if name:
+            self.open_file(Path(name))
+
+    def open_file(self, path: Path) -> None:
+        kind = detect_kind(path)
+        if kind is None:
+            self.statusBar().showMessage(self.tr("Формат не поддерживается: ") + path.name, 5000)
+            return
+        if not self._leave_editors():
+            return
+        self._save_resume()
+        self._recent.add(path)
+        self._drop_zone.set_recent(self._recent.items())
+        if kind is MediaKind.IMAGE:
+            self._stop_video()
+            self._nav = FolderNav(path)
+            self._show(path)
+        else:
+            self._open_video(path)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
+        for url in event.mimeData().urls():
+            if not url.isLocalFile():
+                continue
+            path = Path(url.toLocalFile())
+            if path.suffix.lower() in SUBTITLE_EXTENSIONS and self.video_page is not None:
+                if self._on_video_page():
+                    self.video_page.player.add_subtitle(path)
+            else:
+                self.open_file(path)
+            event.acceptProposedAction()
+            return
+
+    # --- фото --------------------------------------------------------------------------------
+
+    def step(self, delta: int) -> None:
+        if self._nav is not None:
+            self._show(self._nav.step(delta))
+
+    def _show(self, path: Path) -> None:
+        self.current_path = path
+        self._update_title()
+        image = self._cache.get(path)
+        if image is not None:
+            self._display(image)
+        else:
+            self._cache.request(path)
+
+    def _display(self, image: QImage) -> None:
+        self.viewer.set_image(image)
+        self._stack.setCurrentWidget(self.viewer)
+        self.statusBar().showMessage(f"{image.width()}×{image.height()}")
+        if self._nav is not None:
+            for neighbor in self._nav.neighbors():
+                self._cache.request(neighbor)
+
+    def _on_image_loaded(self, path: Path, image: QImage) -> None:
+        if path == self.current_path and self._nav is not None:
+            self._display(image)
+
+    def _on_image_failed(self, path: Path) -> None:
+        if path == self.current_path:
+            self.statusBar().showMessage(self.tr("Не удалось открыть: ") + path.name, 5000)
+
+    def _on_zoom_changed(self, zoom: float) -> None:
+        self._zoom_label.setText(f"{round(zoom * 100)}%")
+
+    # --- видео -------------------------------------------------------------------------------
+
+    def _on_video_page(self) -> bool:
+        """Показан плеер (в том числе внутри видеоредактора): работают клавиши воспроизведения."""
+        if self.video_page is None:
+            return False
+        return self._stack.currentWidget() is self.video_page or self._on_video_editor()
+
+    def _ensure_video_page(self) -> VideoPage | None:
+        if self.video_page is not None:
+            return self.video_page
+        try:
+            module = load_mpv_module()
+            mpv = create_mpv(module, load_player_prefs(self._settings))
+        except MpvUnavailableError as error:
+            hint = self.tr(
+                "Не удалось загрузить libmpv. Положите libmpv-2.dll (Windows) "
+                "рядом с программой или установите libmpv (Linux)."
+            )
+            QMessageBox.warning(self, self.tr("Плеер недоступен"), f"{hint}\n\n{error}")
+            return None
+        page = VideoPage(module, mpv)
+        page.fullscreenRequested.connect(self.toggle_fullscreen)
+        page.player.errorOccurred.connect(self._on_video_error)
+        page.player.pausedChanged.connect(lambda _paused: self._save_resume())
+        self._stack.addWidget(page)
+        self.video_page = page
+        return page
+
+    def _open_video(self, path: Path) -> None:
+        page = self._ensure_video_page()
+        if page is None:
+            return
+        self._nav = None
+        self.current_path = path
+        self._video_path = path
+        self._update_title()
+        self.statusBar().clearMessage()
+        self._zoom_label.clear()
+        self._stack.setCurrentWidget(page)
+        page.player.load(path, self._resume.load(path))
+        page.wake()
+
+    def _on_video_error(self, _message: str) -> None:
+        name = self._video_path.name if self._video_path else ""
+        self.statusBar().showMessage(self.tr("Не удалось воспроизвести: ") + name, 8000)
+
+    def _stop_video(self) -> None:
+        if self.video_page is not None and self._video_path is not None:
+            self.video_page.player.stop()
+        self._video_path = None
+
+    def _save_resume(self) -> None:
+        if self.video_editor is not None:
+            return  # в редакторе плеер показывает другие клипы и обрезки
+        if self.video_page is not None and self._video_path is not None:
+            player = self.video_page.player
+            self._resume.save(self._video_path, player.state(), player.duration)
+
+    def _with_player(self, action: Callable[[Player], object]) -> None:
+        if self._on_video_page() and self.video_page is not None:
+            action(self.video_page.player)
+
+    def _horizontal(self, direction: int) -> None:
+        if self._on_editor():
+            return
+        if self._on_video_page():
+            self._with_player(lambda p: p.seek(direction * SEEK_SECONDS))
+        else:
+            self.step(direction)
+
+    def _volume(self, delta: float) -> None:
+        self._with_player(lambda p: p.add_volume(delta))
+
+    def show_settings(self) -> None:
+        dialog = SettingsDialog(load_player_prefs(self._settings), self)
+        if dialog.exec():
+            prefs = dialog.prefs()
+            save_player_prefs(self._settings, prefs)
+            if self.video_page is not None:
+                self.video_page.player.apply_prefs(prefs)
+
+    # --- редактор ----------------------------------------------------------------------------
+
+    def _tool_slot(self, tool: str) -> Callable[[], object]:
+        def select() -> None:
+            self._with_editor(lambda e: e.select_tool(tool))
+
+        return select
+
+    def _on_editor(self) -> bool:
+        return self.editor is not None and self._stack.currentWidget() is self.editor
+
+    def _on_video_editor(self) -> bool:
+        return self.video_editor is not None and self._stack.currentWidget() is self.video_editor
+
+    def _with_editor(self, action: Callable[[EditorPage | VideoEditorPage], object]) -> None:
+        """Действие для текущего редактора: фото или видео (у них общие имена методов)."""
+        if self._on_editor() and self.editor is not None:
+            action(self.editor)
+        elif self._on_video_editor() and self.video_editor is not None:
+            action(self.video_editor)
+
+    def _with_video_editor(self, action: Callable[[VideoEditorPage], object]) -> None:
+        if self._on_video_editor() and self.video_editor is not None:
+            action(self.video_editor)
+
+    def _copy(self) -> None:
+        self._with_editor(lambda e: e.copy_result())
+
+    def _escape(self) -> None:
+        if self.isFullScreen():
+            self.exit_fullscreen()
+        else:
+            self._with_editor(lambda e: e.escape())
+
+    def toggle_editor(self) -> None:
+        if self._on_editor() or self._on_video_editor():
+            self._with_editor(lambda e: e.request_exit())
+        elif self._stack.currentWidget() is self.viewer and self.current_path is not None:
+            self._open_editor(EditSession(self.current_path, parent=self))
+        elif self._stack.currentWidget() is self.video_page and self._video_path is not None:
+            self._open_video_editor(self._video_path)
+
+    def paste_image(self) -> None:
+        image = QApplication.clipboard().image()
+        if image.isNull():
+            self.statusBar().showMessage(self.tr("В буфере обмена нет картинки"), 5000)
+            return
+        self._open_editor(EditSession(None, qimage_to_pil(image), parent=self))
+
+    def _open_editor(self, session: EditSession) -> None:
+        if self._on_editor():
+            return
+        self._discard_session()
+        self._session = session
+        session.loaded.connect(lambda: self._show_editor(session))
+        session.loadFailed.connect(self._on_editor_load_failed)
+        self.statusBar().showMessage(self.tr("Загрузка…"))
+        session.start()
+
+    def _on_editor_load_failed(self, error: str) -> None:
+        self._discard_session()
+        self.statusBar().showMessage(
+            self.tr("Не удалось открыть для редактирования: ") + error, 8000
+        )
+
+    def _discard_session(self) -> None:
+        if self._session is not None:
+            self._session.wait()
+            self._session.deleteLater()
+            self._session = None
+
+    def _show_editor(self, session: EditSession) -> None:
+        if session is not self._session:
+            return
+        self._stop_video()
+        if self.editor is not None:
+            self._stack.removeWidget(self.editor)
+            self.editor.deleteLater()
+        self.editor = EditorPage(session)
+        self.editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
+        self.editor.exitRequested.connect(self._leave_editor)
+        self._stack.addWidget(self.editor)
+        self._stack.setCurrentWidget(self.editor)
+        self._zoom_label.clear()
+        name = session.source.name if session.source else self.tr("Из буфера обмена")
+        self.setWindowTitle(f"{name} — {self.tr('редактор')} — CHOPCHOP")
+        self.statusBar().clearMessage()
+
+    def _leave_editor(self) -> None:
+        if self.editor is None:
+            return
+        self._stack.removeWidget(self.editor)
+        self.editor.deleteLater()
+        self.editor = None
+        self._discard_session()
+        if self._nav is not None and self.current_path is not None:
+            self._stack.setCurrentWidget(self.viewer)
+            self._update_title()
+            self.statusBar().showMessage(self.tr("Просмотр"), 3000)
+        else:
+            self._stack.setCurrentWidget(self._drop_zone)
+            self.setWindowTitle("CHOPCHOP")
+
+    # --- редактор видео ----------------------------------------------------------------------
+
+    def _open_video_editor(self, path: Path) -> None:
+        ffmpeg, ffprobe = find_ffmpeg(), find_ffprobe()
+        if ffmpeg is None or ffprobe is None:
+            self.statusBar().showMessage(
+                self.tr(
+                    "Для редактора видео нужны ffmpeg и ffprobe (рядом с программой или в PATH)"
+                ),
+                8000,
+            )
+            return
+        self.statusBar().showMessage(self.tr("Анализ видео…"))
+        self._tasks.run(
+            lambda: probe(path, ffprobe),
+            lambda info: self._show_video_editor(path, info, ffmpeg, ffprobe),
+            lambda error: self.statusBar().showMessage(
+                self.tr("Не удалось прочитать видео: ") + error, 8000
+            ),
+        )
+
+    def _show_video_editor(self, path: Path, info: MediaInfo, ffmpeg: Path, ffprobe: Path) -> None:
+        if self.video_page is None or self._video_path != path or self.video_editor is not None:
+            return
+        self._save_resume()
+        session = VideoSession(VideoProject((Clip(path, info),)), self)
+        self._stack.removeWidget(self.video_page)
+        editor = VideoEditorPage(session, self.video_page, ffmpeg, ffprobe)
+        editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
+        editor.exitRequested.connect(self._leave_video_editor)
+        self.video_editor = editor
+        self._stack.addWidget(editor)
+        self._stack.setCurrentWidget(editor)
+        self.setWindowTitle(f"{path.name} — {self.tr('редактор')} — CHOPCHOP")
+        self.statusBar().clearMessage()
+
+    def _leave_video_editor(self) -> None:
+        editor = self.video_editor
+        if editor is None:
+            return
+        editor.shutdown()
+        page = editor.release_video_page()
+        page.player.set_loop(None, None)
+        self.video_editor = None
+        self._stack.removeWidget(editor)
+        editor.deleteLater()
+        self._stack.addWidget(page)
+        self._stack.setCurrentWidget(page)
+        if editor.loaded_path is not None:
+            self._video_path = self.current_path = editor.loaded_path
+        self._update_title()
+        self.statusBar().showMessage(self.tr("Просмотр"), 3000)
+
+    def _leave_editors(self) -> bool:
+        """Закрывает редакторы перед открытием другого файла; False — пользователь отказался."""
+        if self.video_editor is not None:
+            if self.video_editor.session.modified and not self._confirm_discard():
+                return False
+            self._leave_video_editor()
+        if self.editor is not None:
+            if self.editor.session.modified and not self._confirm_discard():
+                return False
+            self._leave_editor()
+        return True
+
+    def _confirm_discard(self) -> bool:
+        answer = QMessageBox.question(
+            self, self.tr("Несохранённые правки"), self.tr("Закрыть редактор без сохранения?")
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
+    # --- окно --------------------------------------------------------------------------------
+
+    def toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.exit_fullscreen()
+        elif self._stack.currentWidget() in (self.viewer, self.video_page):
+            self.statusBar().hide()
+            self.menuBar().hide()
+            self.showFullScreen()
+
+    def exit_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+            self.statusBar().show()
+            self.menuBar().show()
+
+    def _update_title(self) -> None:
+        if self.current_path is None:
+            return
+        position = ""
+        if self._nav is not None:
+            position = f" ({self._nav.index + 1}/{len(self._nav.files)})"
+        self.setWindowTitle(f"{self.current_path.name}{position} — CHOPCHOP")
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+        pending = (self.editor and self.editor.session.modified) or (
+            self.video_editor and self.video_editor.session.modified
+        )
+        if pending:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Несохранённые правки"),
+                self.tr("Закрыть редактор без сохранения?"),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        if self._session is not None:
+            self._session.wait()
+        if self.video_editor is not None:
+            self.video_editor.shutdown()
+        self._tasks.wait()
+        self._save_resume()
+        self._cache.wait()
+        if self.video_page is not None:
+            self.video_page.release()
+        super().closeEvent(event)

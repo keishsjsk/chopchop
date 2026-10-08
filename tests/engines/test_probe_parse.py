@@ -1,7 +1,7 @@
 import pytest
 
-from quickedit.engines.ffmpeg import parse_progress_line
-from quickedit.engines.probe import ProbeError, parse_probe
+from chopchop.engines.ffmpeg import parse_progress_line
+from chopchop.engines.probe import ProbeError, parse_probe
 
 VIDEO = {
     "codec_type": "video",

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from quickedit.viewer.image_loader import load_image
+from chopchop.viewer.image_loader import load_image
 
 
 def test_loads_png(tmp_path: Path) -> None:

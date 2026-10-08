@@ -3,9 +3,9 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QImage
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.geometry import Rect
-from quickedit.ui.canvas import Canvas
-from quickedit.ui.tools.crop_tool import CropTool
+from chopchop.core.geometry import Rect
+from chopchop.ui.canvas import Canvas
+from chopchop.ui.tools.crop_tool import CropTool
 
 
 def _canvas(qtbot: QtBot) -> Canvas:

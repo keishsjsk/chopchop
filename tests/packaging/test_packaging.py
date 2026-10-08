@@ -12,8 +12,8 @@ from types import ModuleType
 
 import pytest
 
-from quickedit import __version__
-from quickedit.core.document import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from chopchop import __version__
+from chopchop.core.document import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGING = ROOT / "packaging"
@@ -57,8 +57,8 @@ def test_every_supported_extension_has_a_mime_type() -> None:
 
 def test_desktop_file_lists_formats_and_command() -> None:
     text = generate.desktop_file()
-    assert "Exec=quickedit %F" in text
-    assert "Icon=quickedit" in text
+    assert "Exec=chopchop %F" in text
+    assert "Icon=chopchop" in text
     mime_line = next(line for line in text.splitlines() if line.startswith("MimeType="))
     assert mime_line.endswith(";")
     assert {"image/jpeg", "image/heic", "video/mp4", "video/x-matroska"} <= set(
@@ -69,18 +69,18 @@ def test_desktop_file_lists_formats_and_command() -> None:
 def test_inno_registry_registers_each_extension_once() -> None:
     text = generate.inno_registry()
     for extension in ALL_EXTENSIONS:
-        progid = "QuickEdit.Image" if extension in IMAGE_EXTENSIONS else "QuickEdit.Video"
+        progid = "CHOPCHOP.Image" if extension in IMAGE_EXTENSIONS else "CHOPCHOP.Video"
         opens = f'Subkey: "Software\\Classes\\{extension}\\OpenWithProgids"; '
         assert text.count(opens) == 1
         assert f'ValueName: "{progid}"' in text.split(opens)[1].splitlines()[0]
         assert f'FileAssociations"; ValueType: string; ValueName: "{extension}"' in text
-    assert '"""{app}\\QuickEdit.exe"" ""%1"""' in text  # путь с пробелами и аргумент в кавычках
+    assert '"""{app}\\CHOPCHOP.exe"" ""%1"""' in text  # путь с пробелами и аргумент в кавычках
     assert "RegisteredApplications" in text
-    assert text.count("QuickEdit.Image\\shell\\open\\command") == 1
+    assert text.count("CHOPCHOP.Image\\shell\\open\\command") == 1
 
 
 def test_installer_script_is_per_user_and_registers_associations() -> None:
-    script = (PACKAGING / "quickedit.iss").read_bytes().decode("utf-8-sig")
+    script = (PACKAGING / "chopchop.iss").read_bytes().decode("utf-8-sig")
     assert "PrivilegesRequired=lowest" in script
     assert "ChangesAssociations=yes" in script
     assert '#include "file_associations.iss"' in script

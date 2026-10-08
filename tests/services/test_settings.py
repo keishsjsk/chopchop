@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings
 
-from quickedit.services.settings import (
+from chopchop.services.settings import (
     MAX_RECENT,
     PlayerPrefs,
     RecentFiles,

@@ -20,10 +20,10 @@ from PySide6.QtWidgets import QApplication
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from quickedit.core.operations import Text  # noqa: E402
-from quickedit.engines.ffmpeg import find_ffmpeg  # noqa: E402
-from quickedit.engines.fonts import find_font  # noqa: E402
-from quickedit.ui.main_window import MainWindow  # noqa: E402
+from chopchop.core.operations import Text  # noqa: E402
+from chopchop.engines.ffmpeg import find_ffmpeg  # noqa: E402
+from chopchop.engines.fonts import find_font  # noqa: E402
+from chopchop.ui.main_window import MainWindow  # noqa: E402
 
 WINDOW = (1000, 640)
 GIF_WIDTH = 760
@@ -110,7 +110,7 @@ def drag(window: MainWindow, start: tuple[float, float], end: tuple[float, float
 
 
 def main() -> None:
-    work = Path(tempfile.mkdtemp(prefix="quickedit-demo-"))
+    work = Path(tempfile.mkdtemp(prefix="chopchop-demo-"))
     photo, video = work / "sunset.jpg", work / "trip.mp4"
     make_photo(photo)
     make_video(video)

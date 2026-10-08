@@ -5,8 +5,8 @@ from typing import Any, cast
 
 from PySide6.QtWidgets import QWidget
 
-from quickedit.player.player import Player
-from quickedit.ui.video_page import VideoPage
+from chopchop.player.player import Player
+from chopchop.ui.video_page import VideoPage
 
 
 class FakeMpv:

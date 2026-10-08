@@ -3,11 +3,11 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.document import AudioInfo, MediaInfo
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Adjust, Redact, Text
-from quickedit.core.video import Clip, VideoProject
-from quickedit.editor.video_session import VideoSession
+from chopchop.core.document import AudioInfo, MediaInfo
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Adjust, Redact, Text
+from chopchop.core.video import Clip, VideoProject
+from chopchop.editor.video_session import VideoSession
 
 INFO = MediaInfo(640, 360, 60.0, 25.0, "h264", "yuv420p", 0, AudioInfo("aac", 44100, 2))
 

@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           pip install -e .
-          python -c "import quickedit, sys; sys.exit(0 if 'v' + quickedit.__version__ == '${{ github.ref_name }}' else 'тег не совпадает с версией ' + quickedit.__version__)"
+          python -c "import chopchop, sys; tag = '${{ github.ref_name }}'; sys.exit(0 if tag == 'v' + chopchop.__version__ or tag.startswith('v' + chopchop.__version__ + '-') else 'тег ' + tag + ' не соответствует версии ' + chopchop.__version__)"
       - name: Зависимости сборки
         run: pip install -e ".[build]"
       - name: Inno Setup
@@ -96,5 +96,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" artifacts/* \
-            --title "QuickEdit ${{ github.ref_name }}" --notes-file notes.md
+          # тег с дефисом (v0.1.0-beta.1, v0.2.0-rc.1) — пре-релиз
+          flags=""
+          case "${{ github.ref_name }}" in *-*) flags="--prerelease" ;; esac
+          gh release create "${{ github.ref_name }}" artifacts/* $flags \
+            --title "CHOPCHOP ${{ github.ref_name }}" --notes-file notes.md

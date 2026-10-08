@@ -2,14 +2,14 @@ import os
 import time
 from pathlib import Path
 
-from quickedit.services.output import unique_path
-from quickedit.services.temp_files import cleanup_stale, new_workspace, remove_workspace
+from chopchop.services.output import unique_path
+from chopchop.services.temp_files import cleanup_stale, new_workspace, remove_workspace
 
 
 def test_workspace_lifecycle(tmp_path: Path) -> None:
     workspace = new_workspace(tmp_path)
     assert workspace.is_dir()
-    assert workspace.name.startswith("quickedit-")
+    assert workspace.name.startswith("chopchop-")
     (workspace / "x.tmp").write_text("x")
     remove_workspace(workspace)
     assert not workspace.exists()

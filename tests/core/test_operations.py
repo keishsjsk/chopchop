@@ -1,8 +1,8 @@
 import pytest
 
-from quickedit.core.geometry import Rect
-from quickedit.core.history import History
-from quickedit.core.operations import (
+from chopchop.core.geometry import Rect
+from chopchop.core.history import History
+from chopchop.core.operations import (
     Adjust,
     Annotate,
     Crop,

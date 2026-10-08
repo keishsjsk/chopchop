@@ -3,7 +3,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
-from quickedit.ui.trim_bar import TrimBar, format_precise
+from chopchop.ui.trim_bar import TrimBar, format_precise
 
 
 def _bar(qtbot: QtBot) -> TrimBar:

@@ -23,7 +23,8 @@ def main() -> int:
     if len(sys.argv) != 2:
         print("usage: release_notes.py <версия>", file=sys.stderr)
         return 2
-    notes = notes_for(sys.argv[1].lstrip("v"), CHANGELOG.read_text(encoding="utf-8"))
+    version = sys.argv[1].lstrip("v").split("-")[0]  # v0.1.0-beta.1 → 0.1.0
+    notes = notes_for(version, CHANGELOG.read_text(encoding="utf-8"))
     if not notes:
         print(f"в CHANGELOG.md нет раздела для версии {sys.argv[1]}", file=sys.stderr)
         return 1

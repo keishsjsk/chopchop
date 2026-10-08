@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import (
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import (
     Adjust,
     Annotate,
     Crop,
@@ -18,7 +18,7 @@ from quickedit.core.operations import (
     Text,
     output_size,
 )
-from quickedit.engines.image_engine import (
+from chopchop.engines.image_engine import (
     apply_operation,
     apply_operations,
     default_output_path,
@@ -287,7 +287,7 @@ def test_stroke_keeps_alpha_images_rgba() -> None:
 
 
 def test_stroke_is_scaled_with_the_preview() -> None:
-    from quickedit.core.operations import scale_operation
+    from chopchop.core.operations import scale_operation
 
     scaled = scale_operation(Stroke(((10, 20), (30, 40)), (1, 2, 3), 4.0, 0.5), 2.0)
     assert scaled == Stroke(((20, 40), (60, 80)), (1, 2, 3), 8.0, 0.5)

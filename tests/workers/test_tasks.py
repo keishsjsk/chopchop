@@ -1,6 +1,6 @@
 from pytestqt.qtbot import QtBot
 
-from quickedit.workers.tasks import TaskRunner
+from chopchop.workers.tasks import TaskRunner
 
 
 def test_result_is_delivered_in_ui_thread(qtbot: QtBot) -> None:

@@ -3,10 +3,10 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
+from chopchop.player.player import Player
+from chopchop.player.resume import ResumeState
+from chopchop.services.settings import PlayerPrefs
 from fakes import FakeEndFileEvent, FakeMpv, FakeOldMpv
-from quickedit.player.player import Player
-from quickedit.player.resume import ResumeState
-from quickedit.services.settings import PlayerPrefs
 
 TRACKS = [
     {"id": 1, "type": "audio", "lang": "eng"},

@@ -5,15 +5,15 @@ from PIL import Image
 from PySide6.QtWidgets import QMessageBox
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Adjust, Crop, Flip, Redact, Rotate, Text
-from quickedit.editor.session import EditSession
-from quickedit.ui.editor_page import EditorPage
-from quickedit.ui.tools.adjust_tool import AdjustTool
-from quickedit.ui.tools.crop_tool import CropTool
-from quickedit.ui.tools.draw_tool import DrawTool
-from quickedit.ui.tools.redact_tool import RedactTool
-from quickedit.ui.tools.text_tool import TextTool
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Adjust, Crop, Flip, Redact, Rotate, Text
+from chopchop.editor.session import EditSession
+from chopchop.ui.editor_page import EditorPage
+from chopchop.ui.tools.adjust_tool import AdjustTool
+from chopchop.ui.tools.crop_tool import CropTool
+from chopchop.ui.tools.draw_tool import DrawTool
+from chopchop.ui.tools.redact_tool import RedactTool
+from chopchop.ui.tools.text_tool import TextTool
 
 
 def _page(qtbot: QtBot, tmp_path: Path, size: tuple[int, int] = (200, 100)) -> EditorPage:
@@ -280,7 +280,7 @@ def test_crop_ratio_16_9_then_swap(qtbot: QtBot, tmp_path: Path) -> None:
 
 
 def test_brush_draws_with_the_mouse_and_applies_on_release(qtbot: QtBot, tmp_path: Path) -> None:
-    from quickedit.core.operations import Stroke
+    from chopchop.core.operations import Stroke
 
     page = _page(qtbot, tmp_path)
     page.select_tool("draw")
@@ -303,7 +303,7 @@ def test_brush_draws_with_the_mouse_and_applies_on_release(qtbot: QtBot, tmp_pat
 
 
 def test_marker_option_is_translucent(qtbot: QtBot, tmp_path: Path) -> None:
-    from quickedit.core.operations import Stroke
+    from chopchop.core.operations import Stroke
 
     page = _page(qtbot, tmp_path)
     page.select_tool("draw")

@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.core.document import AudioInfo, MediaInfo
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Adjust, Redact, Text
-from quickedit.core.video import AudioSettings, Clip, VideoEffects, VideoProject
-from quickedit.engines.video_engine import ExportPlan, build_plan
+from chopchop.core.document import AudioInfo, MediaInfo
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Adjust, Redact, Text
+from chopchop.core.video import AudioSettings, Clip, VideoEffects, VideoProject
+from chopchop.engines.video_engine import ExportPlan, build_plan
 
 FFMPEG = Path("/opt/ffmpeg")
 AUDIO = AudioInfo("aac", 44100, 2)

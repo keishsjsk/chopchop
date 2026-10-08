@@ -7,14 +7,14 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageChops, ImageStat
 
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Adjust, Redact, Text
+from chopchop.core.video import AudioSettings, Clip, VideoEffects, VideoProject
+from chopchop.engines.ffmpeg import run_steps
+from chopchop.engines.fonts import find_font_path
+from chopchop.engines.probe import probe
+from chopchop.engines.video_engine import build_plan
 from media import FFMPEG, HAS_FFMPEG, make_video
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Adjust, Redact, Text
-from quickedit.core.video import AudioSettings, Clip, VideoEffects, VideoProject
-from quickedit.engines.ffmpeg import run_steps
-from quickedit.engines.fonts import find_font_path
-from quickedit.engines.probe import probe
-from quickedit.engines.video_engine import build_plan
 
 pytestmark = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
 

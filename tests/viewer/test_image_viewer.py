@@ -2,7 +2,7 @@ import pytest
 from PySide6.QtGui import QColor, QImage
 from pytestqt.qtbot import QtBot
 
-from quickedit.viewer.image_viewer import ImageViewer
+from chopchop.viewer.image_viewer import ImageViewer
 
 
 def _viewer(qtbot: QtBot, width: int, height: int) -> ImageViewer:

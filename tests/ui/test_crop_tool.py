@@ -1,10 +1,10 @@
 import pytest
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Crop
-from quickedit.ui.crop_ratio import CropRatioBar
-from quickedit.ui.tools.crop_tool import CropTool
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Crop
+from chopchop.ui.crop_ratio import CropRatioBar
+from chopchop.ui.tools.crop_tool import CropTool
 
 
 def _tool(width: float = 400, height: float = 300) -> CropTool:

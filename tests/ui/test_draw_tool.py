@@ -1,8 +1,8 @@
 import pytest
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.operations import Annotate, Stroke
-from quickedit.ui.tools.draw_tool import DrawTool
+from chopchop.core.operations import Annotate, Stroke
+from chopchop.ui.tools.draw_tool import DrawTool
 
 
 def _tool(shape: str = "pen") -> DrawTool:

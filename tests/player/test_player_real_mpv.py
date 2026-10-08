@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
-from quickedit.player.libmpv import find_libmpv, load_mpv_module
-from quickedit.player.player import Player
-from quickedit.player.resume import ResumeState
+from chopchop.player.libmpv import find_libmpv, load_mpv_module
+from chopchop.player.player import Player
+from chopchop.player.resume import ResumeState
 
 pytestmark = pytest.mark.skipif(find_libmpv() is None, reason="libmpv не установлена")
 

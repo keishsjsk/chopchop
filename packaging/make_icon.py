@@ -51,8 +51,8 @@ def draw_icon() -> Image.Image:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     icon = draw_icon()
-    icon.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "quickedit.png", optimize=True)
-    icon.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "quickedit.ico", sizes=ICO_SIZES)
+    icon.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "chopchop.png", optimize=True)
+    icon.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "chopchop.ico", sizes=ICO_SIZES)
     print("saved", OUT)
 
 

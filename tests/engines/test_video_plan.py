@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.core.document import AudioInfo, MediaInfo
-from quickedit.core.video import AudioSettings, Clip, VideoProject
-from quickedit.engines.video_engine import (
+from chopchop.core.document import AudioInfo, MediaInfo
+from chopchop.core.video import AudioSettings, Clip, VideoProject
+from chopchop.engines.video_engine import (
     ExportPlanError,
     build_plan,
     concat_list,

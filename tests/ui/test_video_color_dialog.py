@@ -1,8 +1,8 @@
 import pytest
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.operations import Adjust
-from quickedit.ui.video_color_dialog import (
+from chopchop.core.operations import Adjust
+from chopchop.ui.video_color_dialog import (
     VideoColorDialog,
     adjust_to_slider,
     slider_to_adjust,

@@ -4,7 +4,8 @@
 Открыл файл, посмотрел, при необходимости поправил и сохранил. Офлайн, бесплатно, без водяных знаков,
 регистрации и телеметрии; исходный файл никогда не меняется. Windows и Linux.
 
-В интерфейсе, установщике и именах файлов программа называется **QuickEdit**.
+> **Бета-версия.** Всё основное работает и проверено автотестами, но программа ещё молодая:
+> возможны ошибки, а формат настроек может измениться. Нашли проблему — напишите в Issues.
 
 ![Демо: просмотр, редактор фото и видеоредактор](docs/demo.gif)
 
@@ -25,14 +26,14 @@
 
 | Система | Файл | Как пользоваться |
 | --- | --- | --- |
-| Windows 10/11 | `QuickEdit-<версия>-setup.exe` | Установщик без прав администратора. Программа появится в «Открыть с помощью» для фото и видео. |
-| Windows | `QuickEdit-<версия>-win64-portable.zip` | Распаковать и запустить `QuickEdit.exe`, ничего не устанавливается. |
-| Linux x86_64 | `QuickEdit-<версия>-x86_64.AppImage` | `chmod +x QuickEdit-*.AppImage && ./QuickEdit-*.AppImage`. Нужен glibc не старше сборочного (Ubuntu 24.04 и новее). |
+| Windows 10/11 | `CHOPCHOP-<версия>-setup.exe` | Установщик без прав администратора. Программа появится в «Открыть с помощью» для фото и видео. |
+| Windows | `CHOPCHOP-<версия>-win64-portable.zip` | Распаковать и запустить `CHOPCHOP.exe`, ничего не устанавливается. |
+| Linux x86_64 | `CHOPCHOP-<версия>-x86_64.AppImage` | `chmod +x CHOPCHOP-*.AppImage && ./CHOPCHOP-*.AppImage`. Нужен glibc не старше сборочного (Ubuntu 24.04 и новее). |
 
 ffmpeg и libmpv уже внутри сборок. Контрольные суммы — в файле `SHA256SUMS.txt` релиза.
 Windows может показать предупреждение SmartScreen: сборки пока не подписаны сертификатом.
 
-Запуск из командной строки: `QuickEdit.exe путь\к\файлу`, версия — `--version`.
+Запуск из командной строки: `CHOPCHOP.exe путь\к\файлу`, версия — `--version`.
 
 ## Клавиши плеера
 
@@ -86,7 +87,7 @@ Ctrl+E на видео открывает редактор, Esc или «К пр
 python -m venv .venv
 .venv/Scripts/activate        # Linux: source .venv/bin/activate
 pip install -e ".[dev]"
-python -m quickedit [путь к файлу]
+python -m chopchop [путь к файлу]
 ```
 
 Проверки:
@@ -95,7 +96,7 @@ python -m quickedit [путь к файлу]
 ruff check . && ruff format --check .
 mypy
 pytest
-python -m quickedit --self-check      # всё ли нужное найдено: Qt, Pillow, ffmpeg, libmpv
+python -m chopchop --self-check      # всё ли нужное найдено: Qt, Pillow, ffmpeg, libmpv
 ```
 
 При разработке программа ищет `ffmpeg`, `ffprobe` и `libmpv` сначала в `resources/bin`, затем в системе (PATH):

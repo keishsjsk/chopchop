@@ -1,7 +1,7 @@
 import pytest
 
-from quickedit.core.geometry import Rect
-from quickedit.core.selection import RectSelection
+from chopchop.core.geometry import Rect
+from chopchop.core.selection import RectSelection
 
 
 def _drag(sel: RectSelection, start: tuple[float, float], end: tuple[float, float]) -> None:

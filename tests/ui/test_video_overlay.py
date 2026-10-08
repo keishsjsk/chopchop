@@ -4,9 +4,9 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.geometry import Rect
-from quickedit.ui.tools.crop_tool import CropTool
-from quickedit.ui.video_overlay import VideoOverlay
+from chopchop.core.geometry import Rect
+from chopchop.ui.tools.crop_tool import CropTool
+from chopchop.ui.video_overlay import VideoOverlay
 
 
 def _overlay(qtbot: QtBot, frame: tuple[int, int] = (640, 360)) -> tuple[VideoOverlay, QWidget]:

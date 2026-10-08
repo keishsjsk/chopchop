@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.core.document import AudioInfo, MediaInfo
-from quickedit.core.video import (
+from chopchop.core.document import AudioInfo, MediaInfo
+from chopchop.core.video import (
     AudioSettings,
     Clip,
     ProjectHistory,

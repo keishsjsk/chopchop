@@ -5,10 +5,10 @@ import pytest
 from PIL import Image
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Crop, Flip, Redact, Rotate
-from quickedit.editor.session import EditSession
-from quickedit.engines.image_engine import apply_operations
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Crop, Flip, Redact, Rotate
+from chopchop.editor.session import EditSession
+from chopchop.engines.image_engine import apply_operations
 
 
 def _photo(path: Path, size: tuple[int, int] = (200, 100)) -> Path:

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.core.document import MediaKind, detect_kind
+from chopchop.core.document import MediaKind, detect_kind
 
 
 @pytest.mark.parametrize(

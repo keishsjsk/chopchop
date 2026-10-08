@@ -7,12 +7,12 @@ from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication, QMessageBox
 from pytestqt.qtbot import QtBot
 
+from chopchop.core.operations import Flip
+from chopchop.player.libmpv import MpvUnavailableError
+from chopchop.ui.main_window import MainWindow
+from chopchop.ui.video_editor_page import VideoEditorPage
 from fakes import FakeVideoPage
 from media import HAS_FFMPEG, make_video
-from quickedit.core.operations import Flip
-from quickedit.player.libmpv import MpvUnavailableError
-from quickedit.ui.main_window import MainWindow
-from quickedit.ui.video_editor_page import VideoEditorPage
 
 
 def _window(qtbot: QtBot, tmp_path: Path) -> MainWindow:
@@ -97,7 +97,7 @@ def test_video_without_libmpv_shows_warning(
         raise MpvUnavailableError("no libmpv")
 
     warnings: list[str] = []
-    monkeypatch.setattr("quickedit.ui.main_window.load_mpv_module", unavailable)
+    monkeypatch.setattr("chopchop.ui.main_window.load_mpv_module", unavailable)
     monkeypatch.setattr(
         QMessageBox, "warning", lambda _parent, title, _text: warnings.append(title)
     )
@@ -244,7 +244,7 @@ def test_video_editor_needs_ffmpeg(
     qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     window, _fake, _source = _window_with_fake_player(qtbot, tmp_path)
-    monkeypatch.setattr("quickedit.ui.main_window.find_ffmpeg", lambda: None)
+    monkeypatch.setattr("chopchop.ui.main_window.find_ffmpeg", lambda: None)
     window.toggle_editor()
     assert "ffmpeg" in window.statusBar().currentMessage()
     assert window.video_editor is None

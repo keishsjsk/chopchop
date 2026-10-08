@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings
 
-from quickedit.player.resume import MAX_ENTRIES, ResumeState, ResumeStore
+from chopchop.player.resume import MAX_ENTRIES, ResumeState, ResumeStore
 
 
 def _store(tmp_path: Path) -> ResumeStore:

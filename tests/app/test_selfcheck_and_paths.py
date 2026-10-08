@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from quickedit import __version__, selfcheck
-from quickedit.__main__ import main
-from quickedit.services import paths
+from chopchop import __version__, selfcheck
+from chopchop.__main__ import main
+from chopchop.services import paths
 
 
 def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--version"]) == 0
-    assert capsys.readouterr().out.strip() == f"QuickEdit {__version__}"
+    assert capsys.readouterr().out.strip() == f"CHOPCHOP {__version__}"
 
 
 def test_self_check_report_has_all_checks(tmp_path: Path) -> None:
@@ -49,13 +49,13 @@ def test_development_paths_point_to_resources() -> None:
     assert not paths.is_frozen()
     assert paths.bundled_dirs()[0].parts[-2:] == ("resources", "bin")
     assert paths.resource_dir().name == "resources"
-    assert (paths.resource_dir() / "icons" / "quickedit.png").is_file()
+    assert (paths.resource_dir() / "icons" / "chopchop.png").is_file()
 
 
 def test_frozen_layout_searches_next_to_exe_and_in_internal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    exe = tmp_path / "QuickEdit.exe"
+    exe = tmp_path / "CHOPCHOP.exe"
     internal = tmp_path / "_internal"
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(exe))
@@ -68,13 +68,13 @@ def test_frozen_layout_searches_next_to_exe_and_in_internal(
 def test_ffmpeg_is_found_in_the_frozen_internal_bin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from quickedit.engines.ffmpeg import find_ffmpeg
+    from chopchop.engines.ffmpeg import find_ffmpeg
 
     internal = tmp_path / "_internal"
     (internal / "bin").mkdir(parents=True)
     name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
     (internal / "bin" / name).write_bytes(b"")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", str(tmp_path / "QuickEdit.exe"))
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "CHOPCHOP.exe"))
     monkeypatch.setattr(sys, "_MEIPASS", str(internal), raising=False)
     assert find_ffmpeg() == internal / "bin" / name

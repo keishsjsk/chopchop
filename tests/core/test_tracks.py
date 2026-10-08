@@ -1,4 +1,4 @@
-from quickedit.core.tracks import Track, next_track_id, of_kind, parse_tracks
+from chopchop.core.tracks import Track, next_track_id, of_kind, parse_tracks
 
 RAW = [
     {"id": 1, "type": "video"},

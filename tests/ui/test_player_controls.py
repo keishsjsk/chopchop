@@ -4,9 +4,9 @@ from PySide6.QtGui import QAction
 from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
+from chopchop.player.player import Player
+from chopchop.ui.player_controls import PlayerControls, format_time
 from fakes import FakeMpv
-from quickedit.player.player import Player
-from quickedit.ui.player_controls import PlayerControls, format_time
 
 TRACKS = [
     {"id": 1, "type": "audio", "lang": "eng"},

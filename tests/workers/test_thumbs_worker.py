@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
+from chopchop.workers.thumbs_worker import ThumbnailLoader, extract_thumbnail
 from media import FFMPEG, HAS_FFMPEG, make_video
-from quickedit.workers.thumbs_worker import ThumbnailLoader, extract_thumbnail
 
 pytestmark = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
 

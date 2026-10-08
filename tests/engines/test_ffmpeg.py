@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.engines.ffmpeg import find_binary, find_ffmpeg
+from chopchop.engines.ffmpeg import find_binary, find_ffmpeg
 
 
 def _exe(name: str) -> str:

@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image
 from pytestqt.qtbot import QtBot
 
-from quickedit.viewer.prefetch import ImageCache
+from chopchop.viewer.prefetch import ImageCache
 
 
 def _png(path: Path) -> Path:

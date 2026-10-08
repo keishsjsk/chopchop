@@ -4,16 +4,16 @@ import pytest
 from PySide6.QtWidgets import QPushButton, QWidget
 from pytestqt.qtbot import QtBot
 
-from quickedit.core.document import AudioInfo, MediaInfo
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Redact, Text
-from quickedit.core.video import Clip, VideoProject
-from quickedit.editor.video_session import VideoSession
-from quickedit.ui.tools.crop_tool import CropTool
-from quickedit.ui.tools.redact_tool import RedactTool
-from quickedit.ui.tools.text_tool import TextTool
-from quickedit.ui.video_effects_panel import VideoEffectsPanel
-from quickedit.ui.video_overlay import VideoOverlay
+from chopchop.core.document import AudioInfo, MediaInfo
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Redact, Text
+from chopchop.core.video import Clip, VideoProject
+from chopchop.editor.video_session import VideoSession
+from chopchop.ui.tools.crop_tool import CropTool
+from chopchop.ui.tools.redact_tool import RedactTool
+from chopchop.ui.tools.text_tool import TextTool
+from chopchop.ui.video_effects_panel import VideoEffectsPanel
+from chopchop.ui.video_overlay import VideoOverlay
 
 INFO = MediaInfo(640, 360, 30.0, 25.0, "h264", "yuv420p", 0, AudioInfo("aac", 44100, 2))
 

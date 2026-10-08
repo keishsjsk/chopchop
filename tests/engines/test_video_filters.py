@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Adjust, Redact, Text
-from quickedit.core.video import VideoEffects
-from quickedit.engines.video_filters import (
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Adjust, Redact, Text
+from chopchop.core.video import VideoEffects
+from chopchop.engines.video_filters import (
     adjust_filter,
     build_effects_graph,
     hex_color,

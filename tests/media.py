@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from quickedit.engines.ffmpeg import find_ffmpeg, find_ffprobe
+from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
 
 FFMPEG = find_ffmpeg()
 FFPROBE = find_ffprobe()
@@ -26,7 +26,7 @@ def _store(key: tuple[object, ...], path: Path) -> None:
     """Запоминает готовый ролик: генерация через ffmpeg — самая долгая часть тестов."""
     global _cache_dir
     if _cache_dir is None:
-        _cache_dir = Path(tempfile.mkdtemp(prefix="quickedit-test-media-"))
+        _cache_dir = Path(tempfile.mkdtemp(prefix="chopchop-test-media-"))
         atexit.register(shutil.rmtree, _cache_dir, ignore_errors=True)
     stored = _cache_dir / f"{len(_cache)}{path.suffix}"
     shutil.copyfile(path, stored)

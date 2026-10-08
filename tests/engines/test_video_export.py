@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from chopchop.core.video import AudioSettings, Clip, VideoProject
+from chopchop.engines.ffmpeg import ExportCancelled, FfmpegError, FfmpegStep, run_steps
+from chopchop.engines.probe import ProbeError, probe
+from chopchop.engines.video_engine import build_plan
 from media import FFMPEG, HAS_FFMPEG, make_video, make_wav, mean_volume, run
-from quickedit.core.video import AudioSettings, Clip, VideoProject
-from quickedit.engines.ffmpeg import ExportCancelled, FfmpegError, FfmpegStep, run_steps
-from quickedit.engines.probe import ProbeError, probe
-from quickedit.engines.video_engine import build_plan
 
 pytestmark = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
 

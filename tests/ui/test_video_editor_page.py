@@ -6,15 +6,15 @@ import pytest
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 from pytestqt.qtbot import QtBot
 
+from chopchop.core.geometry import Rect
+from chopchop.core.operations import Text
+from chopchop.core.video import Clip, VideoProject
+from chopchop.editor.video_session import VideoSession
+from chopchop.engines.probe import probe
+from chopchop.ui.video_editor_page import VideoEditorPage
+from chopchop.ui.video_export_dialog import VideoExportDialog
 from fakes import FakeVideoPage
 from media import FFMPEG, FFPROBE, HAS_FFMPEG, make_video
-from quickedit.core.geometry import Rect
-from quickedit.core.operations import Text
-from quickedit.core.video import Clip, VideoProject
-from quickedit.editor.video_session import VideoSession
-from quickedit.engines.probe import probe
-from quickedit.ui.video_editor_page import VideoEditorPage
-from quickedit.ui.video_export_dialog import VideoExportDialog
 
 pytestmark = [
     pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен"),
@@ -265,8 +265,8 @@ def test_unchanged_effects_do_not_reapply_the_filter(qtbot: QtBot, tmp_path: Pat
 def test_color_dialog_preview_and_cancel(
     qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from quickedit.core.operations import Adjust
-    from quickedit.ui.video_color_dialog import VideoColorDialog
+    from chopchop.core.operations import Adjust
+    from chopchop.ui.video_color_dialog import VideoColorDialog
 
     page, fake = _page(qtbot, tmp_path)
 
@@ -332,8 +332,8 @@ def test_export_with_effects_uses_reencoding_and_precise_option(
 
 
 def test_export_dialog_explains_the_mode(qtbot: QtBot, tmp_path: Path) -> None:
-    from quickedit.core.operations import Adjust
-    from quickedit.core.video import VideoEffects
+    from chopchop.core.operations import Adjust
+    from chopchop.core.video import VideoEffects
 
     source = make_video(tmp_path / "a.mp4", seconds=3)
     clip = Clip(source, probe(source)).with_trim(1, 2)

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from quickedit.viewer.folder_nav import FolderNav, natural_key
+from chopchop.viewer.folder_nav import FolderNav, natural_key
 
 
 def _make(tmp_path: Path, names: list[str]) -> list[Path]:

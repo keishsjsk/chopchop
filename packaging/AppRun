@@ -2,4 +2,4 @@
 # Точка входа AppImage: запускает программу из каталога AppDir.
 HERE="$(dirname "$(readlink -f "$0")")"
 export PATH="$HERE/usr/bin:$PATH"
-exec "$HERE/usr/lib/quickedit/quickedit" "$@"
+exec "$HERE/usr/lib/chopchop/chopchop" "$@"
