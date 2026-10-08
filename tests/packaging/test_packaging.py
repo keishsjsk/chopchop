@@ -140,6 +140,30 @@ def test_tar_extraction_keeps_binaries_executable(tmp_path: Path) -> None:
         assert (out_bin / "ffmpeg").stat().st_mode & 0o111
 
 
+def test_tar_extraction_stores_shared_libraries_under_their_soname(tmp_path: Path) -> None:
+    """В архиве ffmpeg библиотека — файл с полной версией и ссылки; загрузчику нужно имя .so.62."""
+    archive = tmp_path / "libs.tar.xz"
+    with tarfile.open(archive, "w:xz") as bundle:
+        real = tarfile.TarInfo("build/lib/libavcodec.so.62.28.103")
+        real.size, real.mode = 4, 0o755
+        bundle.addfile(real, io.BytesIO(b"code"))
+        other = tarfile.TarInfo("build/lib/libplain.so")
+        other.size, other.mode = 5, 0o755
+        bundle.addfile(other, io.BytesIO(b"plain"))
+        for name, target in (
+            ("build/lib/libavcodec.so.62", "libavcodec.so.62.28.103"),
+            ("build/lib/libavcodec.so", "libavcodec.so.62"),
+            ("build/lib/evil.so.1", "../../etc/passwd"),
+        ):
+            link = tarfile.TarInfo(name)
+            link.type, link.linkname = tarfile.SYMTYPE, target
+            bundle.addfile(link)
+    out = tmp_path / "lib"
+    fetch.extract_tar(archive, "lib", out)
+    assert sorted(p.name for p in out.iterdir()) == ["libavcodec.so.62", "libplain.so"]
+    assert (out / "libavcodec.so.62").read_bytes() == b"code"  # одна копия, под нужным именем
+
+
 # --- заметки и версии релиза -----------------------------------------------------------------
 
 SAMPLE = """# Изменения

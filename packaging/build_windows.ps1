@@ -14,14 +14,20 @@ if (-not $Version) {
 }
 Write-Host "CHOPCHOP $Version"
 
-python packaging\generate.py
+function Invoke-Checked {
+    param([string]$Title, [scriptblock]$Command)
+    & $Command
+    if ($LASTEXITCODE -ne 0) { throw "${Title}: код выхода $LASTEXITCODE" }
+}
+
+Invoke-Checked "generate.py" { python packaging\generate.py }
 if (-not (Test-Path build\binaries\bin\ffmpeg.exe)) {
-    python packaging\fetch_binaries.py --platform windows --out build\binaries
+    Invoke-Checked "fetch_binaries.py" { python packaging\fetch_binaries.py --platform windows --out build\binaries }
 }
 $env:CHOPCHOP_BINARIES = (Resolve-Path build\binaries).Path
 
 Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
-python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\pyinstaller packaging\chopchop.spec
+Invoke-Checked "PyInstaller" { python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\pyinstaller packaging\chopchop.spec }
 
 Copy-Item LICENSE, THIRD_PARTY_NOTICES.md -Destination dist\CHOPCHOP
 
@@ -30,7 +36,7 @@ $report = Join-Path (Get-Location) "build\self-check.json"
 Remove-Item $report -ErrorAction SilentlyContinue
 # программа без консоли: Start-Process -Wait дожидается её и отдаёт код выхода
 $check = Start-Process -FilePath "dist\CHOPCHOP\CHOPCHOP.exe" -ArgumentList "--self-check", "`"$report`"" -Wait -PassThru
-if (Test-Path $report) { Get-Content $report }
+if (Test-Path $report) { Get-Content $report -Encoding UTF8 }
 if ($check.ExitCode -ne 0) { throw "самопроверка собранной программы не пройдена" }
 
 $portable = "dist\CHOPCHOP-$Version-win64-portable.zip"

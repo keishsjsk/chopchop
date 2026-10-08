@@ -13,6 +13,9 @@ from chopchop.core.document import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS  # noqa: E
 
 HERE = Path(__file__).resolve().parent
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")  # type: ignore[union-attr]
+
 MIME_TYPES = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",

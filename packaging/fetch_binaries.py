@@ -6,6 +6,7 @@
 
 import argparse
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
@@ -40,6 +41,11 @@ MPV_WINDOWS = Asset(
     "1e94b722d9d1b701406250c73ee37d73cd0045cdf47bdd7a54f2bea1b513465f",
 )
 CHUNK = 1 << 20
+SONAME = re.compile(r"\.so\.\d+$")  # libavcodec.so.62: имя, по которому библиотеку ищет загрузчик
+
+if hasattr(sys.stdout, "reconfigure"):
+    # на раннерах Windows кодировка вывода cp1252: русский текст не должен ронять скрипт
+    sys.stdout.reconfigure(errors="replace")  # type: ignore[union-attr]
 
 
 def sha256_of(path: Path) -> str:
@@ -81,22 +87,44 @@ def extract_zip(archive: Path, wanted_dir: str, dest: Path) -> None:
             (dest / path.name).write_bytes(bundle.read(info))
 
 
+def _library_names(real: str, aliases: dict[str, list[str]]) -> list[str]:
+    """Все имена файла через цепочку ссылок: libx.so.62.1.2 ← libx.so.62 ← libx.so."""
+    names, queue = [], [real]
+    while queue:
+        for link in aliases.get(queue.pop(), []):
+            names.append(link)
+            queue.append(link)
+    return names
+
+
 def extract_tar(archive: Path, wanted_dir: str, dest: Path) -> None:
+    """Файлы из <корень>/<wanted_dir>/ архива кладёт в dest, плоско.
+
+    Общие библиотеки в архиве — это файл с полной версией и ссылки на него. Загрузчик ищет
+    библиотеку по имени вида libx.so.62, поэтому файл сохраняется под этим именем (одна копия).
+    """
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive) as bundle:
+        members = []
         for member in bundle.getmembers():
             path = _safe_name(member.name)
-            if path is None or not member.isfile() or len(path.parts) < 3:
-                continue
-            if path.parts[1] != wanted_dir:
-                continue
-            target = dest / path.name
-            source = bundle.extractfile(member)
+            if path is not None and len(path.parts) >= 3 and path.parts[1] == wanted_dir:
+                members.append(member)
+        aliases: dict[str, list[str]] = {}
+        for member in members:
+            target = PurePosixPath(member.linkname)
+            if member.issym() and len(target.parts) == 1:  # только ссылки внутри той же папки
+                aliases.setdefault(target.name, []).append(PurePosixPath(member.name).name)
+        for member in members:
+            source = bundle.extractfile(member) if member.isfile() else None
             if source is None:
                 continue
-            with source, target.open("wb") as out:
+            name = PurePosixPath(member.name).name
+            name = next((n for n in _library_names(name, aliases) if SONAME.search(n)), name)
+            target_file = dest / name
+            with source, target_file.open("wb") as out:
                 shutil.copyfileobj(source, out)
-            target.chmod(member.mode & 0o755 | 0o444)
+            target_file.chmod(member.mode & 0o755 | 0o444)
 
 
 def extract_libmpv(archive: Path, dest: Path) -> None:
