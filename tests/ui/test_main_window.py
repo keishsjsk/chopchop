@@ -7,9 +7,12 @@ from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication, QMessageBox
 from pytestqt.qtbot import QtBot
 
+from fakes import FakeVideoPage
+from media import HAS_FFMPEG, make_video
 from quickedit.core.operations import Flip
 from quickedit.player.libmpv import MpvUnavailableError
 from quickedit.ui.main_window import MainWindow
+from quickedit.ui.video_editor_page import VideoEditorPage
 
 
 def _window(qtbot: QtBot, tmp_path: Path) -> MainWindow:
@@ -173,3 +176,75 @@ def test_paste_without_image_shows_message(qtbot: QtBot, tmp_path: Path) -> None
     window.paste_image()
     assert "буфере" in window.statusBar().currentMessage()
     assert window.editor is None
+
+
+def _window_with_fake_player(
+    qtbot: QtBot, tmp_path: Path
+) -> tuple[MainWindow, FakeVideoPage, Path]:
+    source = make_video(tmp_path / "movie.mp4", seconds=6)
+    window = _window(qtbot, tmp_path)
+    fake = FakeVideoPage()
+    window.video_page = fake.as_video_page()
+    window._stack.addWidget(fake)
+    window._stack.setCurrentWidget(fake)
+    window._video_path = window.current_path = source
+    return window, fake, source
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
+def test_video_editor_opens_edits_and_returns_player(
+    qtbot: QtBot, tmp_path: Path, no_thumbnails: None
+) -> None:
+    window, fake, source = _window_with_fake_player(qtbot, tmp_path)
+    window.toggle_editor()
+    qtbot.waitUntil(lambda: window.video_editor is not None, timeout=10000)
+    editor = window.video_editor
+    assert editor is not None
+    assert window._on_video_editor()
+    assert "редактор" in window.windowTitle()
+    assert fake.parent() is editor  # плеер переехал в редактор
+
+    fake.mpv.time_pos = 2.0
+    window._with_editor(lambda e: e.set_in() if isinstance(e, VideoEditorPage) else None)
+    assert editor.session.project.clips[0].start == 2.0
+    window._with_editor(lambda e: e.undo())
+    assert not editor.session.modified
+
+    window._on_video_page()  # клавиши плеера работают и внутри редактора
+    window._horizontal(1)
+    assert fake.mpv.seeks[-1][0] == 5
+
+    window._escape()  # правок нет: выход без вопросов
+    assert window.video_editor is None
+    assert window._stack.currentWidget() is fake
+    assert window.current_path == source
+    assert fake.mpv.ab_loop_a == "no"  # цикл предпросмотра снят
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
+def test_opening_file_asks_before_dropping_video_edits(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_thumbnails: None
+) -> None:
+    window, _fake, _source = _window_with_fake_player(qtbot, tmp_path)
+    window.toggle_editor()
+    qtbot.waitUntil(lambda: window.video_editor is not None, timeout=10000)
+    assert window.video_editor is not None
+    window.video_editor.session.set_volume(0.5)
+    photo = _png(tmp_path, "p.png", (20, 20))
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    window.open_file(photo)
+    assert window.video_editor is not None  # пользователь отказался, остаёмся в редакторе
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    window.open_file(photo)
+    assert window.video_editor is None
+    qtbot.waitUntil(window.viewer.has_image, timeout=5000)
+
+
+def test_video_editor_needs_ffmpeg(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window, _fake, _source = _window_with_fake_player(qtbot, tmp_path)
+    monkeypatch.setattr("quickedit.ui.main_window.find_ffmpeg", lambda: None)
+    window.toggle_editor()
+    assert "ffmpeg" in window.statusBar().currentMessage()
+    assert window.video_editor is None

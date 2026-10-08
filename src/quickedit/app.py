@@ -6,12 +6,14 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from quickedit.services.settings import default_settings
+from quickedit.services.temp_files import cleanup_stale
 from quickedit.ui.main_window import MainWindow
 
 
 def run(initial: Path | None = None) -> int:
     app = QApplication(sys.argv[:1])
     app.setApplicationName("QuickEdit")
+    cleanup_stale()
     window = MainWindow(default_settings())
     window.show()
     if initial is not None:

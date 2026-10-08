@@ -1,12 +1,18 @@
 """Подделка mpv для тестов без libmpv."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
+
+from PySide6.QtWidgets import QWidget
+
+from quickedit.player.player import Player
+from quickedit.ui.video_page import VideoPage
 
 
 class FakeMpv:
     def __init__(self) -> None:
         self.pause = False
+        self.vo_configured = True
         self.volume = 100.0
         self.time_pos: float | None = 0.0
         self.duration: float | None = None
@@ -19,6 +25,8 @@ class FakeMpv:
         self.sub_font_size = 55
         self.sub_margin_y = 22
         self.alang = ""
+        self.ab_loop_a: Any = "no"
+        self.ab_loop_b: Any = "no"
         self.slang = ""
         self.observers: dict[str, list[Callable[[str, object], None]]] = {}
         self.event_handlers: list[Callable[[Any], None]] = []
@@ -74,3 +82,18 @@ class FakeOldMpv(FakeMpv):
     def __init__(self) -> None:
         super().__init__()
         del self.secondary_sub_delay
+
+
+class FakeVideoPage(QWidget):
+    """Замена VideoPage без OpenGL и libmpv: плеер поверх FakeMpv."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.mpv = FakeMpv()
+        self.player = Player(self.mpv, self)
+
+    def as_video_page(self) -> VideoPage:
+        return cast(VideoPage, self)
+
+    def release(self) -> None:
+        self.player.shutdown()

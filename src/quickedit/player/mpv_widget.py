@@ -14,12 +14,14 @@ class MpvWidget(QOpenGLWidget):
     doubleClicked = Signal()
     mouseMoved = Signal()
     _updateRequested = Signal()
+    renderContextRecreated = Signal()  # не при первом создании, а при пересоздании
 
     def __init__(self, module: ModuleType, mpv: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._module = module
         self._mpv = mpv
         self._ctx: Any = None
+        self._had_context = False
         # ссылка на C-обёртку должна жить, пока жив контекст
         self._proc_address = module.MpvGlGetProcAddressFn(self._get_proc_address)
         self._updateRequested.connect(self.update)
@@ -34,6 +36,10 @@ class MpvWidget(QOpenGLWidget):
         return int(address) if address else 0
 
     def initializeGL(self) -> None:  # noqa: N802
+        # при переносе виджета Qt создаёт новый GL-контекст; контекст рендера mpv бывает только один
+        self._free_render_context()
+        recreated = self._had_context
+        self._had_context = True
         self._ctx = self._module.MpvRenderContext(
             self._mpv,
             "opengl",
@@ -41,6 +47,19 @@ class MpvWidget(QOpenGLWidget):
         )
         # колбэк зовётся из потока mpv, сигнал сам переносит перерисовку в поток интерфейса
         self._ctx.update_cb = self._updateRequested.emit
+        # в момент уничтожения контекста он ещё текущий, и ресурсы mpv можно освободить
+        self.context().aboutToBeDestroyed.connect(
+            self._free_render_context, Qt.ConnectionType.DirectConnection
+        )
+        if recreated:
+            self.renderContextRecreated.emit()
+
+    def _free_render_context(self) -> None:
+        if self._ctx is None:
+            return
+        self._ctx.update_cb = None
+        self._ctx.free()
+        self._ctx = None
 
     def paintGL(self) -> None:  # noqa: N802
         if self._ctx is None:
@@ -61,9 +80,7 @@ class MpvWidget(QOpenGLWidget):
         if self._ctx is None:
             return
         self.makeCurrent()
-        self._ctx.update_cb = None
-        self._ctx.free()
-        self._ctx = None
+        self._free_render_context()
         self.doneCurrent()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802

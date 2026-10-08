@@ -14,9 +14,18 @@ from PySide6.QtWidgets import (
     QStackedWidget,
 )
 
-from quickedit.core.document import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, MediaKind, detect_kind
+from quickedit.core.document import (
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    MediaInfo,
+    MediaKind,
+    detect_kind,
+)
+from quickedit.core.video import Clip, VideoProject
 from quickedit.editor.session import EditSession
-from quickedit.engines.ffmpeg import find_ffmpeg
+from quickedit.editor.video_session import VideoSession
+from quickedit.engines.ffmpeg import find_ffmpeg, find_ffprobe
+from quickedit.engines.probe import probe
 from quickedit.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
 from quickedit.player.player import Player
 from quickedit.player.resume import ResumeStore
@@ -25,10 +34,12 @@ from quickedit.ui.drop_zone import DropZone
 from quickedit.ui.editor_page import EditorPage
 from quickedit.ui.pil_qt import qimage_to_pil
 from quickedit.ui.settings_dialog import SettingsDialog
+from quickedit.ui.video_editor_page import VideoEditorPage
 from quickedit.ui.video_page import VideoPage
 from quickedit.viewer.folder_nav import FolderNav
 from quickedit.viewer.image_viewer import ImageViewer
 from quickedit.viewer.prefetch import ImageCache
+from quickedit.workers.tasks import TaskRunner
 
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".ass", ".ssa", ".vtt", ".sub"})
 SEEK_SECONDS = 5
@@ -50,6 +61,8 @@ class MainWindow(QMainWindow):
         self._video_path: Path | None = None
         self.video_page: VideoPage | None = None
         self.editor: EditorPage | None = None
+        self.video_editor: VideoEditorPage | None = None
+        self._tasks = TaskRunner(self)
         self._session: EditSession | None = None
         self._cache = ImageCache(parent=self)
         self._cache.loaded.connect(self._on_image_loaded)
@@ -120,6 +133,8 @@ class MainWindow(QMainWindow):
         add(self.tr("Полный экран"), Qt.Key.Key_F, self.toggle_fullscreen)
         add(self.tr("Полный экран"), Qt.Key.Key_F11, self.toggle_fullscreen)
         add(self.tr("Выйти из полного экрана"), Qt.Key.Key_Escape, self._escape)
+        add(self.tr("Начало здесь"), "I", lambda: self._with_video_editor(lambda e: e.set_in()))
+        add(self.tr("Конец здесь"), "O", lambda: self._with_video_editor(lambda e: e.set_out()))
         for enter in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             add(self.tr("Применить"), enter, lambda: self._with_editor(lambda e: e.apply_pending()))
         for key, tool in (
@@ -172,6 +187,8 @@ class MainWindow(QMainWindow):
         kind = detect_kind(path)
         if kind is None:
             self.statusBar().showMessage(self.tr("Формат не поддерживается: ") + path.name, 5000)
+            return
+        if not self._leave_editors():
             return
         self._save_resume()
         self._recent.add(path)
@@ -237,7 +254,10 @@ class MainWindow(QMainWindow):
     # --- видео -------------------------------------------------------------------------------
 
     def _on_video_page(self) -> bool:
-        return self.video_page is not None and self._stack.currentWidget() is self.video_page
+        """Показан плеер (в том числе внутри видеоредактора): работают клавиши воспроизведения."""
+        if self.video_page is None:
+            return False
+        return self._stack.currentWidget() is self.video_page or self._on_video_editor()
 
     def _ensure_video_page(self) -> VideoPage | None:
         if self.video_page is not None:
@@ -284,6 +304,8 @@ class MainWindow(QMainWindow):
         self._video_path = None
 
     def _save_resume(self) -> None:
+        if self.video_editor is not None:
+            return  # в редакторе плеер показывает другие клипы и обрезки
         if self.video_page is not None and self._video_path is not None:
             player = self.video_page.player
             self._resume.save(self._video_path, player.state(), player.duration)
@@ -322,9 +344,19 @@ class MainWindow(QMainWindow):
     def _on_editor(self) -> bool:
         return self.editor is not None and self._stack.currentWidget() is self.editor
 
-    def _with_editor(self, action: Callable[[EditorPage], object]) -> None:
+    def _on_video_editor(self) -> bool:
+        return self.video_editor is not None and self._stack.currentWidget() is self.video_editor
+
+    def _with_editor(self, action: Callable[[EditorPage | VideoEditorPage], object]) -> None:
+        """Действие для текущего редактора: фото или видео (у них общие имена методов)."""
         if self._on_editor() and self.editor is not None:
             action(self.editor)
+        elif self._on_video_editor() and self.video_editor is not None:
+            action(self.video_editor)
+
+    def _with_video_editor(self, action: Callable[[VideoEditorPage], object]) -> None:
+        if self._on_video_editor() and self.video_editor is not None:
+            action(self.video_editor)
 
     def _copy(self) -> None:
         self._with_editor(lambda e: e.copy_result())
@@ -336,12 +368,12 @@ class MainWindow(QMainWindow):
             self._with_editor(lambda e: e.escape())
 
     def toggle_editor(self) -> None:
-        if self._on_editor():
+        if self._on_editor() or self._on_video_editor():
             self._with_editor(lambda e: e.request_exit())
         elif self._stack.currentWidget() is self.viewer and self.current_path is not None:
             self._open_editor(EditSession(self.current_path, parent=self))
-        elif self._on_video_page():
-            self.statusBar().showMessage(self.tr("Редактор видео появится позже"), 5000)
+        elif self._stack.currentWidget() is self.video_page and self._video_path is not None:
+            self._open_video_editor(self._video_path)
 
     def paste_image(self) -> None:
         image = QApplication.clipboard().image()
@@ -404,6 +436,77 @@ class MainWindow(QMainWindow):
             self._stack.setCurrentWidget(self._drop_zone)
             self.setWindowTitle("QuickEdit")
 
+    # --- редактор видео ----------------------------------------------------------------------
+
+    def _open_video_editor(self, path: Path) -> None:
+        ffmpeg, ffprobe = find_ffmpeg(), find_ffprobe()
+        if ffmpeg is None or ffprobe is None:
+            self.statusBar().showMessage(
+                self.tr(
+                    "Для редактора видео нужны ffmpeg и ffprobe (рядом с программой или в PATH)"
+                ),
+                8000,
+            )
+            return
+        self.statusBar().showMessage(self.tr("Анализ видео…"))
+        self._tasks.run(
+            lambda: probe(path, ffprobe),
+            lambda info: self._show_video_editor(path, info, ffmpeg, ffprobe),
+            lambda error: self.statusBar().showMessage(
+                self.tr("Не удалось прочитать видео: ") + error, 8000
+            ),
+        )
+
+    def _show_video_editor(self, path: Path, info: MediaInfo, ffmpeg: Path, ffprobe: Path) -> None:
+        if self.video_page is None or self._video_path != path or self.video_editor is not None:
+            return
+        self._save_resume()
+        session = VideoSession(VideoProject((Clip(path, info),)), self)
+        self._stack.removeWidget(self.video_page)
+        editor = VideoEditorPage(session, self.video_page, ffmpeg, ffprobe)
+        editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
+        editor.exitRequested.connect(self._leave_video_editor)
+        self.video_editor = editor
+        self._stack.addWidget(editor)
+        self._stack.setCurrentWidget(editor)
+        self.setWindowTitle(f"{path.name} — {self.tr('редактор')} — QuickEdit")
+        self.statusBar().clearMessage()
+
+    def _leave_video_editor(self) -> None:
+        editor = self.video_editor
+        if editor is None:
+            return
+        editor.shutdown()
+        page = editor.release_video_page()
+        page.player.set_loop(None, None)
+        self.video_editor = None
+        self._stack.removeWidget(editor)
+        editor.deleteLater()
+        self._stack.addWidget(page)
+        self._stack.setCurrentWidget(page)
+        if editor.loaded_path is not None:
+            self._video_path = self.current_path = editor.loaded_path
+        self._update_title()
+        self.statusBar().showMessage(self.tr("Просмотр"), 3000)
+
+    def _leave_editors(self) -> bool:
+        """Закрывает редакторы перед открытием другого файла; False — пользователь отказался."""
+        if self.video_editor is not None:
+            if self.video_editor.session.modified and not self._confirm_discard():
+                return False
+            self._leave_video_editor()
+        if self.editor is not None:
+            if self.editor.session.modified and not self._confirm_discard():
+                return False
+            self._leave_editor()
+        return True
+
+    def _confirm_discard(self) -> bool:
+        answer = QMessageBox.question(
+            self, self.tr("Несохранённые правки"), self.tr("Закрыть редактор без сохранения?")
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
     # --- окно --------------------------------------------------------------------------------
 
     def toggle_fullscreen(self) -> None:
@@ -429,7 +532,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{self.current_path.name}{position} — QuickEdit")
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
-        if self.editor is not None and self.editor.session.modified:
+        pending = (self.editor and self.editor.session.modified) or (
+            self.video_editor and self.video_editor.session.modified
+        )
+        if pending:
             answer = QMessageBox.question(
                 self,
                 self.tr("Несохранённые правки"),
@@ -440,6 +546,9 @@ class MainWindow(QMainWindow):
                 return
         if self._session is not None:
             self._session.wait()
+        if self.video_editor is not None:
+            self.video_editor.shutdown()
+        self._tasks.wait()
         self._save_resume()
         self._cache.wait()
         if self.video_page is not None:

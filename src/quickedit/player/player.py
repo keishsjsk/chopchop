@@ -31,12 +31,14 @@ class Player(QObject):
     volumeChanged = Signal(float)
     tracksChanged = Signal()
     ended = Signal()
+    fileLoaded = Signal()
     errorOccurred = Signal(str)
 
     def __init__(self, mpv: Any, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._mpv = mpv
         self._closed = False
+        self._current: Path | None = None
         # обработчики вызываются из потока mpv; сигналы Qt сами ставят доставку в очередь
         mpv.observe_property("time-pos", lambda _n, v: self._emit_float(self.positionChanged, v))
         mpv.observe_property("duration", lambda _n, v: self._emit_float(self.durationChanged, v))
@@ -46,6 +48,7 @@ class Player(QObject):
         for name in ("track-list", "aid", "sid", "secondary-sid"):
             mpv.observe_property(name, lambda _n, _v: self.tracksChanged.emit())
         mpv.event_callback("end-file")(self._on_end_file)
+        mpv.event_callback("file-loaded")(lambda _event: self.fileLoaded.emit())
 
     def _emit_float(self, signal: Any, value: object) -> None:
         if isinstance(value, int | float) and not isinstance(value, bool):
@@ -66,6 +69,7 @@ class Player(QObject):
     # --- загрузка --------------------------------------------------------------------------
 
     def load(self, path: Path, resume: ResumeState | None = None) -> None:
+        self._current = path
         options: dict[str, object] = {}
         self._mpv.pause = False
         if resume is not None:
@@ -196,6 +200,33 @@ class Player(QObject):
         if self.supports_secondary_delay:
             current = self._secondary_delay()
             self._mpv.secondary_sub_delay = round(current + steps * SUB_DELAY_STEP, 3)
+
+    def restore_video(self) -> None:
+        """Вернуть картинку после пересоздания контекста рендера.
+
+        Когда Qt создаёт для виджета новый GL-контекст (виджет перенесли в другое окно),
+        mpv теряет видеовыход. Если он не настроен, файл загружается заново с той же позиции
+        и в том же состоянии паузы; иначе достаточно заново показать текущий кадр.
+        """
+        if self._closed or self._current is None:
+            return
+        position = self._mpv.time_pos
+        if position is None:
+            self._reload(0.0, False)
+        elif self._mpv.vo_configured:
+            self._mpv.seek(0, "relative", "exact")
+        else:
+            self._reload(float(position), bool(self._mpv.pause))
+
+    def _reload(self, position: float, paused: bool) -> None:
+        assert self._current is not None
+        options = {"start": f"{position:.3f}", "pause": "yes" if paused else "no"}
+        self._mpv.loadfile(str(self._current), **options)
+
+    def set_loop(self, start: float | None, end: float | None) -> None:
+        """Зациклить фрагмент [start, end] (предпросмотр обрезки); None снимает цикл."""
+        self._mpv.ab_loop_a = "no" if start is None else start
+        self._mpv.ab_loop_b = "no" if end is None else end
 
     def add_subtitle(self, path: Path) -> None:
         self._mpv.sub_add(str(path))

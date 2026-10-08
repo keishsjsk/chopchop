@@ -21,6 +21,7 @@ from quickedit.core.operations import (
 )
 from quickedit.engines.fonts import find_font
 from quickedit.services.metadata import exif_for_export
+from quickedit.services.output import unique_path
 
 PROXY_SIDE = 2048
 MARKER_ALPHA = 110
@@ -211,12 +212,7 @@ def default_output_path(source: Path | None, fmt: str, folder: Path | None = Non
     extension = FORMATS[fmt][0]
     directory = folder or (source.parent if source else Path.home() / "Pictures")
     stem = f"{source.stem}_edited" if source else "image_edited"
-    candidate = directory / f"{stem}{extension}"
-    counter = 2
-    while candidate.exists():
-        candidate = directory / f"{stem} ({counter}){extension}"
-        counter += 1
-    return candidate
+    return unique_path(directory, stem, extension)
 
 
 def format_for_source(source: Path | None) -> str:

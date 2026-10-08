@@ -32,6 +32,7 @@ class VideoPage(QWidget):
         self._hide_timer.setInterval(HIDE_DELAY_MS)
         self._hide_timer.timeout.connect(self._hide_idle)
 
+        self.video.renderContextRecreated.connect(self.player.restore_video)
         self.video.clicked.connect(self._on_click)
         self.video.doubleClicked.connect(self._on_double_click)
         self.video.mouseMoved.connect(self.wake)

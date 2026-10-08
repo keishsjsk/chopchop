@@ -1,5 +1,6 @@
-"""Тип медиафайла. Чистый Python, без Qt."""
+"""Тип медиафайла и сведения о нём. Чистый Python, без Qt."""
 
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -25,3 +26,28 @@ def detect_kind(path: Path) -> MediaKind | None:
     if ext in VIDEO_EXTENSIONS:
         return MediaKind.VIDEO
     return None
+
+
+@dataclass(frozen=True)
+class AudioInfo:
+    codec: str
+    sample_rate: int
+    channels: int
+
+
+@dataclass(frozen=True)
+class MediaInfo:
+    """Параметры видеофайла, полученные из ffprobe."""
+
+    width: int
+    height: int
+    duration: float
+    fps: float
+    video_codec: str
+    pix_fmt: str = ""
+    rotation: int = 0
+    audio: AudioInfo | None = None
+
+    @property
+    def has_audio(self) -> bool:
+        return self.audio is not None

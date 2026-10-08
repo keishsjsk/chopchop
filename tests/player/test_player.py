@@ -183,3 +183,54 @@ def test_old_mpv_without_secondary_sub_delay_still_works() -> None:
     assert options["sub-delay"] == 0.0
     player.shift_sub(1)  # сдвиг основных субтитров работает как обычно
     assert fake.sub_delay == pytest.approx(0.1)
+
+
+def test_loop_range_and_file_loaded_signal(qtbot: QtBot) -> None:
+    player, fake = _player()
+    player.set_loop(2.5, 8.0)
+    assert (fake.ab_loop_a, fake.ab_loop_b) == (2.5, 8.0)
+    player.set_loop(None, None)
+    assert (fake.ab_loop_a, fake.ab_loop_b) == ("no", "no")
+    with qtbot.waitSignal(player.fileLoaded):
+        fake.event_handlers[1](object())
+
+
+def test_restore_video_does_nothing_without_a_file() -> None:
+    player, fake = _player()
+    player.restore_video()
+    assert fake.loaded == []
+    assert fake.seeks == []
+
+
+def test_restore_video_redraws_when_output_is_alive() -> None:
+    player, fake = _player()
+    player.load(Path("movie.mkv"))
+    fake.loaded.clear()
+    fake.time_pos = 4.0
+    player.restore_video()
+    assert fake.seeks == [(0, "relative", "exact")]
+    assert fake.loaded == []
+
+
+def test_restore_video_reloads_file_when_output_was_lost() -> None:
+    player, fake = _player()
+    player.load(Path("movie.mkv"))
+    fake.loaded.clear()
+    fake.vo_configured = False
+    fake.time_pos = 7.5
+    fake.pause = True
+    player.restore_video()
+    assert fake.loaded == [("movie.mkv", {"start": "7.500", "pause": "yes"})]
+    fake.loaded.clear()
+    fake.pause = False
+    player.restore_video()
+    assert fake.loaded[0][1]["pause"] == "no"
+
+
+def test_restore_video_before_playback_started_reloads_from_start() -> None:
+    player, fake = _player()
+    player.load(Path("movie.mkv"))  # контекста рендера ещё не было, позиции нет
+    fake.loaded.clear()
+    fake.time_pos = None
+    player.restore_video()
+    assert fake.loaded == [("movie.mkv", {"start": "0.000", "pause": "no"})]
