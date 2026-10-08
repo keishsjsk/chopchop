@@ -1,9 +1,12 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
 from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QMessageBox
 from pytestqt.qtbot import QtBot
 
+from quickedit.player.libmpv import MpvUnavailableError
 from quickedit.ui.main_window import MainWindow
 
 
@@ -80,3 +83,26 @@ def test_fullscreen_toggle(qtbot: QtBot, tmp_path: Path) -> None:
     assert window.isFullScreen()
     window.exit_fullscreen()
     assert not window.isFullScreen()
+
+
+def test_video_without_libmpv_shows_warning(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unavailable() -> None:
+        raise MpvUnavailableError("no libmpv")
+
+    warnings: list[str] = []
+    monkeypatch.setattr("quickedit.ui.main_window.load_mpv_module", unavailable)
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda _parent, title, _text: warnings.append(title)
+    )
+    window = _window(qtbot, tmp_path)
+    window.open_file(tmp_path / "movie.mkv")
+    assert len(warnings) == 1
+    assert window.video_page is None
+
+
+def test_subtitle_file_is_not_opened_as_media(qtbot: QtBot, tmp_path: Path) -> None:
+    window = _window(qtbot, tmp_path)
+    window.open_file(tmp_path / "movie.srt")
+    assert window.current_path is None

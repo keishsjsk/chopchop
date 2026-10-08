@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from quickedit.player.mpv_widget import find_libmpv
+from quickedit.player.libmpv import find_libmpv
 
 _NAME = "libmpv-2.dll" if sys.platform == "win32" else "libmpv.so.2"
 

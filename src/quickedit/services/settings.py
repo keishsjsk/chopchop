@@ -1,5 +1,7 @@
-"""Настройки приложения поверх QSettings: пока только список последних файлов."""
+"""Настройки приложения поверх QSettings: последние файлы и параметры плеера."""
 
+import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
@@ -28,3 +30,41 @@ class RecentFiles:
 
 def default_settings() -> QSettings:
     return QSettings("QuickEdit", "QuickEdit")
+
+
+@dataclass
+class PlayerPrefs:
+    audio_langs: str = ""  # предпочитаемые языки аудио через запятую: "rus,eng"
+    sub_langs: str = ""
+    sub_font_size: int = 55
+    sub_margin: int = 22
+
+
+def clean_langs(text: str) -> str:
+    """Оставляет только коды языков через запятую (они уходят в параметры mpv)."""
+    codes = (re.sub(r"[^A-Za-z-]", "", part) for part in text.split(","))
+    return ",".join(code for code in codes if code)
+
+
+def load_player_prefs(settings: QSettings) -> PlayerPrefs:
+    defaults = PlayerPrefs()
+    return PlayerPrefs(
+        audio_langs=clean_langs(str(settings.value("player/audio_langs", defaults.audio_langs))),
+        sub_langs=clean_langs(str(settings.value("player/sub_langs", defaults.sub_langs))),
+        sub_font_size=_int(settings.value("player/sub_font_size"), defaults.sub_font_size),
+        sub_margin=_int(settings.value("player/sub_margin"), defaults.sub_margin),
+    )
+
+
+def save_player_prefs(settings: QSettings, prefs: PlayerPrefs) -> None:
+    settings.setValue("player/audio_langs", clean_langs(prefs.audio_langs))
+    settings.setValue("player/sub_langs", clean_langs(prefs.sub_langs))
+    settings.setValue("player/sub_font_size", prefs.sub_font_size)
+    settings.setValue("player/sub_margin", prefs.sub_margin)
+
+
+def _int(value: object, default: int) -> int:
+    try:
+        return int(str(value))
+    except ValueError:
+        return default

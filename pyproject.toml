@@ -13,6 +13,7 @@ dependencies = [
     "PySide6>=6.7,<7",
     "Pillow>=10.4",
     "pillow-heif>=0.18",
+    "python-mpv>=1.0.7",
 ]
 
 [project.optional-dependencies]
@@ -46,4 +47,10 @@ files = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# faulthandler печатает внутренние исключения LuaJIT из libmpv (0xe24c4a02) как «фатальные»
+addopts = "-p no:faulthandler"
+pythonpath = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["mpv"]
+ignore_missing_imports = true
