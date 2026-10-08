@@ -78,7 +78,8 @@ class Player(QObject):
             if resume.secondary_sid is not None:
                 options["secondary-sid"] = _opt_id(resume.secondary_sid)
             options["sub-delay"] = resume.sub_delay
-            options["secondary-sub-delay"] = resume.secondary_sub_delay
+            if self.supports_secondary_delay:
+                options["secondary-sub-delay"] = resume.secondary_sub_delay
             if resume.volume is not None:
                 self.set_volume(resume.volume)
         self._mpv.loadfile(str(path), **options)
@@ -111,6 +112,20 @@ class Player(QObject):
     def volume(self) -> float:
         return float(self._mpv.volume or 0.0)
 
+    @property
+    def supports_secondary_delay(self) -> bool:
+        """В старых версиях mpv (например, в Ubuntu 24.04) у второй строки нет своего сдвига."""
+        try:
+            self._mpv.secondary_sub_delay  # noqa: B018
+        except AttributeError:
+            return False
+        return True
+
+    def _secondary_delay(self) -> float:
+        if not self.supports_secondary_delay:
+            return 0.0
+        return float(self._mpv.secondary_sub_delay or 0.0)
+
     def tracks(self) -> list[Track]:
         return parse_tracks(self._mpv.track_list or [])
 
@@ -131,7 +146,7 @@ class Player(QObject):
             sid=self.sub_id() or 0,
             secondary_sid=self.sub2_id() or 0,
             sub_delay=float(self._mpv.sub_delay or 0.0),
-            secondary_sub_delay=float(self._mpv.secondary_sub_delay or 0.0),
+            secondary_sub_delay=self._secondary_delay(),
         )
 
     # --- управление ------------------------------------------------------------------------
@@ -178,8 +193,9 @@ class Player(QObject):
         self._mpv.sub_delay = round(float(self._mpv.sub_delay or 0.0) + steps * SUB_DELAY_STEP, 3)
 
     def shift_sub2(self, steps: int) -> None:
-        current = float(self._mpv.secondary_sub_delay or 0.0)
-        self._mpv.secondary_sub_delay = round(current + steps * SUB_DELAY_STEP, 3)
+        if self.supports_secondary_delay:
+            current = self._secondary_delay()
+            self._mpv.secondary_sub_delay = round(current + steps * SUB_DELAY_STEP, 3)
 
     def add_subtitle(self, path: Path) -> None:
         self._mpv.sub_add(str(path))

@@ -66,3 +66,11 @@ class FakeEndFileEvent:
 
     def as_dict(self) -> dict[str, object]:
         return {"event": b"end-file", "reason": self._reason}
+
+
+class FakeOldMpv(FakeMpv):
+    """mpv без свойства secondary-sub-delay (как libmpv в Ubuntu 24.04)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        del self.secondary_sub_delay

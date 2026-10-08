@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
-from fakes import FakeEndFileEvent, FakeMpv
+from fakes import FakeEndFileEvent, FakeMpv, FakeOldMpv
 from quickedit.player.player import Player
 from quickedit.player.resume import ResumeState
 from quickedit.services.settings import PlayerPrefs
@@ -168,3 +168,18 @@ def test_shutdown_is_idempotent() -> None:
     player.shutdown()
     assert fake.terminated
     assert fake.commands == []
+
+
+def test_old_mpv_without_secondary_sub_delay_still_works() -> None:
+    fake = FakeOldMpv()
+    fake.track_list = TRACKS
+    player = Player(fake)
+    assert not player.supports_secondary_delay
+    player.shift_sub2(1)  # игнорируется, не падает
+    assert player.state().secondary_sub_delay == 0.0
+    player.load(Path("movie.mkv"), ResumeState(position=10.0, secondary_sub_delay=0.5))
+    _, options = fake.loaded[0]
+    assert "secondary-sub-delay" not in options
+    assert options["sub-delay"] == 0.0
+    player.shift_sub(1)  # сдвиг основных субтитров работает как обычно
+    assert fake.sub_delay == pytest.approx(0.1)

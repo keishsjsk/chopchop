@@ -73,7 +73,8 @@ def test_two_subtitle_tracks(qtbot: QtBot, tmp_path: Path, player: Player) -> No
     player.shift_sub2(-1)
     state = player.state()
     assert state.sub_delay == pytest.approx(0.2)
-    assert state.secondary_sub_delay == pytest.approx(-0.1)
+    if player.supports_secondary_delay:  # в старых mpv этого свойства нет
+        assert state.secondary_sub_delay == pytest.approx(-0.1)
 
     player.set_sub2(None)
     qtbot.waitUntil(lambda: player.sub2_id() is None, timeout=5000)
