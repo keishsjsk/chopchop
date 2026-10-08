@@ -5,6 +5,7 @@ from PIL import Image
 from PySide6.QtWidgets import QMessageBox
 from pytestqt.qtbot import QtBot
 
+from quickedit.core.geometry import Rect
 from quickedit.core.operations import Adjust, Crop, Flip, Redact, Rotate, Text
 from quickedit.editor.session import EditSession
 from quickedit.ui.editor_page import EditorPage
@@ -58,13 +59,16 @@ def test_crop_tool_applies_on_enter(qtbot: QtBot, tmp_path: Path) -> None:
     page.select_tool("crop")
     tool = page.tools["crop"]
     assert isinstance(tool, CropTool)
-    _drag(tool, (20, 10), (120, 60))
+    assert tool.selection.rect is not None  # рамка сразу по всему кадру
+    assert tool.pending_operation() is None  # но пока она кадр не меняет
+    _drag(tool, (200, 100), (120, 60))  # тянем правый нижний угол
     assert tool.pending_operation() is not None
     page.apply_pending()
     (op,) = page.session.history.operations
     assert isinstance(op, Crop)
-    assert page.session.output_size() == (100, 50)
-    assert tool.pending_operation() is None  # выделение сброшено
+    assert page.session.output_size() == (120, 60)
+    assert tool.selection.rect is not None  # после обрезки рамка снова охватывает кадр
+    assert tool.pending_operation() is None
     page.session.wait()
 
 
@@ -228,4 +232,96 @@ def test_copy_puts_result_on_clipboard(qtbot: QtBot, tmp_path: Path) -> None:
     qtbot.waitUntil(lambda: any("буфер" in m for m in messages), timeout=10000)
     image = QApplication.clipboard().image()
     assert (image.width(), image.height()) == (100, 200)
+    page.session.wait()
+
+
+def test_crop_starts_with_the_whole_frame_selected(qtbot: QtBot, tmp_path: Path) -> None:
+    page = _page(qtbot, tmp_path)
+    page.select_tool("crop")
+    tool = page.tools["crop"]
+    assert isinstance(tool, CropTool)
+    assert tool.selection.rect == Rect(0, 0, 200, 100)
+    messages: list[str] = []
+    page.message.connect(messages.append)
+    page.apply_pending()  # рамка по всему кадру ничего не обрезает
+    assert messages
+    assert len(page.session.history) == 0
+    page.session.wait()
+
+
+def test_crop_ratio_selector_reshapes_the_frame(qtbot: QtBot, tmp_path: Path) -> None:
+    page = _page(qtbot, tmp_path)
+    page.select_tool("crop")
+    tool = page.tools["crop"]
+    assert isinstance(tool, CropTool)
+    page._ratio_bar.set_value(1.0)
+    assert tool.selection.rect == Rect(50, 0, 100, 100)
+    page.apply_pending()
+    assert page.session.output_size() == (100, 100)
+    assert tool.selection.rect == Rect(0, 0, 100, 100)  # рамка снова по всему новому кадру
+    page._ratio_bar.swap()  # квадрат остаётся квадратом
+    assert page._ratio_bar.value() == 1.0
+    page.session.wait()
+
+
+def test_crop_ratio_16_9_then_swap(qtbot: QtBot, tmp_path: Path) -> None:
+    page = _page(qtbot, tmp_path, (160, 90))
+    page.select_tool("crop")
+    tool = page.tools["crop"]
+    assert isinstance(tool, CropTool)
+    page._ratio_bar.set_value(16 / 9)
+    rect = tool.selection.rect
+    assert rect is not None and rect.w == pytest.approx(160)
+    page._ratio_bar.swap()
+    rect = tool.selection.rect
+    assert rect is not None
+    assert rect.w / rect.h == pytest.approx(9 / 16)
+    page.session.wait()
+
+
+def test_brush_draws_with_the_mouse_and_applies_on_release(qtbot: QtBot, tmp_path: Path) -> None:
+    from quickedit.core.operations import Stroke
+
+    page = _page(qtbot, tmp_path)
+    page.select_tool("draw")
+    page._shape.setCurrentIndex(page._shape.findData("pen"))
+    tool = page.tools["draw"]
+    assert isinstance(tool, DrawTool)
+    tool.press(20, 20, 4.0)
+    for step in range(1, 8):
+        tool.move(20 + step * 10, 20 + step * 5)
+    assert len(page.session.history) == 0  # пока кнопка зажата — ещё не применено
+    tool.release(90, 55)
+    (op,) = page.session.history.operations
+    assert isinstance(op, Stroke)
+    assert len(op.points) > 5
+    tool.press(20, 80, 4.0)  # можно сразу рисовать дальше
+    tool.move(120, 80)
+    tool.release(120, 80)
+    assert len(page.session.history) == 2
+    page.session.wait()
+
+
+def test_marker_option_is_translucent(qtbot: QtBot, tmp_path: Path) -> None:
+    from quickedit.core.operations import Stroke
+
+    page = _page(qtbot, tmp_path)
+    page.select_tool("draw")
+    page._shape.setCurrentIndex(page._shape.findData("highlighter"))
+    tool = page.tools["draw"]
+    tool.press(20, 20, 4.0)
+    tool.move(100, 20)
+    tool.release(100, 20)
+    (op,) = page.session.history.operations
+    assert isinstance(op, Stroke)
+    assert op.opacity < 1
+    page.session.wait()
+
+
+def test_draw_panel_lists_freehand_tools_first(qtbot: QtBot, tmp_path: Path) -> None:
+    page = _page(qtbot, tmp_path)
+    titles = [page._shape.itemText(i) for i in range(page._shape.count())]
+    assert titles[0].startswith("Кисть")
+    assert titles[1].startswith("Маркер")
+    assert {"Стрелка", "Рамка", "Выделение области"} <= set(titles)
     page.session.wait()

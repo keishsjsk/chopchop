@@ -13,6 +13,8 @@ class FakeMpv:
     def __init__(self) -> None:
         self.pause = False
         self.vo_configured = True
+        self.hwdec: Any = "auto-safe"
+        self.hwdec_current: Any = "no"
         self.volume = 100.0
         self.time_pos: float | None = 0.0
         self.duration: float | None = None
@@ -91,6 +93,7 @@ class FakeVideoPage(QWidget):
         super().__init__()
         self.mpv = FakeMpv()
         self.player = Player(self.mpv, self)
+        self.controls = QWidget(self)
 
     def as_video_page(self) -> VideoPage:
         return cast(VideoPage, self)

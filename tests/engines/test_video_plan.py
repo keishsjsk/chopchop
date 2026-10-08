@@ -148,13 +148,6 @@ def test_concat_applies_audio_settings_in_final_step(tmp_path: Path) -> None:
     assert _after(args, "-c:v") == "copy"
 
 
-def test_different_clips_are_rejected(tmp_path: Path) -> None:
-    other = MediaInfo(1920, 1080, 10.0, 25.0, "h264", "yuv420p", 0, INFO.audio)
-    project = VideoProject((_clip("a.mp4"), _clip("b.mp4", other)))
-    with pytest.raises(ExportPlanError, match="resolution"):
-        _plan(project, tmp_path)
-
-
 def test_output_cannot_overwrite_source(tmp_path: Path) -> None:
     source = tmp_path / "a.mp4"
     project = VideoProject((Clip(source, INFO),))

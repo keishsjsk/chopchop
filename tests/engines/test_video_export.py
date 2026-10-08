@@ -9,7 +9,7 @@ from media import FFMPEG, HAS_FFMPEG, make_video, make_wav, mean_volume, run
 from quickedit.core.video import AudioSettings, Clip, VideoProject
 from quickedit.engines.ffmpeg import ExportCancelled, FfmpegError, FfmpegStep, run_steps
 from quickedit.engines.probe import ProbeError, probe
-from quickedit.engines.video_engine import ExportPlanError, build_plan
+from quickedit.engines.video_engine import build_plan
 
 pytestmark = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
 
@@ -107,14 +107,6 @@ def test_concat_joins_trimmed_clips(tmp_path: Path) -> None:
     result = probe(tmp_path / "joined.mp4")
     assert result.duration == pytest.approx(7.0, abs=0.5)
     assert result.has_audio
-
-
-def test_clips_with_different_size_are_rejected(tmp_path: Path) -> None:
-    assert FFMPEG is not None
-    a = _clip(make_video(tmp_path / "a.mp4", seconds=2, size=(320, 240)))
-    b = _clip(make_video(tmp_path / "b.mp4", seconds=2, size=(640, 480)))
-    with pytest.raises(ExportPlanError):
-        build_plan(VideoProject((a, b)), tmp_path / "x.mp4", FFMPEG, tmp_path)
 
 
 def test_mkv_container_works(tmp_path: Path) -> None:

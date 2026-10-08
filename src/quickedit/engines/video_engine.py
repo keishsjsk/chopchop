@@ -2,16 +2,23 @@
 
 Правило: если видео только обрезано, склеено или лишено звука, оно копируется без перекодирования.
 Звук перекодируется (в AAC) только при смене громкости или замене дорожки.
+Перекодирование (libx264) включается для эффектов, точной обрезки и склейки разных роликов.
 """
 
 from dataclasses import dataclass
 from pathlib import Path
 
-from quickedit.core.video import AudioSettings, Clip, VideoProject, incompatibility
+from quickedit.core.operations import Text
+from quickedit.core.video import AudioSettings, Clip, VideoProject
 from quickedit.engines.ffmpeg import FfmpegStep
+from quickedit.engines.video_filters import build_effects_graph
 from quickedit.services.output import unique_path
 
 AUDIO_BITRATE = "192k"
+VIDEO_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+SAMPLE_RATE = 48000
+MAX_FPS = 60.0
+DEFAULT_FPS = 30.0
 THUMB_WIDTH = 160
 CONTAINERS = (".mp4", ".mkv", ".mov")
 
@@ -26,6 +33,7 @@ class ExportPlan:
     dest: Path
     reencodes_audio: bool
     workdir_files: tuple[Path, ...]  # временные файлы, которые нужно удалить после экспорта
+    reencodes_video: bool = False
 
 
 def seconds(value: float) -> str:
@@ -104,8 +112,19 @@ def concat_list(paths: list[Path]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build_plan(project: VideoProject, dest: Path, ffmpeg: Path, workdir: Path) -> ExportPlan:
-    """Шаги экспорта. workdir — пустая временная папка для промежуточных файлов."""
+def build_plan(
+    project: VideoProject,
+    dest: Path,
+    ffmpeg: Path,
+    workdir: Path,
+    *,
+    precise: bool = False,
+    font: Path | None = None,
+) -> ExportPlan:
+    """Шаги экспорта. workdir — пустая временная папка для промежуточных файлов.
+
+    precise=True включает точную обрезку: видео перекодируется, зато границы — с точностью до кадра.
+    """
     clips = project.clips
     if not clips:
         raise ExportPlanError("empty project")
@@ -114,11 +133,127 @@ def build_plan(project: VideoProject, dest: Path, ffmpeg: Path, workdir: Path) -
         sources.add(project.audio.replacement.resolve())
     if dest.resolve() in sources:
         raise ExportPlanError("output would overwrite a source file")
-    for other in clips[1:]:
-        reason = incompatibility(clips[0].info, other.info)
-        if reason is not None:
-            raise ExportPlanError(f"clips are not compatible: {reason}")
+    if project.reencode_reason(precise) is None:
+        return _build_copy_plan(project, dest, ffmpeg, workdir)
+    return _build_reencode_plan(project, dest, ffmpeg, workdir, font)
 
+
+def write_text_files(texts: tuple[Text, ...], workdir: Path) -> dict[int, Path]:
+    """Текст для drawtext хранится в файлах: так не нужно экранировать кавычки и двоеточия."""
+    files: dict[int, Path] = {}
+    for index, text in enumerate(texts):
+        if text.text.strip():
+            path = workdir / f"text{index:02d}.txt"
+            path.write_text(text.text, encoding="utf-8")
+            files[index] = path
+    return files
+
+
+def _normalize_video(index: int, width: int, height: int, fps: float) -> str:
+    """Привести клип к размеру и fps первого клипа; при другом формате — чёрные поля."""
+    return (
+        f"[{index}:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps:.3f},"
+        f"format=yuv420p[v{index}]"
+    )
+
+
+def _normalize_audio(index: int, clip: Clip) -> str:
+    if clip.info.has_audio:
+        return (
+            f"[{index}:a]aresample={SAMPLE_RATE},"
+            f"aformat=sample_fmts=fltp:channel_layouts=stereo[a{index}]"
+        )
+    # у клипа нет звука: вместо него тишина той же длины, иначе склейка собьёт синхронизацию
+    return (
+        f"anullsrc=r={SAMPLE_RATE}:cl=stereo,atrim=duration={clip.length:.3f},"
+        f"asetpts=PTS-STARTPTS[a{index}]"
+    )
+
+
+def _build_reencode_plan(
+    project: VideoProject, dest: Path, ffmpeg: Path, workdir: Path, font: Path | None
+) -> ExportPlan:
+    """Один вызов ffmpeg: клипы нормализуются, склеиваются, затем идут эффекты."""
+    clips = project.clips
+    effects = project.effects
+    audio = project.audio
+    many = len(clips) > 1
+    width, height = project.frame_size
+    first_fps = clips[0].info.fps
+    fps = min(first_fps, MAX_FPS) if first_fps > 0 else DEFAULT_FPS
+    any_audio = any(clip.info.has_audio for clip in clips)
+    use_replacement = audio.replacement is not None and not audio.mute
+    # звук исходных клипов нужен только если его не убрали и не заменили своим
+    join_audio = many and any_audio and not audio.mute and not use_replacement
+    total = project.duration
+
+    inputs: list[str] = []
+    for clip in clips:
+        inputs += _trim_input(clip)
+    if use_replacement:
+        assert audio.replacement is not None
+        inputs += ["-i", str(audio.replacement)]
+
+    graph: list[str] = []
+    if many:
+        for index, clip in enumerate(clips):
+            graph.append(_normalize_video(index, width, height, fps))
+            if join_audio:
+                graph.append(_normalize_audio(index, clip))
+        pairs = "".join(f"[v{i}][a{i}]" if join_audio else f"[v{i}]" for i in range(len(clips)))
+        outputs = "[vcat][acat]" if join_audio else "[vcat]"
+        graph.append(f"{pairs}concat=n={len(clips)}:v=1:a={1 if join_audio else 0}{outputs}")
+        video_in = "vcat"
+    else:
+        video_in = "0:v"
+
+    text_files = write_text_files(effects.texts, workdir)
+    graph.append(
+        build_effects_graph(
+            effects, (width, height), text_files, font, in_label=video_in, out_label="vout"
+        )
+    )
+
+    volume = f"volume={audio.volume:.3f}" if audio.volume != 1.0 else ""
+    audio_args: list[str]
+    if audio.mute or (not any_audio and not use_replacement):
+        audio_args = ["-an"]
+    elif use_replacement:
+        index = len(clips)
+        chain = f"{volume},apad" if volume else "apad"
+        audio_args = ["-map", f"{index}:a:0", *_aac(), "-af", chain, "-t", seconds(total)]
+    elif join_audio:
+        if volume:
+            graph.append(f"[acat]{volume}[aout]")
+            audio_args = ["-map", "[aout]", *_aac()]
+        else:
+            audio_args = ["-map", "[acat]", *_aac()]
+    else:
+        audio_args = ["-map", "0:a?", *_aac()]
+        if volume:
+            audio_args += ["-af", volume]
+
+    args = [
+        *_base(ffmpeg),
+        *inputs,
+        *["-filter_complex", ";".join(graph), "-map", "[vout]"],
+        *audio_args,
+        *VIDEO_ARGS,
+        *_output_options(dest),
+    ]
+    files = tuple(text_files.values())
+    step = FfmpegStep(tuple(args), total, dest)
+    return ExportPlan((step,), dest, not audio.mute and (any_audio or use_replacement), files, True)
+
+
+def _aac() -> list[str]:
+    return ["-c:a", "aac", "-b:a", AUDIO_BITRATE]
+
+
+def _build_copy_plan(project: VideoProject, dest: Path, ffmpeg: Path, workdir: Path) -> ExportPlan:
+    """Быстрый экспорт: видео копируется без перекодирования."""
+    clips = project.clips
     has_audio = clips[0].info.has_audio
     audio = _audio_args(project.audio, has_audio, project.duration)
     steps: list[FfmpegStep] = []

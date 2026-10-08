@@ -8,6 +8,8 @@ from pytestqt.qtbot import QtBot
 
 from fakes import FakeVideoPage
 from media import FFMPEG, FFPROBE, HAS_FFMPEG, make_video
+from quickedit.core.geometry import Rect
+from quickedit.core.operations import Text
 from quickedit.core.video import Clip, VideoProject
 from quickedit.editor.video_session import VideoSession
 from quickedit.engines.probe import probe
@@ -117,18 +119,18 @@ def test_add_compatible_clip(qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.M
     page.shutdown()
 
 
-def test_add_incompatible_clip_is_refused(
+def test_add_clip_with_other_parameters_is_allowed_with_a_warning(
     qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     page, _fake = _page(qtbot, tmp_path)
     other = make_video(tmp_path / "big.mp4", seconds=2, size=(640, 480))
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(other), ""))
-    shown: list[str] = []
-    monkeypatch.setattr(QMessageBox, "information", lambda _p, _t, text: shown.append(text))
+    messages: list[str] = []
+    page.message.connect(messages.append)
     page.add_clip()
-    qtbot.waitUntil(lambda: bool(shown), timeout=10000)
-    assert "разрешение" in shown[0]
-    assert len(page.session.project.clips) == 1
+    qtbot.waitUntil(lambda: len(page.session.project.clips) == 2, timeout=10000)
+    assert any("разрешение" in m and "перекодировано" in m for m in messages)
+    assert page.session.project.reencode_reason() == "clips"
     page.shutdown()
 
 
@@ -214,3 +216,138 @@ def test_release_returns_video_page(qtbot: QtBot, tmp_path: Path) -> None:
     assert released is fake.as_video_page()
     assert fake.parent() is None
     page.shutdown()
+
+
+def _vf_commands(fake: FakeVideoPage) -> list[tuple[object, ...]]:
+    return [c for c in fake.mpv.commands if c and c[0] == "vf"]
+
+
+def test_effects_are_previewed_through_the_same_graph_as_export(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    assert _vf_commands(fake) == []  # без эффектов фильтр не нужен
+    page.session.set_filter("grayscale")
+    command = _vf_commands(fake)[-1]
+    assert command[:2] == ("vf", "set")
+    assert str(command[2]) == "lavfi=[[vid1]hue=s=0[vo]]"
+    page.session.undo()
+    assert _vf_commands(fake)[-1] == ("vf", "clear", "")
+    page.shutdown()
+
+
+def test_preview_skips_crop_and_rotation_but_writes_text_files(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    page.session.set_crop(Rect(0, 0, 100, 100))
+    page.session.rotate(90)
+    assert "100×100" in page._summary.text()  # размер результата виден сразу
+    assert _vf_commands(fake) == []  # кадр и поворот рисует слой, а не mpv
+    page.session.add_text(Text("Привет", 10, 10))
+    graph = str(_vf_commands(fake)[-1][2])
+    assert "drawtext=textfile=" in graph
+    assert "crop=" not in graph
+    assert (page._workspace / "text00.txt").read_text(encoding="utf-8") == "Привет"
+    page.shutdown()
+    assert not page._workspace.exists()  # временные файлы убраны
+
+
+def test_unchanged_effects_do_not_reapply_the_filter(qtbot: QtBot, tmp_path: Path) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    page.session.set_filter("blur")
+    count = len(_vf_commands(fake))
+    page.session.set_volume(0.5)  # звук на картинку не влияет
+    assert len(_vf_commands(fake)) == count
+    page.shutdown()
+
+
+def test_color_dialog_preview_and_cancel(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from quickedit.core.operations import Adjust
+    from quickedit.ui.video_color_dialog import VideoColorDialog
+
+    page, fake = _page(qtbot, tmp_path)
+
+    def cancel(dialog: VideoColorDialog) -> int:
+        dialog.previewChanged.emit(Adjust(contrast=1.5), "sepia")  # пользователь подвигал ползунок
+        return 0
+
+    monkeypatch.setattr(VideoColorDialog, "exec", cancel)
+    page.effects_panel.open_color_dialog()
+    assert "colorchannelmixer" in str(_vf_commands(fake)[-2][2])  # на время диалога видно изменение
+    assert _vf_commands(fake)[-1] == ("vf", "clear", "")  # после отмены прежний вид
+    assert page.session.project.effects.is_default
+
+    def accept(dialog: VideoColorDialog) -> int:
+        dialog._filter.setCurrentIndex(dialog._filter.findData("grayscale"))
+        return 1
+
+    monkeypatch.setattr(VideoColorDialog, "exec", accept)
+    page.effects_panel.open_color_dialog()
+    assert page.session.project.effects.filter == "grayscale"
+    page.shutdown()
+
+
+def test_keyboard_actions_reach_effects_panel(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.select_tool("redact")
+    assert page.effects_panel.active == "redact"
+    tool = page.effects_panel.tools["redact"]
+    tool.press(10, 10, 4.0)
+    tool.move(100, 100)
+    tool.release(100, 100)
+    page.apply_pending()  # Enter
+    assert len(page.session.project.effects.redacts) == 1
+    page.select_tool("text")
+    exits: list[bool] = []
+    page.exitRequested.connect(lambda: exits.append(True))
+    page.escape()  # снимает инструмент
+    assert page.effects_panel.active is None
+    assert exits == []
+    page.session.mark_saved()
+    page.escape()  # инструмента нет — выходим
+    assert exits == [True]
+    page.shutdown()
+
+
+def test_export_with_effects_uses_reencoding_and_precise_option(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.session.set_filter("sepia")
+    page.session.set_trim(0, 1.0, 4.0)
+    dest = tmp_path / "fx.mp4"
+    monkeypatch.setattr(VideoExportDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(VideoExportDialog, "path", lambda self: dest)
+    monkeypatch.setattr(VideoExportDialog, "precise", lambda self: True)
+    messages: list[str] = []
+    page.message.connect(messages.append)
+    page.export()
+    qtbot.waitUntil(lambda: any("Сохранено" in m for m in messages), timeout=60000)
+    info = probe(dest)
+    assert info.duration == pytest.approx(3.0, abs=0.15)  # точная обрезка по кадрам
+    page.shutdown()
+
+
+def test_export_dialog_explains_the_mode(qtbot: QtBot, tmp_path: Path) -> None:
+    from quickedit.core.operations import Adjust
+    from quickedit.core.video import VideoEffects
+
+    source = make_video(tmp_path / "a.mp4", seconds=3)
+    clip = Clip(source, probe(source)).with_trim(1, 2)
+    fast = VideoExportDialog(VideoProject((clip,)))
+    qtbot.addWidget(fast)
+    assert any("не перекодируется" in note for note in fast.notes())
+    assert fast._precise.isEnabled()
+    fast._precise.setChecked(True)
+    assert any("Точная обрезка" in note for note in fast.notes())
+    assert fast.precise()
+    effects = VideoEffects(adjust=Adjust(contrast=1.2))
+    slow = VideoExportDialog(VideoProject((clip,), effects=effects))
+    qtbot.addWidget(slow)
+    assert any("Эффекты" in note for note in slow.notes())
+    untrimmed = VideoExportDialog(VideoProject((Clip(source, probe(source)),)))
+    qtbot.addWidget(untrimmed)
+    assert not untrimmed._precise.isEnabled()  # резать нечего

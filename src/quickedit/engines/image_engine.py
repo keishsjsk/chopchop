@@ -16,6 +16,7 @@ from quickedit.core.operations import (
     Redact,
     Resize,
     Rotate,
+    Stroke,
     Text,
     scale_operation,
 )
@@ -88,6 +89,8 @@ def apply_operation(image: Image.Image, op: Operation) -> Image.Image:
             return _filter(image, name)
         case Annotate():
             return _annotate(image, op)
+        case Stroke():
+            return _stroke(image, op)
         case Text():
             return _text(image, op)
         case Resize(width, height):
@@ -193,6 +196,25 @@ def _annotate(image: Image.Image, op: Annotate) -> Image.Image:
     draw.line((x0, y0, base_x, base_y), fill=op.color, width=width)
     draw.polygon((op.end, left, right), fill=op.color)
     return result
+
+
+def _stroke(image: Image.Image, op: Stroke) -> Image.Image:
+    """Линия от руки со скруглёнными концами; полупрозрачная не темнеет в местах пересечений."""
+    if not op.points:
+        return image
+    width = max(1, round(op.width))
+    alpha = round(min(max(op.opacity, 0.0), 1.0) * 255)
+    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    fill = (*op.color, alpha)
+    points = [(float(x), float(y)) for x, y in op.points]
+    if len(points) > 1:
+        draw.line(points, fill=fill, width=width, joint="curve")
+    radius = width / 2
+    for x, y in points[:: max(1, len(points) // 400)] + [points[0], points[-1]]:
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
+    merged = Image.alpha_composite(image.convert("RGBA"), layer)
+    return merged if image.mode == "RGBA" else merged.convert("RGB")
 
 
 def _text(image: Image.Image, op: Text) -> Image.Image:

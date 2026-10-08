@@ -65,6 +65,16 @@ class Annotate:
 
 
 @dataclass(frozen=True)
+class Stroke:
+    """Линия, нарисованная мышью от руки: кисть (opacity 1) или маркер (полупрозрачный)."""
+
+    points: tuple[Point, ...]
+    color: Color = (255, 0, 0)
+    width: float = 6.0
+    opacity: float = 1.0
+
+
+@dataclass(frozen=True)
 class Text:
     text: str
     x: float
@@ -79,7 +89,7 @@ class Resize:
     height: int
 
 
-Operation = Crop | Rotate | Flip | Redact | Adjust | Filter | Annotate | Text | Resize
+Operation = Crop | Rotate | Flip | Redact | Adjust | Filter | Annotate | Stroke | Text | Resize
 
 
 def _scale_point(point: Point, factor: float) -> Point:
@@ -100,6 +110,9 @@ def scale_operation(op: Operation, factor: float) -> Operation:
                 end=_scale_point(op.end, factor),
                 width=op.width * factor,
             )
+        case Stroke():
+            points = tuple(_scale_point(point, factor) for point in op.points)
+            return replace(op, points=points, width=op.width * factor)
         case Text():
             return replace(op, x=op.x * factor, y=op.y * factor, size=op.size * factor)
         case Resize():

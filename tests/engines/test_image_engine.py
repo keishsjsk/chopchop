@@ -14,6 +14,7 @@ from quickedit.core.operations import (
     Redact,
     Resize,
     Rotate,
+    Stroke,
     Text,
     output_size,
 )
@@ -247,3 +248,46 @@ def test_save_formats_roundtrip(tmp_path: Path, fmt: str) -> None:
     dest = save_image(image, tmp_path / f"out.{fmt}", fmt, quality=80)
     with Image.open(dest) as saved:
         assert saved.size == (16, 16)
+
+
+def test_stroke_draws_along_the_path_with_round_ends() -> None:
+    base = Image.new("RGB", (100, 100), "black")
+    stroke = Stroke(((10, 50), (50, 50), (90, 20)), (255, 255, 0), 8.0)
+    result = apply_operation(base, stroke)
+    assert result.getpixel((30, 50)) == (255, 255, 0)  # на линии
+    assert result.getpixel((70, 35))[0] > 200  # на втором отрезке
+    assert result.getpixel((30, 90)) == (0, 0, 0)  # вдали от линии
+    assert result.getpixel((8, 50)) == (255, 255, 0)  # скруглённый конец выступает за точку
+    assert base.getpixel((30, 50)) == (0, 0, 0)  # исходная картинка не изменилась
+
+
+def test_translucent_stroke_does_not_darken_where_it_overlaps_itself() -> None:
+    base = Image.new("RGB", (100, 100), "white")
+    crossing = Stroke(((10, 10), (90, 90), (90, 10), (10, 90)), (255, 0, 0), 10.0, 0.4)
+    result = apply_operation(base, crossing)
+    on_line = result.getpixel((20, 20))
+    at_crossing = result.getpixel((50, 50))
+    assert 0 < on_line[1] < 255  # просвечивает фон
+    assert at_crossing == on_line  # линия пересекла сама себя, но цвет тот же
+
+
+def test_single_point_stroke_is_a_dot() -> None:
+    base = Image.new("RGB", (50, 50), "black")
+    result = apply_operation(base, Stroke(((25, 25),), (0, 255, 0), 10.0))
+    assert result.getpixel((25, 25)) == (0, 255, 0)
+    assert result.getpixel((25, 40)) == (0, 0, 0)
+    assert apply_operation(base, Stroke(())) is base
+
+
+def test_stroke_keeps_alpha_images_rgba() -> None:
+    base = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+    result = apply_operation(base, Stroke(((5, 20), (35, 20)), (255, 0, 0), 6.0))
+    assert result.mode == "RGBA"
+    assert result.getpixel((20, 20))[3] == 255
+
+
+def test_stroke_is_scaled_with_the_preview() -> None:
+    from quickedit.core.operations import scale_operation
+
+    scaled = scale_operation(Stroke(((10, 20), (30, 40)), (1, 2, 3), 4.0, 0.5), 2.0)
+    assert scaled == Stroke(((20, 40), (60, 80)), (1, 2, 3), 8.0, 0.5)

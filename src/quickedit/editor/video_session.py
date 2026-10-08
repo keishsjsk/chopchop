@@ -5,7 +5,15 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 
-from quickedit.core.video import AudioSettings, Clip, ProjectHistory, VideoProject
+from quickedit.core.geometry import Rect
+from quickedit.core.operations import Adjust, FilterName, Redact, Text
+from quickedit.core.video import (
+    AudioSettings,
+    Clip,
+    ProjectHistory,
+    VideoEffects,
+    VideoProject,
+)
 
 
 class VideoSession(QObject):
@@ -73,3 +81,45 @@ class VideoSession(QObject):
 
     def _audio(self, **changes: object) -> AudioSettings:
         return replace(self.project.audio, **changes)  # type: ignore[arg-type]
+
+    # --- эффекты -----------------------------------------------------------------------------
+
+    def _effects(self, **changes: object) -> None:
+        self._apply(self.project.with_effects(replace(self.project.effects, **changes)))  # type: ignore[arg-type]
+
+    def set_crop(self, rect: Rect | None) -> None:
+        """Кадр результата; прямоугольник на весь кадр равен «без кадрирования»."""
+        width, height = self.project.frame_size
+        if rect is not None:
+            box = rect.to_box(width, height)
+            if box is None or box == (0, 0, width, height):
+                rect = None
+            else:
+                rect = Rect(box[0], box[1], box[2] - box[0], box[3] - box[1])
+        self._effects(crop=rect)
+
+    def add_redact(self, redact: Redact) -> None:
+        self._effects(redacts=(*self.project.effects.redacts, redact))
+
+    def add_text(self, text: Text) -> None:
+        self._effects(texts=(*self.project.effects.texts, text))
+
+    def set_adjust(self, adjust: Adjust) -> None:
+        self._effects(adjust=adjust)
+
+    def set_filter(self, name: FilterName | None) -> None:
+        self._effects(filter=name)
+
+    def rotate(self, degrees: int) -> None:
+        """Поворот на 90°, 180° или 270° по часовой (накапливается)."""
+        self._effects(rotation=(self.project.effects.rotation + degrees) % 360)
+
+    def flip(self, horizontal: bool) -> None:
+        current = self.project.effects
+        if horizontal:
+            self._effects(flip_h=not current.flip_h)
+        else:
+            self._effects(flip_v=not current.flip_v)
+
+    def clear_effects(self) -> None:
+        self._apply(self.project.with_effects(VideoEffects()))

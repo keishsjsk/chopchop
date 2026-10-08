@@ -4,6 +4,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from quickedit.core.document import MediaInfo
+from quickedit.core.geometry import Rect
+from quickedit.core.operations import Adjust, FilterName, Redact, Text
 
 MIN_CLIP_SECONDS = 0.1
 MAX_VOLUME = 2.0
@@ -51,13 +53,84 @@ class AudioSettings:
 
 
 @dataclass(frozen=True)
+class VideoEffects:
+    """Эффекты на весь итоговый ролик. Координаты — в пикселях кадра `VideoProject.frame_size`.
+
+    Порядок при обработке фиксирован: скрытие областей, текст, цветокоррекция, фильтр, затем кадр
+    и в самом конце поворот. Поэтому всё, что рисуется поверх превью, совпадает с результатом.
+    """
+
+    crop: Rect | None = None
+    redacts: tuple[Redact, ...] = ()
+    texts: tuple[Text, ...] = ()
+    adjust: Adjust = Adjust()
+    filter: FilterName | None = None
+    rotation: int = 0  # по часовой стрелке: 0, 90, 180, 270
+    flip_h: bool = False
+    flip_v: bool = False
+
+    @property
+    def is_default(self) -> bool:
+        return self == VideoEffects()
+
+    @property
+    def has_picture_effects(self) -> bool:
+        """Есть ли эффекты, меняющие картинку (кроме поворота и кадра)."""
+        return bool(self.redacts or self.texts or not self.adjust.is_identity or self.filter)
+
+    def describe(self) -> list[str]:
+        """Краткий список применённых эффектов для подписи в интерфейсе."""
+        parts: list[str] = []
+        if self.crop is not None:
+            parts.append("кадр")
+        if self.redacts:
+            parts.append(f"скрытия: {len(self.redacts)}")
+        if self.texts:
+            parts.append(f"текст: {len(self.texts)}")
+        if not self.adjust.is_identity:
+            parts.append("цвет")
+        if self.filter:
+            parts.append("фильтр")
+        if self.rotation:
+            parts.append(f"поворот {self.rotation}°")
+        if self.flip_h or self.flip_v:
+            parts.append("отражение")
+        return parts
+
+
+@dataclass(frozen=True)
 class VideoProject:
     clips: tuple[Clip, ...]
     audio: AudioSettings = AudioSettings()
+    effects: VideoEffects = VideoEffects()
 
     @property
     def duration(self) -> float:
         return sum(clip.length for clip in self.clips)
+
+    @property
+    def frame_size(self) -> tuple[int, int]:
+        """Размер кадра итогового ролика: как у первого клипа с учётом поворота из метаданных."""
+        info = self.clips[0].info
+        width, height = (
+            (info.height, info.width) if info.rotation in (90, 270) else (info.width, info.height)
+        )
+        return width - width % 2, height - height % 2  # h264 требует чётных размеров
+
+    @property
+    def clips_compatible(self) -> bool:
+        first = self.clips[0].info
+        return all(incompatibility(first, clip.info) is None for clip in self.clips[1:])
+
+    def reencode_reason(self, precise: bool = False) -> str | None:
+        """Почему нужно перекодировать видео: effects, precise, clips; None — хватит копирования."""
+        if not self.effects.is_default:
+            return "effects"
+        if precise and any(clip.is_trimmed for clip in self.clips):
+            return "precise"
+        if not self.clips_compatible:
+            return "clips"
+        return None
 
     def add_clip(self, clip: Clip) -> "VideoProject":
         return replace(self, clips=(*self.clips, clip))
@@ -82,6 +155,9 @@ class VideoProject:
 
     def with_audio(self, audio: AudioSettings) -> "VideoProject":
         return replace(self, audio=audio)
+
+    def with_effects(self, effects: VideoEffects) -> "VideoProject":
+        return replace(self, effects=effects)
 
 
 def incompatibility(a: MediaInfo, b: MediaInfo) -> str | None:

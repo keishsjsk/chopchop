@@ -1,5 +1,6 @@
 """Страница редактора видео: превью, полоса обрезки, клипы, звук, экспорт."""
 
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
@@ -19,15 +20,20 @@ from PySide6.QtWidgets import (
 )
 
 from quickedit.core.document import MediaInfo
-from quickedit.core.video import Clip, incompatibility
+from quickedit.core.operations import Adjust, FilterName
+from quickedit.core.video import Clip, VideoEffects, incompatibility
 from quickedit.editor.video_session import VideoSession
+from quickedit.engines.fonts import find_font_path
 from quickedit.engines.probe import probe
-from quickedit.engines.video_engine import ExportPlanError, build_plan
+from quickedit.engines.video_engine import ExportPlanError, build_plan, write_text_files
+from quickedit.engines.video_filters import build_effects_graph, output_frame_size
 from quickedit.services.temp_files import new_workspace, remove_workspace
 from quickedit.ui.click_slider import ClickSlider
 from quickedit.ui.player_controls import format_time
 from quickedit.ui.trim_bar import TrimBar, format_precise
+from quickedit.ui.video_effects_panel import VideoEffectsPanel
 from quickedit.ui.video_export_dialog import VideoExportDialog
+from quickedit.ui.video_overlay import VideoOverlay
 from quickedit.ui.video_page import VideoPage
 from quickedit.workers.export_worker import ExportWorker
 from quickedit.workers.tasks import TaskRunner
@@ -68,6 +74,8 @@ class VideoEditorPage(QWidget):
         self.loaded_path: Path | None = None
         self._export_dir: Path | None = None
         self._progress: QProgressDialog | None = None
+        self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
+        self._preview_key: str | None = None
 
         self._thumbs = ThumbnailLoader(ffmpeg, self)
         self._thumbs.thumbnail.connect(self._on_thumbnail)
@@ -176,12 +184,20 @@ class VideoEditorPage(QWidget):
         audio_row.addWidget(self._audio_note)
         audio_row.addStretch(1)
 
+        self._overlay = VideoOverlay(self._video_page, self.session.project.frame_size)
+        self._video_page.controls.raise_()  # панель плеера остаётся над слоем и кликабельна
+        self.effects_panel = VideoEffectsPanel(self.session, self._overlay)
+        self.effects_panel.message.connect(self.message)
+        self.effects_panel.colorPreview.connect(self._on_color_preview)
+        self.effects_panel.colorPreviewEnded.connect(self._on_color_preview_ended)
+
         self._video_layout = QVBoxLayout(self)
         self._video_layout.addLayout(top)
         self._video_layout.addWidget(self._video_page, 1)
         self._video_page.show()  # removeWidget в главном окне скрыл плеер
         self._video_layout.addWidget(self.trim)
         self._video_layout.addLayout(trim_row)
+        self._video_layout.addWidget(self.effects_panel)
         self._video_layout.addLayout(clips_row)
         self._video_layout.addLayout(audio_row)
 
@@ -193,6 +209,9 @@ class VideoEditorPage(QWidget):
             (player.fileLoaded, self._on_file_loaded),
         ):
             signal.disconnect(slot)
+        player.set_video_filter(None)
+        self._overlay.setParent(None)
+        self._overlay.deleteLater()
         self._video_layout.removeWidget(self._video_page)
         self._video_page.setParent(None)
         return self._video_page
@@ -203,6 +222,7 @@ class VideoEditorPage(QWidget):
         self._worker.wait()
         self._thumbs.wait()
         self._tasks.wait()
+        remove_workspace(self._workspace)
 
     # --- текущий клип ------------------------------------------------------------------------
 
@@ -286,20 +306,16 @@ class VideoEditorPage(QWidget):
 
     def _on_clip_probed(self, path: Path, info: MediaInfo) -> None:
         reason = incompatibility(self.session.project.clips[0].info, info)
-        if reason is not None:
-            QMessageBox.information(
-                self,
-                self.tr("Клипы не подходят друг другу"),
-                self.tr(
-                    "Отличается: {0}. Такие ролики можно склеить только с перекодированием, "
-                    "это появится позже."
-                ).format(self.tr(_REASONS.get(reason, reason))),
-            )
-            self.message.emit("")
-            return
         self.session.add_clip(Clip(path, info))
         self._clips.setCurrentRow(len(self.session.project.clips) - 1)
-        self.message.emit(self.tr("Клип добавлен: ") + path.name)
+        if reason is None:
+            self.message.emit(self.tr("Клип добавлен: ") + path.name)
+        else:
+            self.message.emit(
+                self.tr(
+                    "Клип добавлен. Отличается: {0}, при экспорте видео будет перекодировано"
+                ).format(self.tr(_REASONS.get(reason, reason)))
+            )
 
     def _remove_clip(self) -> None:
         if len(self.session.project.clips) <= 1:
@@ -359,8 +375,11 @@ class VideoEditorPage(QWidget):
         self._undo_button.setEnabled(self.session.can_undo)
         self._redo_button.setEnabled(self.session.can_redo)
         marker = " *" if self.session.modified else ""
+        width, height = output_frame_size(project.effects, project.frame_size)
         self._summary.setText(
-            self.tr("Итог: {0}, клипов: {1}").format(format_time(project.duration), len(clips))
+            self.tr("Итог: {0}, {1}×{2}, клипов: {3}").format(
+                format_time(project.duration), width, height, len(clips)
+            )
             + marker
         )
 
@@ -376,11 +395,45 @@ class VideoEditorPage(QWidget):
         )
         self._refresh_trim()
         self._apply_loop()
+        self.effects_panel.refresh()
+        self._apply_preview()
 
     def _refresh_trim(self) -> None:
         clip = self.clip
         self.trim.set_range(clip.start, clip.stop)
         self._trim_label.setText(self._trim_text(clip.start, clip.stop))
+
+    # --- предпросмотр эффектов в mpv ---------------------------------------------------------
+
+    def _preview_graph(self, effects: VideoEffects) -> str | None:
+        """Тот же граф, что и при экспорте, но без кадра и поворота (их показывает слой)."""
+        files = write_text_files(effects.texts, self._workspace)
+        graph = build_effects_graph(
+            effects,
+            self.session.project.frame_size,
+            files,
+            find_font_path(),
+            geometry=False,
+            in_label="vid1",
+            out_label="vo",
+        )
+        return None if graph == "[vid1]null[vo]" else graph
+
+    def _apply_preview(self, effects: VideoEffects | None = None) -> None:
+        graph = self._preview_graph(effects or self.session.project.effects)
+        if graph == self._preview_key:
+            return
+        if self._video_page.player.set_video_filter(graph):
+            self._preview_key = graph
+        else:
+            self.message.emit(self.tr("Предпросмотр эффектов недоступен, но экспорт сработает"))
+
+    def _on_color_preview(self, adjust: Adjust, filter_name: FilterName | None) -> None:
+        current = self.session.project.effects
+        self._apply_preview(replace(current, adjust=adjust, filter=filter_name))
+
+    def _on_color_preview_ended(self) -> None:
+        self._apply_preview()
 
     # --- отмена и повтор (общие имена с редактором фото) -------------------------------------
 
@@ -391,10 +444,10 @@ class VideoEditorPage(QWidget):
         self.session.redo()
 
     def apply_pending(self) -> None:
-        """Enter в видеоредакторе ничего не применяет: правки сразу попадают в проект."""
+        self.effects_panel.apply_pending()
 
-    def select_tool(self, _name: str) -> None:
-        """Клавиши инструментов фото в видеоредакторе не используются."""
+    def select_tool(self, name: str) -> None:
+        self.effects_panel.select_tool(name)
 
     def copy_result(self) -> None:
         self.message.emit(self.tr("Копирование в буфер доступно только для фото"))
@@ -406,7 +459,8 @@ class VideoEditorPage(QWidget):
         self.export()
 
     def escape(self) -> None:
-        self.request_exit()
+        if not self.effects_panel.escape():
+            self.request_exit()
 
     # --- экспорт -----------------------------------------------------------------------------
 
@@ -418,7 +472,14 @@ class VideoEditorPage(QWidget):
             return
         workdir = new_workspace()
         try:
-            plan = build_plan(self.session.project, dialog.path(), self._ffmpeg, workdir)
+            plan = build_plan(
+                self.session.project,
+                dialog.path(),
+                self._ffmpeg,
+                workdir,
+                precise=dialog.precise(),
+                font=find_font_path(),
+            )
         except ExportPlanError as error:
             remove_workspace(workdir)
             QMessageBox.warning(self, self.tr("Экспорт невозможен"), str(error))

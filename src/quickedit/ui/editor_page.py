@@ -31,18 +31,18 @@ from quickedit.core.operations import (
     RedactMode,
     Resize,
     Rotate,
-    Shape,
 )
 from quickedit.editor.session import EditSession
 from quickedit.engines.image_engine import default_output_path, format_for_source
 from quickedit.ui.canvas import Canvas
 from quickedit.ui.color_button import ColorButton
+from quickedit.ui.crop_ratio import CropRatioBar
 from quickedit.ui.export_dialog import ExportDialog
 from quickedit.ui.pil_qt import pil_to_qimage
 from quickedit.ui.tools.adjust_tool import AdjustTool
 from quickedit.ui.tools.base import Tool
 from quickedit.ui.tools.crop_tool import CropTool
-from quickedit.ui.tools.draw_tool import DrawTool
+from quickedit.ui.tools.draw_tool import DrawShape, DrawTool
 from quickedit.ui.tools.redact_tool import RedactTool
 from quickedit.ui.tools.text_tool import TextTool
 
@@ -80,6 +80,10 @@ class EditorPage(QWidget):
 
         for tool in self.tools.values():
             tool.changed.connect(self._on_tool_changed)
+        draw_tool = self.tools["draw"]
+        assert isinstance(draw_tool, DrawTool)
+        draw_tool.strokeFinished.connect(self.apply_pending)
+        self._on_draw_options()  # инструмент берёт то, что выбрано в панели
         session.changed.connect(self.refresh)
         session.exported.connect(self._on_exported)
         session.exportFailed.connect(lambda err: self.message.emit(self.tr("Ошибка: ") + err))
@@ -168,8 +172,19 @@ class EditorPage(QWidget):
         return label
 
     def _panel_crop(self) -> QWidget:
-        hint = self._hint(self.tr("Выделите область мышью, края можно двигать. Enter — обрезать."))
-        return self._panel(hint, self._apply_button())
+        self._ratio_bar = CropRatioBar()
+        self._ratio_bar.ratioChanged.connect(self._on_ratio_changed)
+        hint = self._hint(
+            self.tr("Тяните края и углы рамки, внутри — переносите. Enter — обрезать.")
+        )
+        return self._panel(
+            QLabel(self.tr("Пропорции")), self._ratio_bar, hint, self._apply_button()
+        )
+
+    def _on_ratio_changed(self, ratio: object) -> None:
+        crop = self.tools["crop"]
+        assert isinstance(crop, CropTool)
+        crop.set_ratio(ratio)  # type: ignore[arg-type]
 
     def _panel_rotate(self) -> QWidget:
         buttons: list[QWidget] = []
@@ -208,9 +223,11 @@ class EditorPage(QWidget):
 
     def _panel_draw(self) -> QWidget:
         self._shape = QComboBox()
+        self._shape.addItem(self.tr("Кисть (рисовать мышью)"), "pen")
+        self._shape.addItem(self.tr("Маркер (рисовать мышью)"), "highlighter")
         self._shape.addItem(self.tr("Стрелка"), "arrow")
-        self._shape.addItem(self.tr("Прямоугольник"), "rect")
-        self._shape.addItem(self.tr("Маркер"), "marker")
+        self._shape.addItem(self.tr("Рамка"), "rect")
+        self._shape.addItem(self.tr("Выделение области"), "marker")
         self._draw_color = ColorButton((255, 0, 0))
         self._thickness = QSpinBox()
         self._thickness.setRange(1, 20)
@@ -222,7 +239,9 @@ class EditorPage(QWidget):
             self._thickness.valueChanged,
         ):
             signal.connect(self._on_draw_options)
-        hint = self._hint(self.tr("Проведите мышью, затем Enter."))
+        hint = self._hint(
+            self.tr("Кисть и маркер рисуют сразу, пока держите кнопку. Фигуры — проведите и Enter.")
+        )
         return self._panel(
             self._shape, self._draw_color, self._thickness, hint, self._apply_button()
         )
@@ -230,7 +249,7 @@ class EditorPage(QWidget):
     def _on_draw_options(self) -> None:
         draw = self.tools["draw"]
         assert isinstance(draw, DrawTool)
-        shape: Shape = self._shape.currentData()
+        shape: DrawShape = self._shape.currentData()
         draw.set_options(shape, self._draw_color.color, self._thickness.value())
 
     def _panel_text(self) -> QWidget:
@@ -356,8 +375,15 @@ class EditorPage(QWidget):
         # у цветокоррекции мыши нет, только ползунки
         mouse_tool = self._active_tool() if key != "adjust" else None
         self.canvas.set_tool(mouse_tool)
+        self._select_whole_frame()
         self._rendered_key = None
         self._update_canvas()
+
+    def _select_whole_frame(self) -> None:
+        """Кадрирование начинается с рамки по всему кадру, а не с пустого холста."""
+        tool = self._active_tool()
+        if isinstance(tool, CropTool) and tool.selection.rect is None:
+            tool.select_all()
 
     def _active_tool(self) -> Tool | None:
         return self.tools[self._active] if self._active else None
@@ -370,7 +396,12 @@ class EditorPage(QWidget):
             return
         op = tool.pending_operation()
         if op is None:
-            self.message.emit(self.tr("Сначала выделите область или задайте параметры"))
+            if isinstance(tool, CropTool):
+                self.message.emit(
+                    self.tr("Рамка совпадает с кадром: потяните край, чтобы обрезать")
+                )
+            else:
+                self.message.emit(self.tr("Сначала выделите область или задайте параметры"))
             return
         tool.reset()
         if isinstance(tool, AdjustTool):
@@ -399,6 +430,7 @@ class EditorPage(QWidget):
         preview = self.session.preview()
         for tool in self.tools.values():
             tool.set_bounds(preview.width, preview.height)
+        self._select_whole_frame()  # после обрезки рамка снова охватывает новый кадр
         self._rendered_key = None
         self._update_canvas()
         self._undo_button.setEnabled(self.session.history.can_undo)

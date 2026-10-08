@@ -234,3 +234,38 @@ def test_restore_video_before_playback_started_reloads_from_start() -> None:
     fake.time_pos = None
     player.restore_video()
     assert fake.loaded == [("movie.mkv", {"start": "0.000", "pause": "no"})]
+
+
+def test_video_filter_is_set_and_cleared() -> None:
+    player, fake = _player()
+    assert player.set_video_filter("[vid1]hue=s=0[vo]")
+    assert ("vf", "set", "lavfi=[[vid1]hue=s=0[vo]]") in fake.commands
+    assert player.set_video_filter(None)
+    assert fake.commands[-1] == ("vf", "clear", "")
+
+
+def test_filter_switches_zero_copy_decoding_to_copy_mode_once() -> None:
+    player, fake = _player()
+    player.load(Path("movie.mkv"))
+    fake.loaded.clear()
+    fake.hwdec_current = "nvdec"  # кадры остаются в памяти видеокарты
+    fake.time_pos = 6.0
+    fake.pause = True
+    player.set_video_filter("[vid1]hue=s=0[vo]")
+    assert fake.hwdec == "auto-copy-safe"
+    assert fake.loaded == [("movie.mkv", {"start": "6.000", "pause": "yes"})]
+    fake.loaded.clear()
+    player.set_video_filter("[vid1]eq=contrast=1.2[vo]")  # второй раз без перезапуска
+    assert fake.loaded == []
+
+
+def test_filter_does_not_reload_when_decoding_is_already_in_software_or_copy_mode() -> None:
+    for current in ("no", "d3d11va-copy", ""):
+        player, fake = _player()
+        player.load(Path("movie.mkv"))
+        fake.loaded.clear()
+        fake.hwdec_current = current
+        fake.time_pos = 3.0
+        player.set_video_filter("[vid1]hue=s=0[vo]")
+        assert fake.loaded == []
+        assert fake.hwdec == "auto-copy-safe"

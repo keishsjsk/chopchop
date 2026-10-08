@@ -39,6 +39,7 @@ class Player(QObject):
         self._mpv = mpv
         self._closed = False
         self._current: Path | None = None
+        self._copy_decoding = False
         # обработчики вызываются из потока mpv; сигналы Qt сами ставят доставку в очередь
         mpv.observe_property("time-pos", lambda _n, v: self._emit_float(self.positionChanged, v))
         mpv.observe_property("duration", lambda _n, v: self._emit_float(self.durationChanged, v))
@@ -222,6 +223,37 @@ class Player(QObject):
         assert self._current is not None
         options = {"start": f"{position:.3f}", "pause": "yes" if paused else "no"}
         self._mpv.loadfile(str(self._current), **options)
+
+    def set_video_filter(self, graph: str | None) -> bool:
+        """Показывать видео через граф фильтров ffmpeg (метки vid1 и vo); None снимает фильтр."""
+        if self._closed:
+            return False
+        if graph:
+            self._decode_with_copy()
+        try:
+            if graph:
+                self._mpv.command("vf", "set", f"lavfi=[{graph}]")
+            else:
+                self._mpv.command("vf", "clear", "")
+        except Exception:
+            return False
+        return True
+
+    def _decode_with_copy(self) -> None:
+        """Фильтры ffmpeg не работают с кадрами, оставшимися в памяти видеокарты (nvdec, d3d11va).
+
+        Включаем аппаратное декодирование с копированием кадров (оно по-прежнему на видеокарте)
+        и один раз перезапускаем декодер, если он уже работал без копирования.
+        """
+        if self._copy_decoding:
+            return
+        self._copy_decoding = True
+        self._mpv.hwdec = "auto-copy-safe"
+        current = str(self._mpv.hwdec_current or "")
+        zero_copy = current not in ("", "no") and not current.endswith("-copy")
+        position = self._mpv.time_pos
+        if zero_copy and self._current is not None and position is not None:
+            self._reload(float(position), bool(self._mpv.pause))
 
     def set_loop(self, start: float | None, end: float | None) -> None:
         """Зациклить фрагмент [start, end] (предпросмотр обрезки); None снимает цикл."""

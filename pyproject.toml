@@ -57,5 +57,5 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # проверки пикселей: getpixel() в Pillow возвращает широкий тип
-module = ["test_image_engine", "test_session"]
+module = ["test_image_engine", "test_session", "test_video_effects_export"]
 disable_error_code = ["index", "misc"]
