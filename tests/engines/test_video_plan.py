@@ -1,6 +1,6 @@
 """Построение команд ffmpeg: сравнение аргументов, без запуска ffmpeg."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
