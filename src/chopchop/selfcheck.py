@@ -8,6 +8,7 @@ from typing import Any
 
 from chopchop import __version__
 from chopchop.services.paths import is_frozen
+from chopchop.services.process import no_window_flags
 
 TIMEOUT = 30
 
@@ -38,7 +39,7 @@ def _check_pillow() -> dict[str, Any]:
 def _version_of(binary: Path | None) -> dict[str, Any]:
     if binary is None:
         return _result(False, "не найден")
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    flags = no_window_flags()
     try:
         output = subprocess.run(
             [str(binary), "-version"],

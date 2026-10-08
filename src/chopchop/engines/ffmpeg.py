@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chopchop.services.paths import bundled_dirs
+from chopchop.services.process import no_window_flags
 
 
 def find_binary(name: str, search_dirs: Iterable[Path] | None = None) -> Path | None:
@@ -66,7 +67,7 @@ def run_step(
     cancel: threading.Event | None = None,
 ) -> None:
     """Запускает один шаг; on_progress получает долю 0..1. Список аргументов, без shell."""
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    flags = no_window_flags()
     process = subprocess.Popen(
         list(step.args),
         stdin=subprocess.DEVNULL,

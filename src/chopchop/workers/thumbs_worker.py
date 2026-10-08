@@ -1,20 +1,20 @@
 """Миниатюры для полосы обрезки: по одному кадру, в фоне, с кэшем на время сессии."""
 
 import subprocess
-import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtGui import QImage
 
 from chopchop.engines.video_engine import thumbnail_args
+from chopchop.services.process import no_window_flags
 
 THUMB_TIMEOUT = 20
 
 
 def extract_thumbnail(ffmpeg: Path, path: Path, at: float) -> bytes:
     """PNG-кадр на заданной секунде; пустые байты, если кадр достать не удалось."""
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    flags = no_window_flags()
     try:
         result = subprocess.run(
             thumbnail_args(ffmpeg, path, at),

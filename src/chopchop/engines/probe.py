@@ -2,13 +2,13 @@
 
 import json
 import subprocess
-import sys
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from chopchop.core.document import AudioInfo, MediaInfo
 from chopchop.engines.ffmpeg import find_ffprobe
+from chopchop.services.process import no_window_flags
 
 PROBE_TIMEOUT = 30
 
@@ -92,7 +92,7 @@ def probe(path: Path, ffprobe: Path | None = None) -> MediaInfo:
         "-i",
         str(path),
     ]
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    flags = no_window_flags()
     try:
         result = subprocess.run(
             args, capture_output=True, timeout=PROBE_TIMEOUT, check=False, creationflags=flags
