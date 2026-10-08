@@ -176,9 +176,12 @@ def test_no_shell_is_involved_for_odd_file_names(tmp_path: Path) -> None:
 
 
 def test_concat_list_escapes_quotes_and_backslashes() -> None:
-    text = concat_list([Path("C:\\media\\it's.mp4")])
+    # путь в стиле Windows: на Linux обычный Path не считает «\» разделителем, а тест должен
+    # проверять преобразование одинаково на любой системе
+    text = concat_list([PureWindowsPath("C:\\media\\it's.mp4")])
     assert "\\" not in text.replace("'\\''", "")
     assert "it'\\''s" in text
+    assert text.startswith("file 'C:/media/")
 
 
 def test_thumbnail_args_seek_before_input() -> None:

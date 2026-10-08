@@ -5,8 +5,9 @@
 Перекодирование (libx264) включается для эффектов, точной обрезки и склейки разных роликов.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from chopchop.core.operations import Text
 from chopchop.core.video import AudioSettings, Clip, VideoProject
@@ -103,7 +104,7 @@ def _audio_args(audio: AudioSettings, has_source_audio: bool, total: float) -> _
     return _AudioArgs([], ["-map", "0:v", "-map", "0:a?"], ["-c", "copy"], False)
 
 
-def concat_list(paths: list[Path]) -> str:
+def concat_list(paths: Sequence[PurePath]) -> str:
     """Текст файла для concat demuxer: слеши прямые, одинарные кавычки экранированы."""
     lines = []
     for path in paths:
