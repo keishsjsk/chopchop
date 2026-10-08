@@ -40,10 +40,19 @@ def load_mpv_module() -> ModuleType:
     if sys.platform == "win32" and lib.is_absolute():
         # python-mpv ищет DLL в PATH, поэтому папку с нашей копией ставим первой
         os.environ["PATH"] = str(lib.parent) + os.pathsep + os.environ.get("PATH", "")
+    original_find_library = ctypes.util.find_library
+    if sys.platform != "win32" and lib.is_absolute() and lib.is_file():
+        # python-mpv на Linux сам ищет libmpv в системе; подсовываем библиотеку из сборки
+        def find_bundled(name: str) -> str | None:
+            return str(lib) if name == "mpv" else original_find_library(name)
+
+        ctypes.util.find_library = find_bundled
     try:
         import mpv
     except OSError as error:
         raise MpvUnavailableError(str(error)) from error
+    finally:
+        ctypes.util.find_library = original_find_library
     module: ModuleType = mpv
     return module
 

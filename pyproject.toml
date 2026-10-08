@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quickedit"
-version = "0.0.1"
+version = "0.1.0"
 description = "Лёгкий плеер и быстрый редактор фото и видео"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,6 +24,10 @@ dev = [
     "mypy>=1.11",
     "bandit>=1.7",
     "pip-audit>=2.7",
+]
+build = [
+    "pyinstaller>=6.10",
+    "cyclonedx-bom>=4.5",
 ]
 
 [project.scripts]
@@ -59,3 +63,9 @@ ignore_missing_imports = true
 # проверки пикселей: getpixel() в Pillow возвращает широкий тип
 module = ["test_image_engine", "test_session", "test_video_effects_export"]
 disable_error_code = ["index", "misc"]
+
+[tool.bandit]
+# B101: assert используется для сужения типов, а не для проверки данных пользователя.
+# B404/B603: ffmpeg и ffprobe запускаются списком аргументов без shell, имена файлов не
+# превращаются в команды; пути к исполняемым файлам берутся только из папки программы и PATH.
+skips = ["B101", "B404", "B603"]
