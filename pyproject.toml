@@ -54,3 +54,8 @@ pythonpath = ["src", "tests"]
 [[tool.mypy.overrides]]
 module = ["mpv"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# проверки пикселей: getpixel() в Pillow возвращает широкий тип
+module = ["test_image_engine", "test_session"]
+disable_error_code = ["index", "misc"]

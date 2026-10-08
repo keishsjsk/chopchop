@@ -5,15 +5,25 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QKeySequence
-from PySide6.QtWidgets import QFileDialog, QLabel, QMainWindow, QMessageBox, QStackedWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
+)
 
 from quickedit.core.document import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, MediaKind, detect_kind
+from quickedit.editor.session import EditSession
 from quickedit.engines.ffmpeg import find_ffmpeg
 from quickedit.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
 from quickedit.player.player import Player
 from quickedit.player.resume import ResumeStore
 from quickedit.services.settings import RecentFiles, load_player_prefs, save_player_prefs
 from quickedit.ui.drop_zone import DropZone
+from quickedit.ui.editor_page import EditorPage
+from quickedit.ui.pil_qt import qimage_to_pil
 from quickedit.ui.settings_dialog import SettingsDialog
 from quickedit.ui.video_page import VideoPage
 from quickedit.viewer.folder_nav import FolderNav
@@ -39,6 +49,8 @@ class MainWindow(QMainWindow):
         self._nav: FolderNav | None = None
         self._video_path: Path | None = None
         self.video_page: VideoPage | None = None
+        self.editor: EditorPage | None = None
+        self._session: EditSession | None = None
         self._cache = ImageCache(parent=self)
         self._cache.loaded.connect(self._on_image_loaded)
         self._cache.failed.connect(self._on_image_failed)
@@ -73,6 +85,22 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self._action(self.tr("Выход"), "Ctrl+Q", self.close))
 
+        edit_menu = self.menuBar().addMenu(self.tr("Правка"))
+        for text, shortcut, slot in (
+            (self.tr("Редактировать / назад к просмотру"), "Ctrl+E", self.toggle_editor),
+            (self.tr("Вставить картинку из буфера"), "Ctrl+V", self.paste_image),
+            (self.tr("Отменить"), "Ctrl+Z", lambda: self._with_editor(lambda e: e.undo())),
+            (self.tr("Повторить"), "Ctrl+Y", lambda: self._with_editor(lambda e: e.redo())),
+            (self.tr("Копировать результат"), "Ctrl+C", self._copy),
+            (self.tr("Сохранить"), "Ctrl+S", lambda: self._with_editor(lambda e: e.save_quick())),
+            (
+                self.tr("Сохранить как…"),
+                "Ctrl+Shift+S",
+                lambda: self._with_editor(lambda e: e.save_as()),
+            ),
+        ):
+            edit_menu.addAction(self._action(text, shortcut, slot))
+
         def player_action(text: str, shortcut: str, do: Callable[[Player], object]) -> None:
             self._add_action(text, shortcut, lambda: self._with_player(do))
 
@@ -91,7 +119,17 @@ class MainWindow(QMainWindow):
         player_action(self.tr("Субтитры 2 позже"), "Shift+X", lambda p: p.shift_sub2(1))
         add(self.tr("Полный экран"), Qt.Key.Key_F, self.toggle_fullscreen)
         add(self.tr("Полный экран"), Qt.Key.Key_F11, self.toggle_fullscreen)
-        add(self.tr("Выйти из полного экрана"), Qt.Key.Key_Escape, self.exit_fullscreen)
+        add(self.tr("Выйти из полного экрана"), Qt.Key.Key_Escape, self._escape)
+        for enter in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            add(self.tr("Применить"), enter, lambda: self._with_editor(lambda e: e.apply_pending()))
+        for key, tool in (
+            ("C", "crop"),
+            ("R", "rotate"),
+            ("B", "redact"),
+            ("D", "draw"),
+            ("T", "text"),
+        ):
+            add(tool, key, self._tool_slot(tool))
         add(self.tr("Вписать в окно"), "Ctrl+0", self.viewer.fit_to_window)
         add(self.tr("Масштаб 100%"), "Ctrl+1", self.viewer.actual_size)
 
@@ -255,6 +293,8 @@ class MainWindow(QMainWindow):
             action(self.video_page.player)
 
     def _horizontal(self, direction: int) -> None:
+        if self._on_editor():
+            return
         if self._on_video_page():
             self._with_player(lambda p: p.seek(direction * SEEK_SECONDS))
         else:
@@ -270,6 +310,99 @@ class MainWindow(QMainWindow):
             save_player_prefs(self._settings, prefs)
             if self.video_page is not None:
                 self.video_page.player.apply_prefs(prefs)
+
+    # --- редактор ----------------------------------------------------------------------------
+
+    def _tool_slot(self, tool: str) -> Callable[[], object]:
+        def select() -> None:
+            self._with_editor(lambda e: e.select_tool(tool))
+
+        return select
+
+    def _on_editor(self) -> bool:
+        return self.editor is not None and self._stack.currentWidget() is self.editor
+
+    def _with_editor(self, action: Callable[[EditorPage], object]) -> None:
+        if self._on_editor() and self.editor is not None:
+            action(self.editor)
+
+    def _copy(self) -> None:
+        self._with_editor(lambda e: e.copy_result())
+
+    def _escape(self) -> None:
+        if self.isFullScreen():
+            self.exit_fullscreen()
+        else:
+            self._with_editor(lambda e: e.escape())
+
+    def toggle_editor(self) -> None:
+        if self._on_editor():
+            self._with_editor(lambda e: e.request_exit())
+        elif self._stack.currentWidget() is self.viewer and self.current_path is not None:
+            self._open_editor(EditSession(self.current_path, parent=self))
+        elif self._on_video_page():
+            self.statusBar().showMessage(self.tr("Редактор видео появится позже"), 5000)
+
+    def paste_image(self) -> None:
+        image = QApplication.clipboard().image()
+        if image.isNull():
+            self.statusBar().showMessage(self.tr("В буфере обмена нет картинки"), 5000)
+            return
+        self._open_editor(EditSession(None, qimage_to_pil(image), parent=self))
+
+    def _open_editor(self, session: EditSession) -> None:
+        if self._on_editor():
+            return
+        self._discard_session()
+        self._session = session
+        session.loaded.connect(lambda: self._show_editor(session))
+        session.loadFailed.connect(self._on_editor_load_failed)
+        self.statusBar().showMessage(self.tr("Загрузка…"))
+        session.start()
+
+    def _on_editor_load_failed(self, error: str) -> None:
+        self._discard_session()
+        self.statusBar().showMessage(
+            self.tr("Не удалось открыть для редактирования: ") + error, 8000
+        )
+
+    def _discard_session(self) -> None:
+        if self._session is not None:
+            self._session.wait()
+            self._session.deleteLater()
+            self._session = None
+
+    def _show_editor(self, session: EditSession) -> None:
+        if session is not self._session:
+            return
+        self._stop_video()
+        if self.editor is not None:
+            self._stack.removeWidget(self.editor)
+            self.editor.deleteLater()
+        self.editor = EditorPage(session)
+        self.editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
+        self.editor.exitRequested.connect(self._leave_editor)
+        self._stack.addWidget(self.editor)
+        self._stack.setCurrentWidget(self.editor)
+        self._zoom_label.clear()
+        name = session.source.name if session.source else self.tr("Из буфера обмена")
+        self.setWindowTitle(f"{name} — {self.tr('редактор')} — QuickEdit")
+        self.statusBar().clearMessage()
+
+    def _leave_editor(self) -> None:
+        if self.editor is None:
+            return
+        self._stack.removeWidget(self.editor)
+        self.editor.deleteLater()
+        self.editor = None
+        self._discard_session()
+        if self._nav is not None and self.current_path is not None:
+            self._stack.setCurrentWidget(self.viewer)
+            self._update_title()
+            self.statusBar().showMessage(self.tr("Просмотр"), 3000)
+        else:
+            self._stack.setCurrentWidget(self._drop_zone)
+            self.setWindowTitle("QuickEdit")
 
     # --- окно --------------------------------------------------------------------------------
 
@@ -296,6 +429,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{self.current_path.name}{position} — QuickEdit")
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+        if self.editor is not None and self.editor.session.modified:
+            answer = QMessageBox.question(
+                self,
+                self.tr("Несохранённые правки"),
+                self.tr("Закрыть редактор без сохранения?"),
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        if self._session is not None:
+            self._session.wait()
         self._save_resume()
         self._cache.wait()
         if self.video_page is not None:
