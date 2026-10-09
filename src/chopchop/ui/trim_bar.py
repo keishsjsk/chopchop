@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPaintEvent, QP
 from PySide6.QtWidgets import QWidget
 
 from chopchop.core.video import MIN_CLIP_SECONDS
+from chopchop.ui.theme import current, tokens
 
 SIDE = 12.0  # поле слева и справа под ручки
 HANDLE_GRAB = 9.0  # зона захвата ручки в пикселях
@@ -88,9 +89,10 @@ class TrimBar(QWidget):
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(28, 28, 28))
+        p = current.palette()
+        painter.fillRect(self.rect(), QColor(p.surface))
         track = self._track()
-        painter.fillRect(track, QColor(60, 60, 60))
+        painter.fillRect(track, QColor(p.border))
         count = len(self._thumbs)
         for index, image in enumerate(self._thumbs):
             if image is None or image.isNull():
@@ -109,19 +111,19 @@ class TrimBar(QWidget):
             painter.drawImage(slot, image, source)
 
         left, right = self._x(self._start), self._x(self._end)
-        shade = QColor(0, 0, 0, 170)
+        shade = QColor(*p.scrim)
         top, height = track.top(), track.height()
         painter.fillRect(QRectF(track.left(), top, left - track.left(), height), shade)
         painter.fillRect(QRectF(right, top, track.right() - right, height), shade)
 
-        painter.setPen(QPen(QColor(255, 200, 0), 2))
+        painter.setPen(QPen(QColor(p.accent), tokens.BORDER_WIDTH))
         painter.drawRect(QRectF(left, track.top(), right - left, track.height()))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(255, 200, 0))
+        painter.setBrush(QColor(p.accent))
         painter.drawRect(QRectF(left - SIDE / 2, 2, SIDE / 2 + 2, self.height() - 4))
         painter.drawRect(QRectF(right - 2, 2, SIDE / 2 + 2, self.height() - 4))
 
-        painter.setPen(QPen(QColor("white"), 2))
+        painter.setPen(QPen(QColor(p.text), tokens.BORDER_WIDTH))
         x = self._x(self._position)
         painter.drawLine(int(x), 0, int(x), self.height())
 

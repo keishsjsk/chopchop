@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any, cast
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QWidget
 
 from chopchop.player.player import Player
@@ -17,6 +18,7 @@ class FakeMpv:
         self.hwdec_current: Any = "no"
         self.volume = 100.0
         self.speed = 1.0
+        self.mute = False
         self.time_pos: float | None = 0.0
         self.duration: float | None = None
         self.track_list: list[dict[str, Any]] = []
@@ -99,8 +101,35 @@ class FakeVideoPage(QWidget):
     def wake(self) -> None:
         pass
 
+    def set_title(self, _name: str) -> None:
+        pass
+
+    def set_fullscreen(self, value: bool) -> None:
+        self.fullscreen = value
+
+    def refresh_theme(self) -> None:
+        pass
+
+    def set_editor_mode(self, value: bool) -> None:
+        pass
+
     def as_video_page(self) -> VideoPage:
         return cast(VideoPage, self)
 
     def release(self) -> None:
         self.player.shutdown()
+
+
+class FakeMpvWidget(QWidget):
+    """Замена MpvWidget без OpenGL: те же сигналы, кадр не рисуется."""
+
+    clicked = Signal()
+    doubleClicked = Signal()
+    mouseMoved = Signal()
+    renderContextRecreated = Signal()
+
+    def __init__(self, _module: object, _mpv: object, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+    def release(self) -> None:
+        pass

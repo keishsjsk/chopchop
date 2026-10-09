@@ -190,6 +190,32 @@ SPECS: tuple[Spec, ...] = (
         ),
     ),
     Spec(
+        "playback.hide_delay",
+        "float",
+        2.5,
+        QT_TRANSLATE_NOOP("Settings", "Прятать панели через, с"),
+        QT_TRANSLATE_NOOP("Settings", "Панели и курсор над видео исчезают, если мышь неподвижна"),
+        low=1.0,
+        high=10.0,
+        step=0.5,
+    ),
+    Spec(
+        "playback.fs_panel",
+        "choice",
+        "compact",
+        QT_TRANSLATE_NOOP("Settings", "Панель в полном экране"),
+        choices=(
+            ("compact", QT_TRANSLATE_NOOP("Settings", "компактная")),
+            ("normal", QT_TRANSLATE_NOOP("Settings", "обычная")),
+        ),
+    ),
+    Spec(
+        "playback.fs_progress_line",
+        "bool",
+        True,
+        QT_TRANSLATE_NOOP("Settings", "Линия прогресса при спрятанной панели (полный экран)"),
+    ),
+    Spec(
         "playback.speed_step",
         "float",
         0.25,
@@ -278,7 +304,6 @@ SPECS: tuple[Spec, ...] = (
             ("light", QT_TRANSLATE_NOOP("Settings", "светлая")),
             ("dark", QT_TRANSLATE_NOOP("Settings", "тёмная")),
         ),
-        shown=False,
     ),
     Spec(
         "appearance.accent",
@@ -291,7 +316,6 @@ SPECS: tuple[Spec, ...] = (
             ("coral", QT_TRANSLATE_NOOP("Settings", "коралловый")),
             ("burgundy", QT_TRANSLATE_NOOP("Settings", "бордовый")),
         ),
-        shown=False,
     ),
     Spec(
         "appearance.ui_scale",
@@ -302,28 +326,24 @@ SPECS: tuple[Spec, ...] = (
         high=150,
         step=5,
         apply="restart",
-        shown=False,
     ),
     Spec(
         "appearance.pixel_titles",
         "bool",
         True,
         QT_TRANSLATE_NOOP("Settings", "Пиксельный шрифт в заголовках"),
-        shown=False,
     ),
     Spec(
         "appearance.animations",
         "bool",
         True,
         QT_TRANSLATE_NOOP("Settings", "Анимации"),
-        shown=False,
     ),
     Spec(
         "appearance.compact",
         "bool",
         False,
         QT_TRANSLATE_NOOP("Settings", "Компактный режим"),
-        shown=False,
     ),
     # --- Редактор
     Spec(

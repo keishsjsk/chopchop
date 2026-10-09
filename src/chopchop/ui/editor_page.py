@@ -1,20 +1,23 @@
 """Страница редактора фото: панель инструментов, холст, отмена и повтор, сохранение."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSlider,
     QSpinBox,
     QStackedWidget,
@@ -35,19 +38,22 @@ from chopchop.core.operations import (
 from chopchop.editor.session import EditSession
 from chopchop.engines.image_engine import default_output_path, format_for_source
 from chopchop.services.app_settings import AppSettings
+from chopchop.services.reveal import reveal_in_folder
 from chopchop.ui.canvas import Canvas
 from chopchop.ui.color_button import ColorButton, hex_to_color
 from chopchop.ui.crop_ratio import CropRatioBar
 from chopchop.ui.export_dialog import ExportDialog
+from chopchop.ui.export_strip import ExportStrip
 from chopchop.ui.pil_qt import pil_to_qimage
+from chopchop.ui.theme import current, icons, tokens
+from chopchop.ui.toast import Toast
 from chopchop.ui.tools.adjust_tool import AdjustTool
-from chopchop.ui.tools.base import Tool
+from chopchop.ui.tools.base import RectSelectTool, Tool
 from chopchop.ui.tools.crop_tool import CropTool, ratio_from_setting
 from chopchop.ui.tools.draw_tool import DrawShape, DrawTool
 from chopchop.ui.tools.redact_tool import RedactTool
 from chopchop.ui.tools.text_tool import TextTool
 
-PANEL_WIDTH = 240
 REFRESH_MS = 15
 
 
@@ -104,89 +110,143 @@ class EditorPage(QWidget):
         session.frame_converter = pil_to_qimage  # QImage собирается в фоне, не в потоке интерфейса
         session.previewFailed.connect(self._on_preview_failed)
         session.exported.connect(self._on_exported)
-        session.exportFailed.connect(lambda err: self.message.emit(self.tr("Ошибка: ") + err))
+        session.exportFailed.connect(self._on_export_failed)
+        session.exportCancelled.connect(self._on_export_cancelled)
         self.refresh()
 
     # --- построение интерфейса ---------------------------------------------------------------
 
+    def _icon_button(
+        self, name: str, tip: str, slot: Callable[[], object] | None = None
+    ) -> QToolButton:
+        button = QToolButton()
+        button.setToolTip(tip)
+        button.setFixedSize(tokens.RAIL_BUTTON, tokens.RAIL_BUTTON)
+        button.setIconSize(QSize(32, 32))
+        self._icon_buttons.append((button, name))
+        button.setIcon(icons.qicon(name, current.palette(), logical=32))
+        if slot is not None:
+            button.clicked.connect(lambda _checked=False: slot())
+        return button
+
+    def refresh_theme(self) -> None:
+        """Тема сменилась: значки перекрашиваются."""
+        for button, name in self._icon_buttons:
+            size = 16 if name == "save" else 32
+            role = "on_accent" if name == "save" else "text"
+            button.setIcon(icons.qicon(name, current.palette(), logical=size, role=role))
+        self.update()
+
     def _build_ui(self) -> None:
-        back = QPushButton(self.tr("← К просмотру"))
+        self._icon_buttons: list[tuple[QToolButton | QPushButton, str]] = []
+        back = QToolButton()
+        back.setText(self.tr("К просмотру"))
+        back.setToolTip(self.tr("Вернуться к просмотру  Esc"))
+        back.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        back.setIconSize(QSize(32, 32))
+        back.setMinimumHeight(tokens.RAIL_BUTTON)
+        back.setIcon(icons.qicon("back_to_view", current.palette(), logical=32))
+        self._icon_buttons.append((back, "back_to_view"))
         back.clicked.connect(self.request_exit)
-        self._undo_button = QPushButton(self.tr("Отменить"))
-        self._undo_button.clicked.connect(self.undo)
-        self._redo_button = QPushButton(self.tr("Повторить"))
-        self._redo_button.clicked.connect(self.redo)
-        copy = QPushButton(self.tr("Копировать"))
-        copy.clicked.connect(self.copy_result)
+        self._undo_button = self._icon_button("undo", self.tr("Отменить  Ctrl+Z"), self.undo)
+        self._redo_button = self._icon_button("redo", self.tr("Повторить  Ctrl+Y"), self.redo)
+        copy = self._icon_button("copy", self.tr("Копировать результат  Ctrl+C"), self.copy_result)
+        save_as = self._icon_button(
+            "save_as", self.tr("Сохранить как…  Ctrl+Shift+S"), self.save_as
+        )
         save = QPushButton(self.tr("Сохранить"))
+        save.setProperty("variant", "primary")
+        save.setToolTip(self.tr("Сохранить  Ctrl+S"))
+        save.setIcon(icons.qicon("save", current.palette(), logical=16, role="on_accent"))
+        save.setIconSize(QSize(16, 16))
+        self._icon_buttons.append((save, "save"))
         save.clicked.connect(self.save_quick)
-        save_as = QPushButton(self.tr("Сохранить как…"))
-        save_as.clicked.connect(self.save_as)
         self._info = QLabel()
+        self._info.setProperty("muted", True)
 
         top = QHBoxLayout()
-        for widget in (back, self._undo_button, self._redo_button, copy, save, save_as):
-            top.addWidget(widget)
+        top.setSpacing(tokens.SPACE_2)
+        top.addWidget(back)
+        top.addWidget(self._undo_button)
+        top.addWidget(self._redo_button)
         top.addStretch(1)
         top.addWidget(self._info)
+        top.addWidget(copy)
+        top.addWidget(save_as)
+        top.addWidget(save)
 
-        tool_column = QVBoxLayout()
+        self.export_strip = ExportStrip()
+        self.export_strip.cancelRequested.connect(self._cancel_export)
+
+        rail = QVBoxLayout()
+        rail.setSpacing(tokens.SPACE_1)
         self._stack = QStackedWidget()
-        self._stack.setFixedWidth(PANEL_WIDTH)
+        self._stack.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         group = QButtonGroup(self)
         group.setExclusive(False)
         self._buttons: dict[str, QToolButton] = {}
         entries = [
-            ("crop", self.tr("Кадрировать"), "C", self._panel_crop()),
-            ("rotate", self.tr("Повернуть"), "R", self._panel_rotate()),
-            ("redact", self.tr("Скрыть"), "B", self._panel_redact()),
-            ("draw", self.tr("Рисовать"), "D", self._panel_draw()),
-            ("text", self.tr("Текст"), "T", self._panel_text()),
-            ("adjust", self.tr("Цвет и фильтры"), "", self._panel_adjust()),
-            ("resize", self.tr("Размер"), "", self._panel_resize()),
+            ("crop", "crop", self.tr("Кадрировать"), "C", self._panel_crop()),
+            ("rotate", "rotate", self.tr("Повернуть"), "R", self._panel_rotate()),
+            ("redact", "redact", self.tr("Скрыть"), "B", self._panel_redact()),
+            ("draw", "brush", self.tr("Рисовать"), "D", self._panel_draw()),
+            ("text", "text", self.tr("Текст"), "T", self._panel_text()),
+            ("adjust", "adjust", self.tr("Цвет и фильтры"), "", self._panel_adjust()),
+            ("resize", "fit", self.tr("Размер"), "", self._panel_resize()),
         ]
         self._stack.addWidget(QWidget())  # индекс 0: инструмент не выбран
         self._panel_index: dict[str, int] = {}
-        for key, label, letter, panel in entries:
-            button = QToolButton()
-            button.setText(f"{label}  [{letter}]" if letter else label)
+        for key, icon_name, label, letter, panel in entries:
+            tip = f"{label}  {letter}" if letter else label
+            button = self._icon_button(icon_name, tip)
             button.setCheckable(True)
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            button.setFixedWidth(PANEL_WIDTH)
             button.clicked.connect(lambda _checked=False, k=key: self.select_tool(k))
             group.addButton(button)
-            tool_column.addWidget(button)
+            rail.addWidget(button)
             self._buttons[key] = button
             self._panel_index[key] = self._stack.addWidget(panel)
-        tool_column.addSpacing(8)
-        tool_column.addWidget(self._stack)
-        tool_column.addStretch(1)
+        rail.addStretch(1)
+        self._stack.hide()
 
+        column = QVBoxLayout()
+        column.setSpacing(tokens.SPACE_2)
+        column.addWidget(self._stack)
+        column.addWidget(self.canvas, 1)
         body = QHBoxLayout()
-        body.addLayout(tool_column)
-        body.addWidget(self.canvas, 1)
+        body.setSpacing(tokens.SPACE_2)
+        body.addLayout(rail)
+        body.addLayout(column, 1)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(tokens.SPACE_3, tokens.SPACE_3, tokens.SPACE_3, tokens.SPACE_3)
+        layout.setSpacing(tokens.SPACE_2)
         layout.addLayout(top)
+        layout.addWidget(self.export_strip)
         layout.addLayout(body, 1)
+        self.toast = Toast(self)
 
     def _apply_button(self) -> QPushButton:
-        button = QPushButton(self.tr("Применить (Enter)"))
+        button = QPushButton(self.tr("Применить  Enter"))
+        button.setProperty("variant", "primary")
         button.clicked.connect(self.apply_pending)
         return button
 
     def _panel(self, *widgets: QWidget) -> QWidget:
+        """Панель параметров инструмента: одна строка над холстом."""
         panel = QWidget()
-        column = QVBoxLayout(panel)
-        column.setContentsMargins(0, 0, 0, 0)
+        row = QHBoxLayout(panel)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(tokens.SPACE_2)
         for widget in widgets:
-            column.addWidget(widget)
-        column.addStretch(1)
+            row.addWidget(widget)
+        row.addStretch(1)
         return panel
 
     def _hint(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setWordWrap(True)
+        label.setMaximumWidth(420)
+        label.setProperty("muted", True)
         return label
 
     def _panel_crop(self) -> QWidget:
@@ -251,24 +311,45 @@ class EditorPage(QWidget):
         self._thickness.setRange(1, 20)
         self._thickness.setValue(self._app.get_int("editor.brush_width"))
         self._thickness.setPrefix(self.tr("Толщина: "))
+        self._opacity = QSpinBox()
+        self._opacity.setRange(10, 100)
+        self._opacity.setSuffix("%")
+        self._opacity.setValue(100)
+        self._opacity.setPrefix(self.tr("Непрозрачность: "))
         for signal in (
             self._shape.currentIndexChanged,
             self._draw_color.colorChanged,
             self._thickness.valueChanged,
+            self._opacity.valueChanged,
         ):
             signal.connect(self._on_draw_options)
+        self._shape.currentIndexChanged.connect(self._reset_opacity_for_shape)
         hint = self._hint(
             self.tr("Кисть и маркер рисуют сразу, пока держите кнопку. Фигуры — проведите и Enter.")
         )
         return self._panel(
-            self._shape, self._draw_color, self._thickness, hint, self._apply_button()
+            self._shape,
+            self._draw_color,
+            self._thickness,
+            self._opacity,
+            hint,
+            self._apply_button(),
         )
 
     def _on_draw_options(self) -> None:
         draw = self.tools["draw"]
         assert isinstance(draw, DrawTool)
         shape: DrawShape = self._shape.currentData()
-        draw.set_options(shape, self._draw_color.color, self._thickness.value())
+        draw.set_options(
+            shape,
+            self._draw_color.color,
+            self._thickness.value(),
+            self._opacity.value() / 100,
+        )
+
+    def _reset_opacity_for_shape(self) -> None:
+        """Маркер по умолчанию полупрозрачный, кисть и фигуры — сплошные."""
+        self._opacity.setValue(40 if self._shape.currentData() == "highlighter" else 100)
 
     def _panel_text(self) -> QWidget:
         self._text = QLineEdit()
@@ -323,7 +404,29 @@ class EditorPage(QWidget):
             button = QPushButton(text)
             button.clicked.connect(lambda _checked=False, n=name: self.session.add_full(Filter(n)))
             filters.append(button)
-        return self._panel(*rows, reset, self._apply_button(), QLabel(self.tr("Фильтры")), *filters)
+        grid = QWidget()
+        cells = QGridLayout(grid)
+        cells.setContentsMargins(0, 0, 0, 0)
+        cells.setHorizontalSpacing(tokens.SPACE_4)
+        for index in range(0, len(rows), 2):
+            column = index // 2
+            cells.addWidget(rows[index], 0, column)
+            cells.addWidget(rows[index + 1], 1, column)
+        cells.addWidget(reset, 1, 4)
+        cells.addWidget(self._apply_button(), 0, 4)
+        strip = QWidget()
+        buttons = QHBoxLayout(strip)
+        buttons.setContentsMargins(0, 0, 0, 0)
+        buttons.addWidget(QLabel(self.tr("Фильтры")))
+        for chip in filters:
+            buttons.addWidget(chip)
+        buttons.addStretch(1)
+        wrapper = QWidget()
+        stack = QVBoxLayout(wrapper)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.addWidget(grid)
+        stack.addWidget(strip)
+        return wrapper
 
     def _on_adjust_sliders(self) -> None:
         if self._syncing:
@@ -390,6 +493,7 @@ class EditorPage(QWidget):
         for name, button in self._buttons.items():
             button.setChecked(name == key)
         self._stack.setCurrentIndex(self._panel_index[key] if key else 0)
+        self._stack.setVisible(key is not None)
         # у цветокоррекции мыши нет, только ползунки
         mouse_tool = self._active_tool() if key != "adjust" else None
         self.canvas.set_tool(mouse_tool)
@@ -468,8 +572,11 @@ class EditorPage(QWidget):
     def _on_preview_ready(self) -> None:
         self._committing = False
         preview = self.session.preview()
+        scale = self.session.preview_scale()
         for tool in self.tools.values():
             tool.set_bounds(preview.width, preview.height)
+            if isinstance(tool, RectSelectTool):
+                tool.size_scale = scale  # плашка размера показывает размер результата
             tool.end_commit()
         self._select_whole_frame()  # после обрезки рамка снова охватывает новый кадр
         self._drop_pending()
@@ -535,6 +642,7 @@ class EditorPage(QWidget):
     def save_quick(self) -> None:
         fmt = format_for_source(self.session.source)
         self.message.emit(self.tr("Сохранение…"))
+        self.export_strip.start(self.tr("Сохранение…"), indeterminate=True)
         self.session.export(
             self._default_path(fmt),
             fmt,
@@ -554,10 +662,34 @@ class EditorPage(QWidget):
             self.message.emit(
                 self.tr("Исходный файл не перезаписывается, сохраняю как ") + path.name
             )
+        self.export_strip.start(self.tr("Сохранение…"), indeterminate=True)
         self.session.export(path, choice.fmt, choice.quality, choice.keep_metadata)
 
+    def _cancel_export(self) -> None:
+        self.export_strip.cancelling()
+        self.session.cancel_export()
+
+    def _on_export_cancelled(self) -> None:
+        self.export_strip.finish()
+        self.message.emit(self.tr("Сохранение отменено"))
+        self.toast.show_message(self.tr("Сохранение отменено"), "info")
+        self._exit_after_save = False
+
+    def _on_export_failed(self, error: str) -> None:
+        self.export_strip.finish()
+        self._exit_after_save = False
+        self.message.emit(self.tr("Ошибка: ") + error)
+        self.toast.show_message(self.tr("Не удалось сохранить: ") + error, "error")
+
     def _on_exported(self, path: Path) -> None:
+        self.export_strip.finish()
         self.message.emit(self.tr("Сохранено: ") + str(path))
+        self.toast.show_message(
+            self.tr("Сохранено: ") + path.name,
+            "success",
+            self.tr("Показать в папке"),
+            lambda: reveal_in_folder(path),
+        )
         self.refresh()
         if self._exit_after_save:
             self._exit_after_save = False

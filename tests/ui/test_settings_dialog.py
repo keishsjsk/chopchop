@@ -36,7 +36,7 @@ def test_lists_sections_with_visible_settings_only(qtbot: QtBot) -> None:
     assert titles[0] == "Основные"
     assert "Воспроизведение" in titles and "Фото" in titles and "Редактор" in titles
     assert "Дополнительно" in titles
-    assert "Внешний вид" not in titles  # пока ничего из него не подключено
+    assert "Внешний вид" in titles
     hidden = {s.key for s in schema.SPECS if not s.shown}
     assert hidden.isdisjoint(dialog._rows)
 

@@ -1,5 +1,6 @@
 """Создание QApplication и главного окна."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from chopchop.services.profiling import LoopWatchdog, enabled, setup_logging
 from chopchop.services.settings import default_settings
 from chopchop.services.temp_files import cleanup_stale
 from chopchop.ui.main_window import MainWindow
+from chopchop.ui.theme import fonts
+from chopchop.ui.theme.manager import ThemeManager
 
 APP_ID = "CHOPCHOP.CHOPCHOP"
 
@@ -47,17 +50,22 @@ def run(initial: Path | None = None) -> int:
     _set_windows_app_id()
     # много событий мыши подряд склеиваются в одно: рисуем по последнему положению
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_CompressHighFrequencyEvents, True)
+    # имена нужны до создания приложения: от них зависят папки настроек, журнала и кэша
+    QCoreApplication.setApplicationName("CHOPCHOP")
+    QCoreApplication.setOrganizationName("CHOPCHOP")
+    settings = load_settings(default_settings_path(), default_settings())
+    scale = settings.get_int("appearance.ui_scale")
+    if scale != 100 and "QT_SCALE_FACTOR" not in os.environ:
+        os.environ["QT_SCALE_FACTOR"] = f"{scale / 100:g}"  # масштаб интерфейса, после перезапуска
     app = QApplication(sys.argv[:1])
-    app.setApplicationName("CHOPCHOP")
-    app.setOrganizationName("CHOPCHOP")
     app.setApplicationVersion(__version__)
     icon = resource_dir() / "icons" / "chopchop.png"
     if icon.is_file():
         app.setWindowIcon(QIcon(str(icon)))
 
-    settings = load_settings(default_settings_path(), default_settings())
     logs.setup(settings.get_str("advanced.log_level"))
     logs.install_excepthook()
+    fonts.load_fonts()
     i18n.install_language(app, settings.get_str("general.language"))
     folder = settings.get_str("advanced.temp_dir")
     temp_files.set_root(Path(folder) if folder else None)
@@ -66,7 +74,8 @@ def run(initial: Path | None = None) -> int:
     watchdog = LoopWatchdog() if enabled() else None
     if watchdog is not None:
         watchdog.start()
-    window = MainWindow(default_settings(), settings)
+    theme = ThemeManager(app)
+    window = MainWindow(default_settings(), settings, theme)
     for text in settings.startup_notices:
         window.statusBar().showMessage(text, 15000)
     settings.notice.connect(lambda text: window.statusBar().showMessage(text, 15000))
@@ -75,6 +84,7 @@ def run(initial: Path | None = None) -> int:
         window.open_file(initial)
     code = app.exec()
     settings.flush()
+    theme.shutdown()
     if watchdog is not None:
         watchdog.stop()
     logs.shutdown()

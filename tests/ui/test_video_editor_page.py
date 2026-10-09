@@ -174,10 +174,8 @@ def test_export_refuses_to_overwrite_source(
     before = source.read_bytes()
     monkeypatch.setattr(VideoExportDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
     monkeypatch.setattr(VideoExportDialog, "path", lambda self: source)
-    warned: list[str] = []
-    monkeypatch.setattr(QMessageBox, "warning", lambda _p, _t, text: warned.append(text))
     page.export()
-    assert warned
+    assert "Экспорт невозможен" in page.toast.message()  # уведомление, а не блокирующее окно
     assert source.read_bytes() == before
     page.shutdown()
 

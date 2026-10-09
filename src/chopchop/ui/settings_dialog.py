@@ -182,14 +182,14 @@ class SettingsDialog(QDialog):
             row.widget.setText(row.widget.text() + " " + self.tr("(после перезапуска)"))
         column.addWidget(row.widget)
         error = QLabel()
-        error.setStyleSheet("color: #c0392b;")
+        error.setProperty("error", True)
         error.hide()
         self._errors[spec.key] = error
         column.addWidget(error)
         if hint:
             note = QLabel(hint)
             note.setWordWrap(True)
-            note.setStyleSheet("color: gray;")
+            note.setProperty("muted", True)
             column.addWidget(note)
         return block
 

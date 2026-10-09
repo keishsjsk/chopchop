@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QProgressDialog,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -36,9 +35,12 @@ from chopchop.engines.video_engine import (
 )
 from chopchop.engines.video_filters import build_effects_graph, output_frame_size
 from chopchop.services.app_settings import AppSettings
+from chopchop.services.reveal import reveal_in_folder
 from chopchop.services.temp_files import new_workspace, remove_workspace
 from chopchop.ui.click_slider import ClickSlider
+from chopchop.ui.export_strip import ExportStrip
 from chopchop.ui.player_controls import format_time
+from chopchop.ui.toast import Toast
 from chopchop.ui.trim_bar import TrimBar, format_precise
 from chopchop.ui.video_effects_panel import VideoEffectsPanel
 from chopchop.ui.video_export_dialog import VideoExportDialog
@@ -85,7 +87,7 @@ class VideoEditorPage(QWidget):
         self._index = 0
         self.loaded_path: Path | None = None
         self._export_dir: Path | None = None
-        self._progress: QProgressDialog | None = None
+        self._progress: ExportStrip | None = None  # полоса экспорта, пока он идёт
         self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
         self._preview_key: str | None = None
 
@@ -206,10 +208,15 @@ class VideoEditorPage(QWidget):
         self.effects_panel.colorPreview.connect(self._on_color_preview)
         self.effects_panel.colorPreviewEnded.connect(self._on_color_preview_ended)
 
+        self.export_strip = ExportStrip()
+        self.export_strip.cancelRequested.connect(self._cancel_export)
         self._video_layout = QVBoxLayout(self)
         self._video_layout.addLayout(top)
+        self._video_layout.addWidget(self.export_strip)
         self._video_layout.addWidget(self._video_page, 1)
         self._video_page.show()  # removeWidget в главном окне скрыл плеер
+        self._video_page.set_editor_mode(True)
+        self.toast = Toast(self)
         self._video_layout.addWidget(self.trim)
         self._video_layout.addLayout(trim_row)
         self._video_layout.addWidget(self.effects_panel)
@@ -514,35 +521,36 @@ class VideoEditorPage(QWidget):
             )
         except ExportPlanError as error:
             remove_workspace(workdir)
-            QMessageBox.warning(self, self.tr("Экспорт невозможен"), str(error))
+            self.toast.show_message(self.tr("Экспорт невозможен: ") + str(error), "error")
             return
         self._export_dir = workdir
-        progress = QProgressDialog(self.tr("Экспорт…"), self.tr("Отмена"), 0, 100, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(0)
-        progress.setAutoClose(False)
-        progress.setAutoReset(False)
-        progress.canceled.connect(self._worker.cancel)
-        progress.setValue(0)
-        self._progress = progress
+        self.export_strip.start(self.tr("Экспорт…"))
+        self._progress = self.export_strip
         self._worker.start(plan, workdir)
 
+    def _cancel_export(self) -> None:
+        self.export_strip.cancelling()
+        self._worker.cancel()
+
     def _close_progress(self) -> None:
-        if self._progress is not None:
-            self._progress.canceled.disconnect(self._worker.cancel)
-            self._progress.close()
-            self._progress.deleteLater()
-            self._progress = None
+        self.export_strip.finish()
+        self._progress = None
         self._export_dir = None
 
     def _on_export_progress(self, fraction: float) -> None:
         if self._progress is not None:
-            self._progress.setValue(int(fraction * 100))
+            self._progress.set_fraction(fraction)
 
     def _on_export_finished(self, path: Path) -> None:
         self._close_progress()
         self.session.mark_saved()
         self.message.emit(self.tr("Сохранено: ") + str(path))
+        self.toast.show_message(
+            self.tr("Сохранено: ") + path.name,
+            "success",
+            self.tr("Показать в папке"),
+            lambda: reveal_in_folder(path),
+        )
 
     def _on_export_failed(self, error: str) -> None:
         self._close_progress()
@@ -558,11 +566,13 @@ class VideoEditorPage(QWidget):
             )
             self._start_export(args[0], args[1], args[2].on_cpu())
             return
-        QMessageBox.critical(self, self.tr("Ошибка экспорта"), error)
+        self.message.emit(self.tr("Ошибка экспорта") + ": " + error)
+        self.toast.show_message(self.tr("Ошибка экспорта") + ": " + error, "error")
 
     def _on_export_cancelled(self) -> None:
         self._close_progress()
         self.message.emit(self.tr("Экспорт отменён"))
+        self.toast.show_message(self.tr("Экспорт отменён"), "info")
 
     # --- выход -------------------------------------------------------------------------------
 

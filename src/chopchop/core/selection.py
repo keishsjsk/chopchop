@@ -87,9 +87,31 @@ class RectSelection:
         else:
             self._mode = hit
 
-    def drag(self, x: float, y: float) -> None:
+    @property
+    def active(self) -> bool:
+        """Идёт перетаскивание (мышь зажата)."""
+        return self._mode is not None
+
+    def _snap_point(self, x: float, y: float, snap: float) -> tuple[float, float]:
+        """Привязка координаты к краям и середине кадра, если она ближе snap."""
+        if snap <= 0:
+            return x, y
+        width, height = self.bounds
+        for target in (0.0, width / 2, width):
+            if abs(x - target) <= snap:
+                x = target
+        for target in (0.0, height / 2, height):
+            if abs(y - target) <= snap:
+                y = target
+        return x, y
+
+    def drag(self, x: float, y: float, snap: float = 0.0) -> None:
         if self._mode is None:
             return
+        if self._mode == "move" and self._origin is not None and snap > 0:
+            x, y = self._snap_move(x, y, snap)
+        elif self._mode != "move":
+            x, y = self._snap_point(x, y, snap)
         px, py = self._clamp_point(x, y)
         if self._mode == "new":
             self.rect = self._from_corner(self._anchor, px, py)
@@ -100,6 +122,29 @@ class RectSelection:
             self.rect = Rect(origin.x + dx, origin.y + dy, origin.w, origin.h)
         elif self._origin is not None:
             self.rect = self._resize(self._origin, self._mode, px, py)
+
+    def _snap_move(self, x: float, y: float, snap: float) -> tuple[float, float]:
+        """Перенос рамки: её края и центр прилипают к краям и центру кадра."""
+        origin = self._origin
+        assert origin is not None
+        width, height = self.bounds
+
+        def shift(edges: tuple[float, ...], delta: float, targets: tuple[float, ...]) -> float:
+            best, best_size = 0.0, snap + 1
+            for edge in edges:
+                for target in targets:
+                    offset = target - (edge + delta)
+                    if abs(offset) <= snap and abs(offset) < best_size:
+                        best, best_size = offset, abs(offset)
+            return best
+
+        dx, dy = x - self._anchor[0], y - self._anchor[1]
+        columns = (origin.x, origin.x + origin.w / 2, origin.right)
+        rows = (origin.y, origin.y + origin.h / 2, origin.bottom)
+        return (
+            x + shift(columns, dx, (0.0, width / 2, width)),
+            y + shift(rows, dy, (0.0, height / 2, height)),
+        )
 
     def release(self) -> None:
         self._mode = None

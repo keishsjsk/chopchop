@@ -36,6 +36,7 @@ def system_libmpv() -> list[tuple[str, str]]:
 datas = [
     (str(ROOT / "resources" / "icons"), "resources/icons"),
     (str(ROOT / "resources" / "i18n"), "resources/i18n"),
+    (str(ROOT / "resources" / "fonts"), "resources/fonts"),
 ]
 datas += folder(BINARIES / "bin", "bin")
 datas += folder(BINARIES / "lib", "lib")

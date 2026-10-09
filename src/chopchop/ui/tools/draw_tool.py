@@ -34,6 +34,7 @@ class DrawTool(Tool):
         self.shape: DrawShape = "pen"
         self.color: Color = (255, 0, 0)
         self.thickness = 4  # пункты 1–20
+        self.opacity: float | None = None  # None — по виду линии: кисть 1, маркер 0,4
         self._start: tuple[float, float] | None = None
         self._end: tuple[float, float] | None = None
         self._points: list[tuple[float, float]] = []
@@ -101,10 +102,17 @@ class DrawTool(Tool):
                 self._dirty.h + 2 * reach,
             )
 
-    def set_options(self, shape: DrawShape, color: Color, thickness: int) -> None:
+    def set_options(
+        self,
+        shape: DrawShape,
+        color: Color,
+        thickness: int,
+        opacity: float | None = None,
+    ) -> None:
         if shape != self.shape:
             self._clear()
         self.shape, self.color, self.thickness = shape, color, thickness
+        self.opacity = opacity
         self._layer_key = None
         self.changed.emit()
 
@@ -122,13 +130,25 @@ class DrawTool(Tool):
                     tuple(self._points),
                     self.color,
                     self._width() * HIGHLIGHTER_WIDTH,
-                    HIGHLIGHTER_OPACITY,
+                    self._stroke_opacity(),
                 )
-            return Stroke(tuple(self._points), self.color, self._width(), 1.0)
+            return Stroke(tuple(self._points), self.color, self._width(), self._stroke_opacity())
         if self._start is None or self._end is None or self._start == self._end:
             return None
         shape: Literal["arrow", "rect", "marker"] = self.shape  # type: ignore[assignment]
         return Annotate(shape, self._start, self._end, self.color, self._width())
+
+    def _stroke_opacity(self) -> float:
+        if self.opacity is not None:
+            return self.opacity
+        return HIGHLIGHTER_OPACITY if self.shape == "highlighter" else 1.0
+
+    def cursor_radius(self) -> float | None:
+        """Радиус круга-курсора в пикселях кадра: реальная толщина линии; None у фигур."""
+        if not self.freehand:
+            return None
+        multiplier = HIGHLIGHTER_WIDTH if self.shape == "highlighter" else 1.0
+        return self._width() * multiplier / 2
 
     def dirty_rect(self) -> Rect | None:
         return self._dirty
@@ -213,7 +233,7 @@ class DrawTool(Tool):
         size = (device.width(), device.height())
         origin = view.to_widget(0, 0)
         scale = view.to_widget(1, 0).x() - origin.x()
-        opacity = HIGHLIGHTER_OPACITY if self.shape == "highlighter" else 1.0
+        opacity = self._stroke_opacity()
         multiplier = HIGHLIGHTER_WIDTH if self.shape == "highlighter" else 1.0
         width = max(1.0, self._width() * multiplier * scale)
         key = (size, ratio, origin.x(), origin.y(), scale, width, self.color)

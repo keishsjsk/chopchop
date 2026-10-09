@@ -5,9 +5,10 @@ from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen, QRes
 from PySide6.QtWidgets import QWidget
 
 from chopchop.core.geometry import Rect
+from chopchop.ui.theme import current, tokens
 from chopchop.ui.tools.base import Tool
 
-HANDLE_TOLERANCE_PX = 9.0
+HANDLE_TOLERANCE_PX = tokens.HANDLE_HIT / 2  # зона захвата ручек, как в редакторе фото
 
 
 class VideoOverlay(QWidget):
@@ -23,6 +24,7 @@ class VideoOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setMouseTracking(True)
         host.installEventFilter(self)
         self.setGeometry(host.rect())
         self.show()
@@ -101,7 +103,7 @@ class VideoOverlay(QWidget):
             self.tool.paint(painter, self)
             painter.setClipping(False)
         if self._rotation_note:
-            painter.setPen(QColor(255, 220, 0))
+            painter.setPen(QColor(current.palette().accent))
             painter.drawText(
                 QRectF(frame.left() + 8, frame.top() + 6, frame.width(), 20),
                 Qt.AlignmentFlag.AlignLeft,
@@ -112,7 +114,7 @@ class VideoOverlay(QWidget):
         """Затемнить то, что останется за кадром результата."""
         assert self._crop is not None
         keep = self.to_widget_rect(self._crop)
-        shade = QColor(0, 0, 0, 150)
+        shade = QColor(*tokens.OVERLAY_DARK, tokens.DIM_ALPHA)
         painter.fillRect(
             QRectF(frame.left(), frame.top(), frame.width(), keep.top() - frame.top()), shade
         )
@@ -126,7 +128,7 @@ class VideoOverlay(QWidget):
         painter.fillRect(
             QRectF(keep.right(), keep.top(), frame.right() - keep.right(), keep.height()), shade
         )
-        painter.setPen(QPen(QColor(255, 200, 0), 1.5, Qt.PenStyle.DashLine))
+        painter.setPen(QPen(QColor(current.palette().accent), tokens.BORDER_WIDTH))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(keep)
 
@@ -139,6 +141,9 @@ class VideoOverlay(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if self.tool is not None and not event.buttons():
+            x, y = self.to_frame(event.position())
+            self.setCursor(self.tool.cursor_at(x, y, HANDLE_TOLERANCE_PX / self._scale()))
         if self.tool is not None and event.buttons() & Qt.MouseButton.LeftButton:
             self.tool.move(*self.to_frame(event.position()))
             self.update()

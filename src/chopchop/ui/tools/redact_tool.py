@@ -32,7 +32,7 @@ class RedactTool(RectSelectTool):
     def paint(self, painter: QPainter, view: ViewMapper) -> None:
         rect = self.selection.rect
         if rect is not None and not self.live:
-            painter.fillRect(view.to_widget_rect(rect), QColor(0, 0, 0))
+            painter.fillRect(view.to_widget_rect(rect), QColor(*Redact(rect).color))
         super().paint(painter, view)
 
     def pending_operation(self) -> Operation | None:

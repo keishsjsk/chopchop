@@ -77,7 +77,7 @@ def test_english_catalog_translates_in_the_application(qtbot: object) -> None:
     app = QApplication.instance() or QApplication([])
     installed = i18n.install_language(app, "en")
     try:
-        assert QCoreApplication.translate("EditorPage", "Отменить") == "Undo"
+        assert QCoreApplication.translate("EditorPage", "Отменить  Ctrl+Z") == "Undo  Ctrl+Z"
         assert QCoreApplication.translate("Settings", "Основные") == "General"
         assert QCoreApplication.translate("EditorPage", "нет такой строки") == "нет такой строки"
     finally:

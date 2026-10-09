@@ -6,7 +6,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QProcess, QSettings, Qt
-from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QKeySequence
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QColor,
+    QDragEnterEvent,
+    QDropEvent,
+    QImage,
+    QKeySequence,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -30,8 +38,11 @@ from chopchop.player.resume import ResumeStore
 from chopchop.services import logs, temp_files
 from chopchop.services.app_settings import AppSettings
 from chopchop.services.settings import RecentFiles, player_prefs
+from chopchop.ui import anim
 from chopchop.ui.drop_zone import DropZone
 from chopchop.ui.settings_dialog import SettingsDialog
+from chopchop.ui.theme import current
+from chopchop.ui.theme.manager import ThemeManager
 from chopchop.ui.video_page import VideoPage
 from chopchop.viewer.folder_nav import FolderNav
 from chopchop.viewer.image_viewer import ImageViewer
@@ -51,7 +62,12 @@ MAX_PREVIEW_SIDE = 3072
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, settings: QSettings, app_settings: AppSettings | None = None) -> None:
+    def __init__(
+        self,
+        settings: QSettings,
+        app_settings: AppSettings | None = None,
+        theme: ThemeManager | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("CHOPCHOP")
         self.resize(960, 600)
@@ -59,6 +75,7 @@ class MainWindow(QMainWindow):
 
         self._settings = settings
         self._app = app_settings or AppSettings(None)
+        self._theme = theme
         self._recent = RecentFiles(settings)
         self._resume = ResumeStore(settings)
         self.current_path: Path | None = None
@@ -99,6 +116,9 @@ class MainWindow(QMainWindow):
 
         self._build_actions()
         self._app.changed.connect(self._on_setting_changed)
+        if theme is not None:
+            theme.changed.connect(self._on_theme_changed)
+        self._apply_appearance()
         self._restore_window()
 
     def _build_actions(self) -> None:
@@ -340,7 +360,8 @@ class MainWindow(QMainWindow):
             )
             QMessageBox.warning(self, self.tr("Плеер недоступен"), f"{hint}\n\n{error}")
             return None
-        page = VideoPage(module, mpv)
+        page = VideoPage(module, mpv, settings=self._app)
+        page.editRequested.connect(self.toggle_editor)
         page.fullscreenRequested.connect(self.toggle_fullscreen)
         page.player.errorOccurred.connect(self._on_video_error)
         page.player.ended.connect(self._on_video_ended)
@@ -362,6 +383,7 @@ class MainWindow(QMainWindow):
         self.statusBar().clearMessage()
         self._zoom_label.clear()
         self._stack.setCurrentWidget(page)
+        page.set_title(path.name)
         resume = self._resume.load(path)
         if resume is not None and not self._app.get_bool("playback.remember_position"):
             resume.position = 0.0  # позицию не возобновляем; дорожки и громкость остаются
@@ -440,6 +462,13 @@ class MainWindow(QMainWindow):
     def _on_setting_changed(self, key: str, _value: object) -> None:
         """Настройка изменилась (в окне настроек, сбросом или импортом): применяем на лету."""
         section = key.split(".", 1)[0]
+        if section == "appearance":
+            self._apply_appearance()
+            return
+        if key in ("playback.fs_panel", "playback.fs_progress_line", "playback.hide_delay"):
+            if self.video_page is not None:
+                self.video_page.set_fullscreen(self.isFullScreen())
+            return
         if section in ("playback", "subtitles") and self.video_page is not None:
             self.video_page.player.apply_prefs(player_prefs(self._app))
         elif section == "photo":
@@ -448,6 +477,29 @@ class MainWindow(QMainWindow):
             temp_files.set_root(Path(self._app.get_str(key)) if self._app.get_str(key) else None)
         elif key == "advanced.log_level":
             logs.set_level(self._app.get_str(key))
+
+    def _apply_appearance(self) -> None:
+        """Тема, акцент, плотность, анимации и пиксельные заголовки из настроек, на лету."""
+        app = self._app
+        anim.set_enabled(app.get_bool("appearance.animations"))
+        current.set_pixel_titles(app.get_bool("appearance.pixel_titles"))
+        if self._theme is not None:
+            self._theme.set_theme(
+                app.get_str("appearance.theme"),
+                app.get_str("appearance.accent"),
+                compact=app.get_bool("appearance.compact"),
+            )
+        else:
+            self._on_theme_changed(current.palette())
+
+    def _on_theme_changed(self, _palette: object) -> None:
+        self._drop_zone.refresh_theme()
+        if self.video_page is not None:
+            self.video_page.refresh_theme()
+        if self.editor is not None:
+            self.editor.refresh_theme()
+        self.viewer.setBackgroundBrush(QColor(self._app.get_str("photo.background")))
+        self.update()
 
     def _apply_viewer_settings(self) -> None:
         app = self._app
@@ -677,12 +729,16 @@ class MainWindow(QMainWindow):
             self.statusBar().hide()
             self.menuBar().hide()
             self.showFullScreen()
+            if self.video_page is not None:
+                self.video_page.set_fullscreen(True)
 
     def exit_fullscreen(self) -> None:
         if self.isFullScreen():
             self.showNormal()
             self.statusBar().show()
             self.menuBar().show()
+            if self.video_page is not None:
+                self.video_page.set_fullscreen(False)
 
     def _update_title(self) -> None:
         if self.current_path is None:

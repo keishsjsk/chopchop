@@ -32,6 +32,7 @@ class Player(QObject):
     pausedChanged = Signal(bool)
     volumeChanged = Signal(float)
     speedChanged = Signal(float)
+    muteChanged = Signal(bool)
     tracksChanged = Signal()
     ended = Signal()
     fileLoaded = Signal()
@@ -50,6 +51,7 @@ class Player(QObject):
         mpv.observe_property("volume", lambda _n, v: self._emit_float(self.volumeChanged, v))
         mpv.observe_property("speed", lambda _n, v: self._emit_float(self.speedChanged, v))
         mpv.observe_property("pause", lambda _n, v: self.pausedChanged.emit(bool(v)))
+        mpv.observe_property("mute", lambda _n, v: self.muteChanged.emit(bool(v)))
         mpv.observe_property("eof-reached", self._on_eof)
         for name in ("track-list", "aid", "sid", "secondary-sid"):
             mpv.observe_property(name, lambda _n, _v: self.tracksChanged.emit())
@@ -176,6 +178,17 @@ class Player(QObject):
 
     def set_volume(self, value: float) -> None:
         self._mpv.volume = min(max(value, 0.0), VOLUME_MAX)
+
+    @property
+    def current(self) -> Path | None:
+        return self._current
+
+    @property
+    def muted(self) -> bool:
+        return bool(self._mpv.mute)
+
+    def toggle_mute(self) -> None:
+        self._mpv.mute = not self._mpv.mute
 
     @property
     def speed(self) -> float:

@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog, QPushButton, QWidget
 
 from chopchop.core.operations import Color
+from chopchop.ui.theme import current, tokens
 
 
 def hex_to_color(value: str) -> Color:
@@ -21,7 +22,7 @@ class ColorButton(QPushButton):
     def __init__(self, color: Color, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._color = color
-        self.setFixedHeight(26)
+        self.setFixedHeight(tokens.MIN_HIT)
         self.clicked.connect(self._choose)
         self._refresh()
 
@@ -34,8 +35,11 @@ class ColorButton(QPushButton):
         self._refresh()
 
     def _refresh(self) -> None:
-        r, g, b = self._color
-        self.setStyleSheet(f"background-color: rgb({r}, {g}, {b}); border: 1px solid #888;")
+        border = current.palette().border_strong
+        self.setStyleSheet(
+            f"background-color: {color_to_hex(self._color)}; "
+            f"border: {tokens.BORDER_WIDTH}px solid {border};"
+        )
 
     def _choose(self) -> None:
         chosen = QColorDialog.getColor(QColor(*self._color), self, self.tr("Цвет"))

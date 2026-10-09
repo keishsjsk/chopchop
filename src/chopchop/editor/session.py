@@ -86,6 +86,7 @@ class EditSession(QObject):
     previewFailed = Signal(str)
     exported = Signal(Path)
     exportFailed = Signal(str)
+    exportCancelled = Signal()
 
     def __init__(
         self,
@@ -108,6 +109,7 @@ class EditSession(QObject):
         self._generation = 0  # устаревшие расчёты превью отбрасываются по номеру
         self._pending_generation = 0
         self._busy = 0
+        self._export_cancelled = False
         # как превратить результат в картинку для экрана; выполняется в фоновом потоке
         self.frame_converter: Callable[[Image.Image], object] | None = None
 
@@ -268,10 +270,19 @@ class EditSession(QObject):
                 return save_image(result, dest, fmt, quality, exif, keep_metadata)
 
         def done(path: Path) -> None:
+            if self._export_cancelled:
+                path.unlink(missing_ok=True)  # результат отменённого сохранения не оставляем
+                self.exportCancelled.emit()
+                return
             self.mark_saved(ops)  # правки, сделанные во время экспорта, остаются несохранёнными
             self.exported.emit(path)
 
+        self._export_cancelled = False
         self._runner.run(job, done, self.exportFailed.emit)
+
+    def cancel_export(self) -> None:
+        """Сохранение уже идёт в фоне: по завершении файл будет удалён, как будто его не было."""
+        self._export_cancelled = True
 
     def render_full(self, on_done: Callable[[Image.Image], None]) -> None:
         """Полноразмерный результат в фоне (для копирования в буфер обмена)."""

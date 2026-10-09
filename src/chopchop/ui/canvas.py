@@ -6,17 +6,17 @@
 
 import contextlib
 
-from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPaintEvent, QPixmap
+from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPaintEvent, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from chopchop.core.geometry import Rect
 from chopchop.services.profiling import stage
+from chopchop.ui.theme import current, tokens
 from chopchop.ui.tools.base import Tool
 
 MARGIN = 12.0
-HANDLE_TOLERANCE_PX = 9.0  # зона захвата границы выделения на экране
-BACKGROUND = QColor(32, 32, 32)
+HANDLE_TOLERANCE_PX = tokens.HANDLE_HIT / 2  # зона захвата ручек: 24 px, не меньше 16
 
 
 class Canvas(QWidget):
@@ -26,7 +26,8 @@ class Canvas(QWidget):
         self._pixmap: QPixmap | None = None
         self._pixmap_key: tuple[int, int, int, float] | None = None
         self.tool: Tool | None = None
-        self.setMouseTracking(False)
+        self._hover: QPointF | None = None  # положение указателя для круга-курсора кисти
+        self.setMouseTracking(True)
         self.setMinimumSize(200, 150)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)  # фон закрашиваем сами
 
@@ -126,7 +127,7 @@ class Canvas(QWidget):
     def _paint(self, area: QRect) -> None:
         painter = QPainter(self)
         painter.setClipRect(area)
-        painter.fillRect(area, BACKGROUND)
+        painter.fillRect(area, QColor(current.palette().bg))
         pixmap = self._scaled_pixmap()
         if pixmap is None:
             return
@@ -136,6 +137,50 @@ class Canvas(QWidget):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             painter.setClipRect(target.intersected(QRectF(area)))
             self.tool.paint(painter, self)
+            self._paint_brush_cursor(painter)
+
+    def _paint_brush_cursor(self, painter: QPainter) -> None:
+        """Круг размером с реальную толщину линии вместо стрелки."""
+        radius = self.tool.cursor_radius() if self.tool is not None else None
+        if radius is None or self._hover is None:
+            return
+        size = radius * self.image_scale()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(*tokens.OVERLAY_DARK, 200), 3))
+        painter.drawEllipse(self._hover, size, size)
+        painter.setPen(QPen(QColor(*tokens.OVERLAY_LIGHT, 230), 1))
+        painter.drawEllipse(self._hover, size, size)
+
+    def _brush_cursor_area(self, center: QPointF | None) -> QRect | None:
+        radius = self.tool.cursor_radius() if self.tool is not None else None
+        if radius is None or center is None:
+            return None
+        reach = radius * self.image_scale() + 4
+        return QRectF(center.x() - reach, center.y() - reach, 2 * reach, 2 * reach).toAlignedRect()
+
+    def _track_pointer(self, position: QPointF) -> None:
+        """Круг кисти следует за мышью; у остальных инструментов курсор зависит от ручки под ней."""
+        if self.tool is None:
+            return
+        old = self._brush_cursor_area(self._hover)
+        inside = self.image_rect().contains(position)
+        self._hover = position if inside else None
+        radius = self.tool.cursor_radius()
+        if radius is not None:
+            self.setCursor(Qt.CursorShape.BlankCursor if inside else Qt.CursorShape.ArrowCursor)
+            for area in (old, self._brush_cursor_area(self._hover)):
+                if area is not None:
+                    self.update(area)
+            return
+        x, y = self.to_image(position)
+        self.setCursor(self.tool.cursor_at(x, y, HANDLE_TOLERANCE_PX / self.image_scale()))
+
+    def leaveEvent(self, event: QEvent) -> None:  # noqa: N802
+        old = self._brush_cursor_area(self._hover)
+        self._hover = None
+        if old is not None:
+            self.update(old)
 
     # --- мышь --------------------------------------------------------------------------------
 
@@ -145,6 +190,7 @@ class Canvas(QWidget):
             self.tool.press(x, y, HANDLE_TOLERANCE_PX / self.image_scale())
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self._track_pointer(event.position())
         if self.tool is not None and event.buttons() & Qt.MouseButton.LeftButton:
             self.tool.move(*self.to_image(event.position()))
 

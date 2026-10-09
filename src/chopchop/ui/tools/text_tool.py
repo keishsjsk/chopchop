@@ -4,6 +4,7 @@ from PySide6.QtCore import QObject, QPointF
 from PySide6.QtGui import QColor, QFont, QPainter
 
 from chopchop.core.operations import Color, Operation, Text
+from chopchop.ui.theme import tokens
 from chopchop.ui.tools.base import Tool, ViewMapper
 
 
@@ -55,7 +56,7 @@ class TextTool(Tool):
             baseline = QPointF(
                 origin.x(), origin.y() + painter.fontMetrics().ascent() + line_number * height
             )
-            painter.setPen(QColor(0, 0, 0, 160))
+            painter.setPen(QColor(*tokens.OVERLAY_DARK, 160))
             painter.drawText(baseline + QPointF(1.5, 1.5), line)
             painter.setPen(QColor(*op.color))
             painter.drawText(baseline, line)

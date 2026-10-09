@@ -150,13 +150,13 @@ def _url(path: Path) -> str:
     return path.as_posix()
 
 
-def build(palette: Palette, assets: dict[str, Path]) -> str:
+def build(palette: Palette, assets: dict[str, Path], compact: bool = False) -> str:
     """Таблица стилей для QApplication.setStyleSheet."""
     p = palette
     t = tokens
     hit = t.MIN_HIT
-    button_h = t.BUTTON_HEIGHT
-    rail = t.RAIL_BUTTON
+    button_h = t.MIN_HIT if compact else t.BUTTON_HEIGHT  # компактный режим: кнопки 32
+    rail = t.MIN_HIT if compact else t.RAIL_BUTTON
     b = t.BORDER_WIDTH
     s1, s2, s3, s4 = t.SPACE_1, t.SPACE_2, t.SPACE_3, t.SPACE_4
     ring = t.BORDER_WIDTH
@@ -176,6 +176,7 @@ QToolTip {{
 QLabel {{ background: transparent; }}
 QLabel:disabled {{ color: {p.text_muted}; }}
 QLabel[muted="true"] {{ color: {p.text_muted}; }}
+QLabel[error="true"] {{ color: {p.danger}; }}
 QLabel[heading="true"] {{ color: {p.text}; }}
 
 /* кнопки: обычная, главная (акцентная), опасная, плоская */

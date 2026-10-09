@@ -49,28 +49,8 @@
         <translation>Error: </translation>
     </message>
     <message>
-        <source>← К просмотру</source>
-        <translation>← Back to viewer</translation>
-    </message>
-    <message>
-        <source>Отменить</source>
-        <translation>Undo</translation>
-    </message>
-    <message>
-        <source>Повторить</source>
-        <translation>Redo</translation>
-    </message>
-    <message>
-        <source>Копировать</source>
-        <translation>Copy</translation>
-    </message>
-    <message>
         <source>Сохранить</source>
         <translation>Save</translation>
-    </message>
-    <message>
-        <source>Сохранить как…</source>
-        <translation>Save as…</translation>
     </message>
     <message>
         <source>Кадрировать</source>
@@ -101,8 +81,36 @@
         <translation>Resize</translation>
     </message>
     <message>
-        <source>Применить (Enter)</source>
-        <translation>Apply (Enter)</translation>
+        <source>К просмотру</source>
+        <translation>Back to viewer</translation>
+    </message>
+    <message>
+        <source>Вернуться к просмотру  Esc</source>
+        <translation>Back to the viewer  Esc</translation>
+    </message>
+    <message>
+        <source>Отменить  Ctrl+Z</source>
+        <translation>Undo  Ctrl+Z</translation>
+    </message>
+    <message>
+        <source>Повторить  Ctrl+Y</source>
+        <translation>Redo  Ctrl+Y</translation>
+    </message>
+    <message>
+        <source>Копировать результат  Ctrl+C</source>
+        <translation>Copy result  Ctrl+C</translation>
+    </message>
+    <message>
+        <source>Сохранить как…  Ctrl+Shift+S</source>
+        <translation>Save as…  Ctrl+Shift+S</translation>
+    </message>
+    <message>
+        <source>Сохранить  Ctrl+S</source>
+        <translation>Save  Ctrl+S</translation>
+    </message>
+    <message>
+        <source>Применить  Enter</source>
+        <translation>Apply  Enter</translation>
     </message>
     <message>
         <source>Тяните края и углы рамки, внутри — переносите. Enter — обрезать.</source>
@@ -167,6 +175,10 @@
     <message>
         <source>Толщина: </source>
         <translation>Width: </translation>
+    </message>
+    <message>
+        <source>Непрозрачность: </source>
+        <translation>Opacity: </translation>
     </message>
     <message>
         <source>Кисть и маркер рисуют сразу, пока держите кнопку. Фигуры — проведите и Enter.</source>
@@ -253,8 +265,20 @@
         <translation>The original is never overwritten, saving as </translation>
     </message>
     <message>
+        <source>Сохранение отменено</source>
+        <translation>Saving cancelled</translation>
+    </message>
+    <message>
+        <source>Не удалось сохранить: </source>
+        <translation>Could not save: </translation>
+    </message>
+    <message>
         <source>Сохранено: </source>
         <translation>Saved: </translation>
+    </message>
+    <message>
+        <source>Показать в папке</source>
+        <translation>Show in folder</translation>
     </message>
     <message>
         <source>Копирование…</source>
@@ -310,6 +334,17 @@
     <message>
         <source>Файл</source>
         <translation>File</translation>
+    </message>
+</context>
+<context>
+    <name>ExportStrip</name>
+    <message>
+        <source>Отмена</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Отмена…</source>
+        <translation>Cancelling…</translation>
     </message>
 </context>
 <context>
@@ -538,36 +573,24 @@
 <context>
     <name>PlayerControls</name>
     <message>
-        <source>Аудио</source>
-        <translation>Audio</translation>
+        <source>Дорожки и субтитры</source>
+        <translation>Tracks and subtitles</translation>
     </message>
     <message>
-        <source>Субтитры 1</source>
-        <translation>Subtitles 1</translation>
+        <source>Полный экран</source>
+        <translation>Full screen</translation>
     </message>
     <message>
-        <source>Субтитры 2</source>
-        <translation>Subtitles 2</translation>
+        <source>Пауза</source>
+        <translation>Pause</translation>
     </message>
     <message>
-        <source>Громк.</source>
-        <translation>Vol.</translation>
+        <source>Выйти из полного экрана</source>
+        <translation>Exit full screen</translation>
     </message>
     <message>
-        <source>Выключено</source>
-        <translation>Off</translation>
-    </message>
-    <message>
-        <source>Загрузить файл…</source>
-        <translation>Load file…</translation>
-    </message>
-    <message>
-        <source>Субтитры</source>
-        <translation>Subtitles</translation>
-    </message>
-    <message>
-        <source>Субтитры (%1)</source>
-        <translation>Subtitles (%1)</translation>
+        <source>Воспроизвести</source>
+        <translation>Play</translation>
     </message>
 </context>
 <context>
@@ -743,6 +766,30 @@
     <message>
         <source>вернуться на стартовый экран</source>
         <translation>return to the start screen</translation>
+    </message>
+    <message>
+        <source>Прятать панели через, с</source>
+        <translation>Hide panels after, s</translation>
+    </message>
+    <message>
+        <source>Панели и курсор над видео исчезают, если мышь неподвижна</source>
+        <translation>Panels and the cursor over the video disappear when the mouse is still</translation>
+    </message>
+    <message>
+        <source>Панель в полном экране</source>
+        <translation>Panel in full screen</translation>
+    </message>
+    <message>
+        <source>компактная</source>
+        <translation>compact</translation>
+    </message>
+    <message>
+        <source>обычная</source>
+        <translation>regular</translation>
+    </message>
+    <message>
+        <source>Линия прогресса при спрятанной панели (полный экран)</source>
+        <translation>Progress line when the panel is hidden (full screen)</translation>
     </message>
     <message>
         <source>Шаг скорости</source>
@@ -1113,6 +1160,52 @@
     </message>
 </context>
 <context>
+    <name>TopBar</name>
+    <message>
+        <source>Редактировать  Ctrl+E</source>
+        <translation>Edit  Ctrl+E</translation>
+    </message>
+</context>
+<context>
+    <name>TracksPanel</name>
+    <message>
+        <source>Дорожки и субтитры</source>
+        <translation>Tracks and subtitles</translation>
+    </message>
+    <message>
+        <source>Загрузить файл субтитров…</source>
+        <translation>Load subtitle file…</translation>
+    </message>
+    <message>
+        <source>Звук</source>
+        <translation>Audio</translation>
+    </message>
+    <message>
+        <source>Субтитры 1</source>
+        <translation>Subtitles 1</translation>
+    </message>
+    <message>
+        <source>Субтитры 2</source>
+        <translation>Subtitles 2</translation>
+    </message>
+    <message>
+        <source>Выключено</source>
+        <translation>Off</translation>
+    </message>
+    <message>
+        <source>Нет дорожек</source>
+        <translation>No tracks</translation>
+    </message>
+    <message>
+        <source>Субтитры</source>
+        <translation>Subtitles</translation>
+    </message>
+    <message>
+        <source>Субтитры (%1)</source>
+        <translation>Subtitles (%1)</translation>
+    </message>
+</context>
+<context>
     <name>VideoColorDialog</name>
     <message>
         <source>Без фильтра</source>
@@ -1306,16 +1399,16 @@
         <translation>Copying to the clipboard works for photos only</translation>
     </message>
     <message>
-        <source>Экспорт невозможен</source>
-        <translation>Export is not possible</translation>
-    </message>
-    <message>
-        <source>Отмена</source>
-        <translation>Cancel</translation>
+        <source>Экспорт невозможен: </source>
+        <translation>Export is not possible: </translation>
     </message>
     <message>
         <source>Сохранено: </source>
         <translation>Saved: </translation>
+    </message>
+    <message>
+        <source>Показать в папке</source>
+        <translation>Show in folder</translation>
     </message>
     <message>
         <source>Аппаратный кодер не сработал, экспорт повторён на процессоре</source>

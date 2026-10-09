@@ -15,6 +15,7 @@ from chopchop.editor.session import EditSession
 from chopchop.services import profiling
 from chopchop.ui.canvas import Canvas
 from chopchop.ui.editor_page import EditorPage
+from chopchop.ui.theme import current
 from chopchop.ui.tools.draw_tool import DrawTool
 
 
@@ -73,7 +74,8 @@ def test_pixels_on_screen_match_the_image(qtbot: QtBot) -> None:
     center = grabbed.pixelColor(212, 112)
     assert (center.red(), center.green(), center.blue()) == pytest.approx((30, 60, 90), abs=2)
     corner = grabbed.pixelColor(2, 2)  # поле вокруг картинки закрашено фоном холста
-    assert (corner.red(), corner.green(), corner.blue()) == (32, 32, 32)
+    background = QColor(current.palette().bg)
+    assert corner.name() == background.name()
 
 
 def _draw_page(qtbot: QtBot, tmp_path: Path) -> tuple[EditorPage, DrawTool]:
