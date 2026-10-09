@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 from pytestqt.qtbot import QtBot
 
 from chopchop.core.geometry import Rect
-from chopchop.core.operations import Text
+from chopchop.core.operations import Redact, Text
 from chopchop.core.video import Clip, VideoProject
 from chopchop.editor.video_session import VideoSession
 from chopchop.engines.probe import probe
@@ -39,7 +39,7 @@ def _page(
 def test_opens_first_clip_in_player(qtbot: QtBot, tmp_path: Path) -> None:
     page, fake = _page(qtbot, tmp_path)
     assert fake.mpv.loaded[0][0] == str(tmp_path / "a.mp4")
-    assert page._clips.count() == 1
+    assert page.clip_strip.count() == 1
     assert "0:06" in page._summary.text()
     assert not page._undo_button.isEnabled()
     page.shutdown()
@@ -113,7 +113,7 @@ def test_add_compatible_clip(qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(other), ""))
     page.add_clip()
     qtbot.waitUntil(lambda: len(page.session.project.clips) == 2, timeout=10000)
-    qtbot.waitUntil(lambda: page._clips.currentRow() == 1, timeout=2000)
+    qtbot.waitUntil(lambda: page.clip_strip.current == 1, timeout=2000)
     assert fake.mpv.loaded[-1][0] == str(other)  # новый клип сразу открыт в плеере
     assert "0:10" in page._summary.text()
     page.shutdown()
@@ -142,7 +142,7 @@ def test_remove_and_reorder_clips(
     assert len(page.session.project.clips) == 1
     other = make_video(tmp_path / "b.mp4", seconds=2)
     page.session.add_clip(Clip(other, probe(other)))
-    page._clips.setCurrentRow(1)
+    page._on_row_changed(1)
     page._move_clip(-1)
     assert [c.path.name for c in page.session.project.clips] == ["b.mp4", "a.mp4"]
     page.shutdown()
@@ -260,31 +260,16 @@ def test_unchanged_effects_do_not_reapply_the_filter(qtbot: QtBot, tmp_path: Pat
     page.shutdown()
 
 
-def test_color_dialog_preview_and_cancel(
-    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from chopchop.core.operations import Adjust
-    from chopchop.ui.video_color_dialog import VideoColorDialog
-
+def test_color_panel_previews_live_then_commits(qtbot: QtBot, tmp_path: Path) -> None:
     page, fake = _page(qtbot, tmp_path)
-
-    def cancel(dialog: VideoColorDialog) -> int:
-        dialog.previewChanged.emit(Adjust(contrast=1.5), "sepia")  # пользователь подвигал ползунок
-        return 0
-
-    monkeypatch.setattr(VideoColorDialog, "exec", cancel)
-    page.effects_panel.open_color_dialog()
-    assert "colorchannelmixer" in str(_vf_commands(fake)[-2][2])  # на время диалога видно изменение
-    assert _vf_commands(fake)[-1] == ("vf", "clear", "")  # после отмены прежний вид
-    assert page.session.project.effects.is_default
-
-    def accept(dialog: VideoColorDialog) -> int:
-        dialog._filter.setCurrentIndex(dialog._filter.findData("grayscale"))
-        return 1
-
-    monkeypatch.setattr(VideoColorDialog, "exec", accept)
-    page.effects_panel.open_color_dialog()
-    assert page.session.project.effects.filter == "grayscale"
+    color = page.effects_panel.color
+    color._filter.setCurrentIndex(color._filter.findData("sepia"))
+    assert "colorchannelmixer" in str(_vf_commands(fake)[-1][2])  # видно сразу
+    assert page.session.project.effects.is_default  # в историю ещё не записано
+    qtbot.waitUntil(lambda: page.session.project.effects.filter == "sepia", timeout=3000)
+    page.undo()
+    assert page.session.project.effects.filter is None
+    assert _vf_commands(fake)[-1] == ("vf", "clear", "")
     page.shutdown()
 
 
@@ -399,4 +384,163 @@ def test_cpu_encoder_options_come_from_settings(qtbot: QtBot, tmp_path: Path) ->
     qtbot.addWidget(page)
     options = page._encode_options()
     assert (options.crf, options.preset, options.encoder, options.threads) == (31, "slow", "cpu", 3)
+    page.shutdown()
+
+
+# --- новая компоновка ---------------------------------------------------------------------------
+
+
+def test_layout_shows_rail_preview_transport_and_status(qtbot: QtBot, tmp_path: Path) -> None:
+    from chopchop.ui.theme import tokens
+
+    page, _fake = _page(qtbot, tmp_path)
+    shell = page.shell
+    assert shell.rail.names() == ["crop", "redact", "text", "adjust", "rotate", "audio"]
+    assert shell.rail.isVisible() and page._video_page.isVisible()
+    assert shell.status.isVisible() and "Итог" in shell.status.summary()
+    assert page.transport.height() == tokens.TRANSPORT_H
+    assert not shell.context.isVisible()  # без инструмента панели параметров нет
+    assert not page.effects_chip.isEnabled() and page.effects_chip.text() == "Без эффектов"
+    page.shutdown()
+
+
+def test_selecting_a_tool_expands_and_deselecting_collapses_context_bar(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    from chopchop.ui.theme import tokens
+
+    page, _fake = _page(qtbot, tmp_path)
+    page.select_tool("crop")
+    qtbot.waitUntil(lambda: page.shell.context.height() == tokens.CONTEXT_H, timeout=2000)
+    assert page.shell.rail.button("crop").isChecked()
+    assert "Enter" in page.shell.status.hint()  # подсказка по активному инструменту
+    page.select_tool("crop")
+    qtbot.waitUntil(lambda: page.shell.context.height() == 0, timeout=2000)
+    assert not page.shell.rail.button("crop").isChecked()
+    page.shutdown()
+
+
+def test_applied_effect_updates_chip_mark_and_can_be_removed(qtbot: QtBot, tmp_path: Path) -> None:
+    from chopchop.core.video import EffectEntry
+
+    page, _fake = _page(qtbot, tmp_path)
+    page.session.add_redact(Redact(Rect(0, 0, 50, 50)))
+    page.session.add_text(Text("Привет", 10, 10))
+    assert page.shell.rail.marked("redact") and page.shell.rail.marked("text")
+    assert not page.shell.rail.marked("crop")
+    assert "2" in page.effects_chip.text()
+    page.effects_chip.open_list()
+    popup = page.effects_chip._popup
+    assert popup is not None and len(popup.rows) == 2
+    popup.rows[0][2].click()  # убрать скрытие
+    assert not page.session.project.effects.redacts
+    assert not page.shell.rail.marked("redact") and page.shell.rail.marked("text")
+    page.effects_chip.open_list()
+    assert page.effects_chip._popup is not None
+    page.effects_chip._popup.reset_all.click()
+    assert page.session.project.effects.is_default
+    assert page.effects_chip.text() == "Без эффектов"
+    assert page.session.can_undo
+    assert EffectEntry("text").tool == "text"
+    page.shutdown()
+
+
+def test_audio_mark_follows_the_audio_settings(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    assert not page.shell.rail.marked("audio")
+    page.session.set_mute(True)
+    assert page.shell.rail.marked("audio")
+    page.select_tool("audio")
+    assert page.audio.isVisibleTo(page) or page.shell.context.current == "audio"
+    page.shutdown()
+
+
+def test_clip_strip_add_reorder_and_remove(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    other = make_video(tmp_path / "b.mp4", seconds=2)
+    page.session.add_clip(Clip(other, probe(other)))
+    assert page.clip_strip.count() == 2
+    page.clip_strip.moveRequested.emit(0, 1)  # перетаскивание
+    assert [c.path.name for c in page.session.project.clips] == ["b.mp4", "a.mp4"]
+    assert len(page.session.project.clips) == 2
+    page.undo()  # перестановка отменяется одним шагом
+    assert [c.path.name for c in page.session.project.clips] == ["a.mp4", "b.mp4"]
+    page.clip_strip.removeRequested.emit(1)
+    assert [c.path.name for c in page.session.project.clips] == ["a.mp4"]
+    page.clip_strip.removeRequested.emit(0)  # последний клип остаётся
+    assert len(page.session.project.clips) == 1
+    page.shutdown()
+
+
+def test_transport_buttons_are_reachable(qtbot: QtBot, tmp_path: Path) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    fake.mpv.time_pos = 2.0
+    page._set_in.click()
+    fake.mpv.time_pos = 5.0
+    page._set_out.click()
+    clip = page.session.project.clips[0]
+    assert (clip.start, clip.stop) == (2.0, 5.0)
+    page._reset.click()
+    assert not page.session.project.clips[0].is_trimmed
+    page._step_forward.click()
+    page._step_back.click()
+    assert ("frame-step",) in fake.mpv.commands and ("frame-back-step",) in fake.mpv.commands
+    fake.mpv.time_pos = 3.0
+    page.step_seconds(1)
+    assert fake.mpv.seeks[-1] == (4.0, "absolute", "exact")
+    paused = fake.mpv.pause
+    page._play.click()
+    assert fake.mpv.pause is (not paused)
+    fake.mpv.fire("time-pos", 1.0)
+    fake.mpv.fire("pause", False)
+    qtbot.waitUntil(lambda: "0:01" in page._time.text(), timeout=2000)
+    page.shutdown()
+
+
+def test_zoom_buttons_follow_the_trim_bar(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    assert not page._zoom_out.isEnabled() and not page._zoom_fit.isEnabled()
+    page._zoom_in.click()
+    assert page.trim.zoom_level > 1.0
+    assert page._zoom_out.isEnabled() and page._zoom_fit.isEnabled()
+    page._zoom_fit.click()
+    assert page.trim.zoom_level == 1.0 and not page._zoom_fit.isEnabled()
+    page.shutdown()
+
+
+def test_trim_height_is_remembered(qtbot: QtBot, tmp_path: Path) -> None:
+    from chopchop.services.app_settings import AppSettings
+
+    assert FFMPEG is not None and FFPROBE is not None
+    source = make_video(tmp_path / "a.mp4", seconds=2)
+    settings = AppSettings(None)
+    settings.set("state.trim_height", 120)
+    session = VideoSession(VideoProject((Clip(source, probe(source)),)))
+    fake = FakeVideoPage()
+    page = VideoEditorPage(session, fake.as_video_page(), FFMPEG, FFPROBE, settings=settings)
+    qtbot.addWidget(page)
+    page.resize(1100, 800)
+    page.show()
+    qtbot.waitUntil(lambda: page._sized and abs(page.trim.height() - 120) <= 2, timeout=3000)
+    page.splitter.setSizes([100, 700])
+    page._save_trim_height()
+    assert settings.get_int("state.trim_height") == page.trim.height()
+    page.shutdown()
+
+
+def test_small_window_collapses_clip_strip_to_one_row(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.resize(960, 600)
+    assert page.clip_strip._compact
+    page.resize(1200, 900)
+    assert not page.clip_strip._compact
+    page.shutdown()
+
+
+def test_theme_switch_recolours_the_editor(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.refresh_theme()  # не падает и перекрашивает значки
+    assert page.shell.rail.button("crop").icon().isNull() is False
     page.shutdown()

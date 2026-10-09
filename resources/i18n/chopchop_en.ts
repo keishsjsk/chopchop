@@ -2,10 +2,91 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
+    <name>AudioPanel</name>
+    <message>
+        <source>Громкость</source>
+        <translation>Volume</translation>
+    </message>
+    <message>
+        <source>Убрать звук</source>
+        <translation>Mute audio</translation>
+    </message>
+    <message>
+        <source>Заменить звук…</source>
+        <translation>Replace audio…</translation>
+    </message>
+    <message>
+        <source>Исходный звук</source>
+        <translation>Original audio</translation>
+    </message>
+    <message>
+        <source>Заменить звук</source>
+        <translation>Replace audio</translation>
+    </message>
+    <message>
+        <source>Аудио (%1)</source>
+        <translation>Audio (%1)</translation>
+    </message>
+    <message>
+        <source>Звук: </source>
+        <translation>Audio: </translation>
+    </message>
+</context>
+<context>
+    <name>ClipStrip</name>
+    <message>
+        <source>Добавить клип…</source>
+        <translation>Add clip…</translation>
+    </message>
+    <message>
+        <source>Сдвинуть раньше</source>
+        <translation>Move earlier</translation>
+    </message>
+    <message>
+        <source>Сдвинуть позже</source>
+        <translation>Move later</translation>
+    </message>
+    <message>
+        <source>Удалить клип</source>
+        <translation>Remove clip</translation>
+    </message>
+</context>
+<context>
     <name>ColorButton</name>
     <message>
         <source>Цвет</source>
         <translation>Color</translation>
+    </message>
+</context>
+<context>
+    <name>ColorPanel</name>
+    <message>
+        <source>Яркость</source>
+        <translation>Brightness</translation>
+    </message>
+    <message>
+        <source>Контраст</source>
+        <translation>Contrast</translation>
+    </message>
+    <message>
+        <source>Насыщенность</source>
+        <translation>Saturation</translation>
+    </message>
+    <message>
+        <source>Гамма</source>
+        <translation>Gamma</translation>
+    </message>
+    <message>
+        <source>Фильтр</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <source>Сбросить</source>
+        <translation>Reset</translation>
+    </message>
+    <message>
+        <source>Вернуть всё как было</source>
+        <translation>Put everything back</translation>
     </message>
 </context>
 <context>
@@ -306,6 +387,60 @@
     </message>
 </context>
 <context>
+    <name>EffectsChip</name>
+    <message>
+        <source>Кадр</source>
+        <translation>Crop</translation>
+    </message>
+    <message>
+        <source>Скрытие области</source>
+        <translation>Hidden area</translation>
+    </message>
+    <message>
+        <source>Текст</source>
+        <translation>Text</translation>
+    </message>
+    <message>
+        <source>Цветокоррекция</source>
+        <translation>Colour correction</translation>
+    </message>
+    <message>
+        <source>Фильтр</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <source>Поворот</source>
+        <translation>Rotation</translation>
+    </message>
+    <message>
+        <source>Отражение</source>
+        <translation>Flip</translation>
+    </message>
+    <message>
+        <source>Эффекты: {0}</source>
+        <translation>Effects: {0}</translation>
+    </message>
+    <message>
+        <source>Применённые эффекты: убрать любой или сбросить все</source>
+        <translation>Applied effects: remove any or reset all</translation>
+    </message>
+    <message>
+        <source>Без эффектов</source>
+        <translation>No effects</translation>
+    </message>
+</context>
+<context>
+    <name>EffectsPopup</name>
+    <message>
+        <source>Убрать эффект</source>
+        <translation>Remove effect</translation>
+    </message>
+    <message>
+        <source>Сбросить все</source>
+        <translation>Reset all</translation>
+    </message>
+</context>
+<context>
     <name>ExportDialog</name>
     <message>
         <source>Сохранить как</source>
@@ -571,6 +706,21 @@
     </message>
 </context>
 <context>
+    <name>MiniActions</name>
+    <message>
+        <source>Сдвинуть клип раньше</source>
+        <translation>Move clip earlier</translation>
+    </message>
+    <message>
+        <source>Сдвинуть клип позже</source>
+        <translation>Move clip later</translation>
+    </message>
+    <message>
+        <source>Удалить клип</source>
+        <translation>Remove clip</translation>
+    </message>
+</context>
+<context>
     <name>PlayerControls</name>
     <message>
         <source>Дорожки и субтитры</source>
@@ -591,6 +741,13 @@
     <message>
         <source>Воспроизвести</source>
         <translation>Play</translation>
+    </message>
+</context>
+<context>
+    <name>RatioChips</name>
+    <message>
+        <source>Повернуть пропорции: 16:9 ↔ 9:16</source>
+        <translation>Swap orientation: 16:9 ↔ 9:16</translation>
     </message>
 </context>
 <context>
@@ -1055,6 +1212,10 @@
         <source>Положение окна</source>
         <translation>Window position</translation>
     </message>
+    <message>
+        <source>Высота полосы обрезки</source>
+        <translation>Trim bar height</translation>
+    </message>
 </context>
 <context>
     <name>SettingsDialog</name>
@@ -1206,14 +1367,14 @@
     </message>
 </context>
 <context>
-    <name>VideoColorDialog</name>
+    <name>VideoColorPanel</name>
     <message>
         <source>Без фильтра</source>
         <translation>No filter</translation>
     </message>
     <message>
         <source>Чёрно-белое</source>
-        <translation>Black &amp; white</translation>
+        <translation>Black and white</translation>
     </message>
     <message>
         <source>Сепия</source>
@@ -1226,38 +1387,6 @@
     <message>
         <source>Размытие</source>
         <translation>Blur</translation>
-    </message>
-    <message>
-        <source>Цвет и фильтры</source>
-        <translation>Color &amp; filters</translation>
-    </message>
-    <message>
-        <source>Яркость</source>
-        <translation>Brightness</translation>
-    </message>
-    <message>
-        <source>Контраст</source>
-        <translation>Contrast</translation>
-    </message>
-    <message>
-        <source>Насыщенность</source>
-        <translation>Saturation</translation>
-    </message>
-    <message>
-        <source>Гамма</source>
-        <translation>Gamma</translation>
-    </message>
-    <message>
-        <source>Фильтр</source>
-        <translation>Filter</translation>
-    </message>
-    <message>
-        <source>Сбросить</source>
-        <translation>Reset</translation>
-    </message>
-    <message>
-        <source>Изменения видны в превью, применятся при экспорте.</source>
-        <translation>Changes show in the preview and are applied on export.</translation>
     </message>
 </context>
 <context>
@@ -1283,10 +1412,6 @@
         <translation>audio parameters</translation>
     </message>
     <message>
-        <source>← К просмотру</source>
-        <translation>← Back to viewer</translation>
-    </message>
-    <message>
         <source>Отменить</source>
         <translation>Undo</translation>
     </message>
@@ -1299,52 +1424,8 @@
         <translation>Export…</translation>
     </message>
     <message>
-        <source>Начало здесь [I]</source>
-        <translation>Start here [I]</translation>
-    </message>
-    <message>
-        <source>Конец здесь [O]</source>
-        <translation>End here [O]</translation>
-    </message>
-    <message>
         <source>Сбросить обрезку</source>
         <translation>Reset trim</translation>
-    </message>
-    <message>
-        <source>Добавить клип…</source>
-        <translation>Add clip…</translation>
-    </message>
-    <message>
-        <source>Удалить</source>
-        <translation>Remove</translation>
-    </message>
-    <message>
-        <source>Сдвинуть клип раньше</source>
-        <translation>Move clip earlier</translation>
-    </message>
-    <message>
-        <source>Сдвинуть клип позже</source>
-        <translation>Move clip later</translation>
-    </message>
-    <message>
-        <source>Убрать звук</source>
-        <translation>Remove audio</translation>
-    </message>
-    <message>
-        <source>Заменить звук…</source>
-        <translation>Replace audio…</translation>
-    </message>
-    <message>
-        <source>Исходный звук</source>
-        <translation>Original audio</translation>
-    </message>
-    <message>
-        <source>Громкость</source>
-        <translation>Volume</translation>
-    </message>
-    <message>
-        <source>Фрагмент: {0} – {1}, длина {2}</source>
-        <translation>Segment: {0} – {1}, length {2}</translation>
     </message>
     <message>
         <source>Добавить клип</source>
@@ -1375,20 +1456,60 @@
         <translation>The last clip cannot be removed</translation>
     </message>
     <message>
-        <source>Заменить звук</source>
-        <translation>Replace audio</translation>
+        <source>К просмотру</source>
+        <translation>Back to viewer</translation>
     </message>
     <message>
-        <source>Аудио (%1)</source>
-        <translation>Audio (%1)</translation>
+        <source>Вернуться к просмотру</source>
+        <translation>Back to the viewer</translation>
     </message>
     <message>
-        <source>Итог: {0}, {1}×{2}, клипов: {3}</source>
-        <translation>Result: {0}, {1}×{2}, clips: {3}</translation>
+        <source>Экспорт видео</source>
+        <translation>Export video</translation>
     </message>
     <message>
-        <source>Звук: </source>
-        <translation>Audio: </translation>
+        <source>Пауза и воспроизведение</source>
+        <translation>Pause and play</translation>
+    </message>
+    <message>
+        <source>Кадр назад</source>
+        <translation>Frame back</translation>
+    </message>
+    <message>
+        <source>Кадр вперёд</source>
+        <translation>Frame forward</translation>
+    </message>
+    <message>
+        <source>Начало фрагмента здесь</source>
+        <translation>Start the clip here</translation>
+    </message>
+    <message>
+        <source>Конец фрагмента здесь</source>
+        <translation>End the clip here</translation>
+    </message>
+    <message>
+        <source>Уменьшить полосу</source>
+        <translation>Zoom the bar out</translation>
+    </message>
+    <message>
+        <source>Увеличить полосу</source>
+        <translation>Zoom the bar in</translation>
+    </message>
+    <message>
+        <source>Вписать полосу целиком</source>
+        <translation>Fit the whole bar</translation>
+    </message>
+    <message>
+        <source>Воспроизвести</source>
+        <translation>Play</translation>
+    </message>
+    <message>
+        <source>Пауза</source>
+        <translation>Pause</translation>
+    </message>
+    <message>
+        <source>Итог {0} · {1}×{2} · клипов {3}</source>
+        <translation>Result {0} · {1}×{2} · clips {3}</translation>
     </message>
     <message>
         <source>Предпросмотр эффектов недоступен, но экспорт сработает</source>
@@ -1434,36 +1555,96 @@
 <context>
     <name>VideoEffectsPanel</name>
     <message>
-        <source>Кадр</source>
-        <translation>Frame</translation>
-    </message>
-    <message>
-        <source>Скрыть</source>
-        <translation>Redact</translation>
-    </message>
-    <message>
         <source>Текст</source>
         <translation>Text</translation>
     </message>
     <message>
-        <source>Эффекты:</source>
-        <translation>Effects:</translation>
+        <source>Кадрировать</source>
+        <translation>Crop</translation>
     </message>
     <message>
-        <source>Цвет и фильтры…</source>
-        <translation>Color &amp; filters…</translation>
+        <source>Скрыть область</source>
+        <translation>Hide area</translation>
     </message>
     <message>
-        <source>Поворот ▾</source>
-        <translation>Rotate ▾</translation>
+        <source>Цвет и фильтры</source>
+        <translation>Colour and filters</translation>
     </message>
     <message>
-        <source>Влево на 90°</source>
-        <translation>Left 90°</translation>
+        <source>Поворот и отражение</source>
+        <translation>Rotate and flip</translation>
     </message>
     <message>
-        <source>Вправо на 90°</source>
-        <translation>Right 90°</translation>
+        <source>Звук</source>
+        <translation>Audio</translation>
+    </message>
+    <message>
+        <source>Перетащите рамку на видео, Enter — применить, Esc — отмена</source>
+        <translation>Drag the frame over the video, Enter to apply, Esc to cancel</translation>
+    </message>
+    <message>
+        <source>Выделите область на видео, Enter — применить, Esc — отмена</source>
+        <translation>Select an area on the video, Enter to apply, Esc to cancel</translation>
+    </message>
+    <message>
+        <source>Введите текст и кликните на видео, где его поставить, Enter — применить, Esc — отмена</source>
+        <translation>Type the text and click on the video where to put it, Enter to apply, Esc to cancel</translation>
+    </message>
+    <message>
+        <source>Изменения видны сразу, в файл попадут при экспорте</source>
+        <translation>Changes show at once and reach the file on export</translation>
+    </message>
+    <message>
+        <source>Громкость, замена и отключение звука применятся при экспорте</source>
+        <translation>Volume, replacement and muting apply on export</translation>
+    </message>
+    <message>
+        <source>Выберите инструмент слева. Пробел — пауза, I и O — границы фрагмента</source>
+        <translation>Pick a tool on the left. Space pauses, I and O set the clip bounds</translation>
+    </message>
+    <message>
+        <source>Применить</source>
+        <translation>Apply</translation>
+    </message>
+    <message>
+        <source>Отмена</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Заливка</source>
+        <translation>Fill</translation>
+    </message>
+    <message>
+        <source>Заливка: надёжно скрывает любой текст</source>
+        <translation>Fill reliably hides any text</translation>
+    </message>
+    <message>
+        <source>Заливку не восстановить: берите её для паролей</source>
+        <translation>A fill cannot be undone: use it for passwords</translation>
+    </message>
+    <message>
+        <source>Размытый текст можно частично восстановить</source>
+        <translation>Blurred text can be partly recovered</translation>
+    </message>
+    <message>
+        <source>Размер, % высоты кадра</source>
+        <translation>Size, % of frame height</translation>
+    </message>
+    <message>
+        <source>Цвет текста</source>
+        <translation>Text colour</translation>
+    </message>
+    <message>
+        <source>Размер</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <source>90° влево</source>
+        <translation>90° left</translation>
+    </message>
+    <message>
+        <source>90° вправо</source>
+        <translation>90° right</translation>
     </message>
     <message>
         <source>Отразить по горизонтали</source>
@@ -1474,28 +1655,8 @@
         <translation>Flip vertically</translation>
     </message>
     <message>
-        <source>Сбросить эффекты</source>
-        <translation>Reset effects</translation>
-    </message>
-    <message>
-        <source>Применить (Enter)</source>
-        <translation>Apply (Enter)</translation>
-    </message>
-    <message>
-        <source>Пропорции:</source>
-        <translation>Aspect ratio:</translation>
-    </message>
-    <message>
-        <source>Рамка по всему кадру, тяните края.</source>
-        <translation>The frame covers the whole picture; drag its edges.</translation>
-    </message>
-    <message>
         <source>Убрать кадр</source>
         <translation>Clear frame</translation>
-    </message>
-    <message>
-        <source>Заливка (надёжно)</source>
-        <translation>Solid fill (safe)</translation>
     </message>
     <message>
         <source>Пикселизация</source>
@@ -1506,20 +1667,8 @@
         <translation>Blur</translation>
     </message>
     <message>
-        <source>Размытый или пикселизированный текст можно частично восстановить.</source>
-        <translation>Blurred or pixelated text can sometimes be partly recovered.</translation>
-    </message>
-    <message>
         <source>Текст (на всё видео)</source>
         <translation>Text (over the whole video)</translation>
-    </message>
-    <message>
-        <source>Размер, % высоты: </source>
-        <translation>Size, % of height: </translation>
-    </message>
-    <message>
-        <source>Кликните на видео, где поставить</source>
-        <translation>Click on the video where it should go</translation>
     </message>
     <message>
         <source>Сначала выделите область или введите текст</source>
@@ -1528,10 +1677,6 @@
     <message>
         <source>Поворот и отражение применятся при экспорте</source>
         <translation>Rotation and flipping are applied on export</translation>
-    </message>
-    <message>
-        <source>без эффектов</source>
-        <translation>no effects</translation>
     </message>
 </context>
 <context>

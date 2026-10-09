@@ -1,19 +1,21 @@
-"""Страница редактора видео: превью, полоса обрезки, клипы, звук, экспорт."""
+"""Страница редактора видео на общей оболочке: превью, рейка, транспорт, обрезка, клипы, экспорт.
+
+Сверху вниз: верхняя панель, контекстная панель параметров (только при выбранном инструменте),
+рейка и превью, строка транспорта, полоса обрезки, полоса клипов, строка состояния. Никаких
+плавающих панелей плеера поверх кадра.
+"""
 
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtGui import QImage, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
-    QPushButton,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -21,7 +23,7 @@ from PySide6.QtWidgets import (
 from chopchop.core.document import MediaInfo
 from chopchop.core.operations import Adjust, FilterName
 from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
-from chopchop.core.video import Clip, VideoEffects, incompatibility
+from chopchop.core.video import Clip, EffectEntry, VideoEffects, effect_entries, incompatibility
 from chopchop.editor.video_session import VideoSession
 from chopchop.engines.encoders import available_hw_encoders
 from chopchop.engines.fonts import find_font_path
@@ -37,23 +39,30 @@ from chopchop.engines.video_filters import build_effects_graph, output_frame_siz
 from chopchop.services.app_settings import AppSettings
 from chopchop.services.reveal import reveal_in_folder
 from chopchop.services.temp_files import new_workspace, remove_workspace
-from chopchop.ui.click_slider import ClickSlider
+from chopchop.ui.audio_panel import AudioPanel
+from chopchop.ui.clip_strip import ClipInfo, ClipStrip
+from chopchop.ui.editor_shell import EditorShell
+from chopchop.ui.effects_chip import EffectsChip
 from chopchop.ui.export_strip import ExportStrip
 from chopchop.ui.player_controls import format_time
+from chopchop.ui.theme import tokens
 from chopchop.ui.toast import Toast
-from chopchop.ui.trim_bar import TrimBar, format_precise
-from chopchop.ui.video_effects_panel import VideoEffectsPanel
+from chopchop.ui.trim_bar import TrimBar
+from chopchop.ui.video_effects_panel import RAIL_ITEMS, VideoEffectsPanel
 from chopchop.ui.video_export_dialog import VideoExportDialog
 from chopchop.ui.video_overlay import VideoOverlay
 from chopchop.ui.video_page import VideoPage
+from chopchop.ui.widgets import button, icon_button, refresh_icons, set_icon, tip
 from chopchop.workers.export_worker import ExportWorker
 from chopchop.workers.tasks import TaskRunner
 from chopchop.workers.thumbs_worker import ThumbnailLoader
 
 THUMBNAILS = 14
-VOLUME_COMMIT_MS = 350
-AUDIO_FILTER = "*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.opus"
 VIDEO_FILTER = "*.mp4 *.mkv *.avi *.mov *.webm *.m4v *.mpg *.mpeg *.ts"
+COMPACT_HEIGHT = 700  # ниже этого окна полоса клипов сворачивается в одну строку
+SECOND_STEP = 1.0  # Shift + стрелки
+MIN_PREVIEW_HEIGHT = 160
+SAVE_TRIM_HEIGHT_MS = 300
 
 _REASONS = {
     "codec": QT_TRANSLATE_NOOP("VideoEditorPage", "видеокодек"),
@@ -90,6 +99,8 @@ class VideoEditorPage(QWidget):
         self._progress: ExportStrip | None = None  # полоса экспорта, пока он идёт
         self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
         self._preview_key: str | None = None
+        self._sized = False  # высота полосы обрезки из настроек применена
+        self._strip_height = tokens.CLIP_STRIP_H
 
         self._thumbs = ThumbnailLoader(
             ffmpeg, self, limit_bytes=self._app.get_int("advanced.thumb_cache_mb") * 1024 * 1024
@@ -101,142 +112,195 @@ class VideoEditorPage(QWidget):
         self._worker.finished.connect(self._on_export_finished)
         self._worker.failed.connect(self._on_export_failed)
         self._worker.cancelled.connect(self._on_export_cancelled)
-        self._volume_timer = QTimer(self)
-        self._volume_timer.setSingleShot(True)
-        self._volume_timer.setInterval(VOLUME_COMMIT_MS)
-        self._volume_timer.timeout.connect(self._commit_volume)
+        self._height_timer = QTimer(self)
+        self._height_timer.setSingleShot(True)
+        self._height_timer.setInterval(SAVE_TRIM_HEIGHT_MS)
+        self._height_timer.timeout.connect(self._save_trim_height)
 
         self._build_ui()
 
         player = video_page.player
-        player.positionChanged.connect(self.trim.set_position)
+        player.positionChanged.connect(self._on_position)
+        player.pausedChanged.connect(self._on_paused)
         player.fileLoaded.connect(self._on_file_loaded)
         session.changed.connect(self._on_session_changed)
         self._load_current_clip()
         self._refresh()
+        self._on_paused(player.paused)
 
     # --- интерфейс ---------------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        back = QPushButton(self.tr("← К просмотру"))
-        back.clicked.connect(self.request_exit)
-        self._undo_button = QPushButton(self.tr("Отменить"))
-        self._undo_button.clicked.connect(self.undo)
-        self._redo_button = QPushButton(self.tr("Повторить"))
-        self._redo_button.clicked.connect(self.redo)
-        export = QPushButton(self.tr("Экспорт…"))
-        export.clicked.connect(self.export)
-        self._summary = QLabel()
+        self.shell = EditorShell(self)
+        shell = self.shell
+        self.export_strip = shell.export_strip
+        self.export_strip.cancelRequested.connect(self._cancel_export)
 
-        top = QHBoxLayout()
-        for widget in (back, self._undo_button, self._redo_button, export):
-            top.addWidget(widget)
-        top.addStretch(1)
-        top.addWidget(self._summary)
+        # верхняя панель
+        self._back = button(
+            self.tr("К просмотру"),
+            "ghost",
+            icon="back_to_view",
+            tooltip=tip(self.tr("Вернуться к просмотру"), "Esc"),
+            slot=self.request_exit,
+        )
+        self._undo_button = icon_button(
+            "undo", tip(self.tr("Отменить"), "Ctrl+Z"), self.undo, text=self.tr("Отменить")
+        )
+        self._redo_button = icon_button(
+            "redo", tip(self.tr("Повторить"), "Ctrl+Y"), self.redo, text=self.tr("Повторить")
+        )
+        self._export_button = button(
+            self.tr("Экспорт…"),
+            "primary",
+            tooltip=tip(self.tr("Экспорт видео"), "Ctrl+S"),
+            slot=self.export,
+        )
+        shell.top.left.addWidget(self._back)
+        shell.top.left.addWidget(self._undo_button)
+        shell.top.left.addWidget(self._redo_button)
+        shell.top.right.addWidget(self._export_button)
 
-        self.trim = TrimBar()
-        self.trim.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
-        self.trim.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
-        self.trim.trimming.connect(self._on_trimming)
-        self.trim.trimCommitted.connect(self._on_trim_committed)
-        set_in = QPushButton(self.tr("Начало здесь [I]"))
-        set_in.clicked.connect(self.set_in)
-        set_out = QPushButton(self.tr("Конец здесь [O]"))
-        set_out.clicked.connect(self.set_out)
-        reset = QPushButton(self.tr("Сбросить обрезку"))
-        reset.clicked.connect(self._reset_trim)
-        self._trim_label = QLabel()
-        trim_row = QHBoxLayout()
-        for widget in (set_in, set_out, reset):
-            trim_row.addWidget(widget)
-        trim_row.addStretch(1)
-        trim_row.addWidget(self._trim_label)
-
-        self._clips = QListWidget()
-        self._clips.setFlow(QListWidget.Flow.LeftToRight)
-        self._clips.setWrapping(False)
-        self._clips.setFixedHeight(64)
-        self._clips.currentRowChanged.connect(self._on_row_changed)
-        add = QPushButton(self.tr("Добавить клип…"))
-        add.clicked.connect(self.add_clip)
-        remove = QPushButton(self.tr("Удалить"))
-        remove.clicked.connect(self._remove_clip)
-        left = QPushButton("←")
-        left.setToolTip(self.tr("Сдвинуть клип раньше"))
-        left.clicked.connect(lambda: self._move_clip(-1))
-        right = QPushButton("→")
-        right.setToolTip(self.tr("Сдвинуть клип позже"))
-        right.clicked.connect(lambda: self._move_clip(1))
-        clip_buttons = QVBoxLayout()
-        row = QHBoxLayout()
-        row.addWidget(left)
-        row.addWidget(right)
-        clip_buttons.addWidget(add)
-        clip_buttons.addWidget(remove)
-        clip_buttons.addLayout(row)
-        clips_row = QHBoxLayout()
-        clips_row.addWidget(self._clips, 1)
-        clips_row.addLayout(clip_buttons)
-
-        self._volume = ClickSlider(Qt.Orientation.Horizontal)
-        self._volume.setRange(0, 200)
-        self._volume.setValue(100)
-        self._volume.setFixedWidth(180)
-        self._volume.valueChanged.connect(self._on_volume_changed)
-        self._volume_label = QLabel("100%")
-        self._mute = QCheckBox(self.tr("Убрать звук"))
-        self._mute.toggled.connect(self.session.set_mute)
-        replace = QPushButton(self.tr("Заменить звук…"))
-        replace.clicked.connect(self._choose_replacement)
-        self._original_audio = QPushButton(self.tr("Исходный звук"))
-        self._original_audio.clicked.connect(lambda: self.session.set_replacement(None))
-        self._audio_note = QLabel()
-        audio_row = QHBoxLayout()
-        audio_row.addWidget(QLabel(self.tr("Громкость")))
-        audio_row.addWidget(self._volume)
-        audio_row.addWidget(self._volume_label)
-        audio_row.addWidget(self._mute)
-        audio_row.addWidget(replace)
-        audio_row.addWidget(self._original_audio)
-        audio_row.addWidget(self._audio_note)
-        audio_row.addStretch(1)
-
+        # превью: плеер без плавающих панелей и слой инструментов поверх кадра
+        self._video_page.show()  # removeWidget в главном окне скрыл плеер
+        self._video_page.set_editor_mode(True)
         self._overlay = VideoOverlay(self._video_page, self.session.project.frame_size)
-        self._video_page.controls.raise_()  # панель плеера остаётся над слоем и кликабельна
-        self.effects_panel = VideoEffectsPanel(self.session, self._overlay)
+        self.effects_panel = VideoEffectsPanel(self.session, self._overlay, self)
         self.effects_panel.message.connect(self.message)
         self.effects_panel.colorPreview.connect(self._on_color_preview)
         self.effects_panel.colorPreviewEnded.connect(self._on_color_preview_ended)
+        self.effects_panel.selectionChanged.connect(self._on_tool_selected)
+        self.effects_panel.hintChanged.connect(shell.status.set_hint)
+        self.message.connect(shell.status.flash)
+        self.audio = AudioPanel(self.session)
+        self._volume = self.audio._volume
+        self._volume_label = self.audio._volume_label
+        self._mute = self.audio._mute
+        self._original_audio = self.audio._original_audio
 
-        self.export_strip = ExportStrip()
-        self.export_strip.cancelRequested.connect(self._cancel_export)
-        self._video_layout = QVBoxLayout(self)
-        self._video_layout.addLayout(top)
-        self._video_layout.addWidget(self.export_strip)
-        self._video_layout.addWidget(self._video_page, 1)
-        self._video_page.show()  # removeWidget в главном окне скрыл плеер
-        self._video_page.set_editor_mode(True)
+        # рейка инструментов и контекстные панели
+        for key, icon, name, hotkey in RAIL_ITEMS:
+            shell.rail.add_tool(key, icon, self.tr(name), hotkey)
+            panel = self.audio if key == "audio" else self.effects_panel.panels[key]
+            shell.context.add_panel(key, panel)
+        shell.rail.toolClicked.connect(self.select_tool)
+
+        # транспорт, полоса обрезки, клипы
+        self.transport = self._build_transport()
+        self.trim = TrimBar()
+        self.trim.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
+        self.trim.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
+        self.trim.trimCommitted.connect(self._on_trim_committed)
+        self.trim.zoomChanged.connect(self._on_zoom_changed)
+        self.clip_strip = ClipStrip()
+        self.clip_strip.currentChanged.connect(self._on_row_changed)
+        self.clip_strip.moveRequested.connect(self._on_move_requested)
+        self.clip_strip.removeRequested.connect(self._remove_clip_at)
+        self.clip_strip.addRequested.connect(self.add_clip)
+
+        bottom = self._bottom = QWidget()
+        column = QVBoxLayout(bottom)
+        column.setContentsMargins(tokens.SPACE_3, 0, tokens.SPACE_3, tokens.SPACE_2)
+        column.setSpacing(tokens.SPACE_1)
+        column.addWidget(self.transport)
+        column.addWidget(self.trim, 1)
+        column.addWidget(self.clip_strip)
+        preview = QWidget()
+        holder = QVBoxLayout(preview)
+        holder.setContentsMargins(0, 0, 0, 0)
+        holder.addWidget(self._video_page)
+        preview.setMinimumHeight(MIN_PREVIEW_HEIGHT)
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.addWidget(preview)
+        self.splitter.addWidget(bottom)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 0)
+        self.splitter.splitterMoved.connect(lambda *_: self._height_timer.start())
+        shell.set_content(self.splitter)
+        self.clip_strip.installEventFilter(self)
+
+        # строка состояния
+        self.effects_chip = EffectsChip()
+        self.effects_chip.removeRequested.connect(self._remove_effect)
+        self.effects_chip.clearRequested.connect(self.session.clear_effects)
+        shell.status.right.addWidget(self.effects_chip)
+        shell.status.set_hint(self.effects_panel.hint())
+        self._summary = shell.status.summary_label
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(shell)
         self.toast = Toast(self)
-        self._video_layout.addWidget(self.trim)
-        self._video_layout.addLayout(trim_row)
-        self._video_layout.addWidget(self.effects_panel)
-        self._video_layout.addLayout(clips_row)
-        self._video_layout.addLayout(audio_row)
+
+    def _build_transport(self) -> QWidget:
+        self._play = icon_button(
+            "play", tip(self.tr("Пауза и воспроизведение"), "Space"), self._toggle_pause
+        )
+        self._step_back = icon_button(
+            "step_back", tip(self.tr("Кадр назад"), "←"), lambda: self.step_frame(-1)
+        )
+        self._step_forward = icon_button(
+            "step_forward", tip(self.tr("Кадр вперёд"), "→"), lambda: self.step_frame(1)
+        )
+        self._time = QLabel("0:00 / 0:00")
+        self._time.setMinimumWidth(8 * tokens.SPACE_2)
+        self._set_in = icon_button(
+            "mark_in", tip(self.tr("Начало фрагмента здесь"), "I"), self.set_in
+        )
+        self._set_out = icon_button(
+            "mark_out", tip(self.tr("Конец фрагмента здесь"), "O"), self.set_out
+        )
+        self._reset = icon_button("reset_trim", self.tr("Сбросить обрезку"), self._reset_trim)
+        self._zoom_out = icon_button(
+            "zoom_out", self.tr("Уменьшить полосу"), lambda: self.trim.zoom_out()
+        )
+        self._zoom_in = icon_button(
+            "zoom_in", self.tr("Увеличить полосу"), lambda: self.trim.zoom_in()
+        )
+        self._zoom_fit = icon_button(
+            "fit", self.tr("Вписать полосу целиком"), lambda: self.trim.fit()
+        )
+        self._zoom_out.setEnabled(False)
+        self._zoom_fit.setEnabled(False)
+        bar = QWidget()
+        bar.setFixedHeight(tokens.TRANSPORT_H)
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(tokens.SPACE_1)
+        for widget in (self._play, self._step_back, self._step_forward, self._time):
+            row.addWidget(widget)
+        row.addSpacing(tokens.SPACE_4)
+        for widget in (self._set_in, self._set_out, self._reset):
+            row.addWidget(widget)
+        row.addStretch(1)
+        for widget in (self._zoom_out, self._zoom_in, self._zoom_fit):
+            row.addWidget(widget)
+        return bar
 
     def release_video_page(self) -> VideoPage:
         """Возвращает плеер владельцу (главному окну) при выходе из редактора."""
         player = self._video_page.player
         for signal, slot in (
-            (player.positionChanged, self.trim.set_position),
+            (player.positionChanged, self._on_position),
+            (player.pausedChanged, self._on_paused),
             (player.fileLoaded, self._on_file_loaded),
         ):
             signal.disconnect(slot)
         player.set_video_filter(None)
         self._overlay.setParent(None)
         self._overlay.deleteLater()
-        self._video_layout.removeWidget(self._video_page)
+        self._video_page.set_editor_mode(False)
+        self._video_page.parentWidget().layout().removeWidget(self._video_page)  # type: ignore[union-attr]
         self._video_page.setParent(None)
         return self._video_page
+
+    def refresh_theme(self) -> None:
+        refresh_icons(self)
+        self.shell.refresh_theme()
+        self.clip_strip.refresh_theme()
+        self._overlay.update()
+        self.update()
 
     def shutdown(self) -> None:
         """Остановить фоновые задачи перед закрытием окна."""
@@ -245,6 +309,58 @@ class VideoEditorPage(QWidget):
         self._thumbs.wait()
         self._tasks.wait()
         remove_workspace(self._workspace)
+
+    # --- размеры ----------------------------------------------------------------------------
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        if not self._sized:
+            self._sized = True
+            QTimer.singleShot(0, self._apply_trim_height)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self.clip_strip.set_compact(self.height() < COMPACT_HEIGHT)
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
+        """Полоса клипов выросла или сжалась: высота полосы обрезки остаётся прежней."""
+        if watched is self.clip_strip and event.type() == QEvent.Type.Resize:
+            new = self.clip_strip.height()
+            delta, self._strip_height = new - self._strip_height, new
+            self._limit_bottom()
+            if delta and self._sized:
+                top, bottom = self.splitter.sizes()
+                self.splitter.setSizes([max(top - delta, MIN_PREVIEW_HEIGHT), bottom + delta])
+        return False
+
+    def _bottom_extras(self) -> int:
+        """Высота нижней части без полосы обрезки: транспорт, клипы и отступы."""
+        margins = self.splitter.widget(1).layout().contentsMargins()  # type: ignore[union-attr]
+        spacing = self.splitter.widget(1).layout().spacing()  # type: ignore[union-attr]
+        return (
+            tokens.TRANSPORT_H
+            + self.clip_strip.height()
+            + 2 * spacing
+            + margins.top()
+            + margins.bottom()
+        )
+
+    def _limit_bottom(self) -> None:
+        """Полоса обрезки не выше предела: нижняя часть не растёт дальше него."""
+        self._bottom.setMaximumHeight(tokens.TRIM_MAX_H + self._bottom_extras())
+
+    def _apply_trim_height(self) -> None:
+        self._limit_bottom()
+        wanted = self._app.get_int("state.trim_height")
+        wanted = min(max(wanted, tokens.TRIM_MIN_H), tokens.TRIM_MAX_H)
+        if self.height() < COMPACT_HEIGHT:
+            wanted = tokens.TRIM_MIN_H  # низкое окно: превью важнее высокой полосы
+        total = sum(self.splitter.sizes())
+        bottom = wanted + self._bottom_extras()
+        self.splitter.setSizes([max(total - bottom, MIN_PREVIEW_HEIGHT), bottom])
+
+    def _save_trim_height(self) -> None:
+        self._app.set("state.trim_height", self.trim.height())
 
     # --- текущий клип ------------------------------------------------------------------------
 
@@ -285,10 +401,36 @@ class VideoEditorPage(QWidget):
         clip = self.clip
         self._video_page.player.set_loop(clip.start, clip.stop)
 
-    # --- обрезка -----------------------------------------------------------------------------
+    # --- транспорт ---------------------------------------------------------------------------
 
-    def _on_trimming(self, start: float, end: float) -> None:
-        self._trim_label.setText(self._trim_text(start, end))
+    def _toggle_pause(self) -> None:
+        self._video_page.player.toggle_pause()
+
+    def step_frame(self, direction: int) -> None:
+        """Стрелки: один кадр назад или вперёд."""
+        self._video_page.player.step_frame(direction)
+
+    def step_seconds(self, direction: int) -> None:
+        """Shift + стрелки: на секунду, точно."""
+        player = self._video_page.player
+        player.seek_to(max(player.position + direction * SECOND_STEP, 0.0), exact=True)
+
+    def _on_position(self, seconds: float) -> None:
+        self.trim.set_position(seconds)
+        total = self.clip.info.duration
+        self._time.setText(f"{format_time(round(seconds))} / {format_time(round(total))}")
+
+    def _on_paused(self, paused: bool) -> None:
+        set_icon(self._play, "play" if paused else "pause", 16)
+        label = self.tr("Воспроизвести") if paused else self.tr("Пауза")
+        self._play.setToolTip(tip(label, "Space"))
+
+    def _on_zoom_changed(self, level: float) -> None:
+        zoomed = level > 1.0
+        self._zoom_out.setEnabled(zoomed)
+        self._zoom_fit.setEnabled(zoomed)
+
+    # --- обрезка -----------------------------------------------------------------------------
 
     def _on_trim_committed(self, start: float, end: float) -> None:
         self.session.set_trim(self._index, start, end)
@@ -301,11 +443,6 @@ class VideoEditorPage(QWidget):
 
     def _reset_trim(self) -> None:
         self.session.set_trim(self._index, 0.0, self.clip.info.duration)
-
-    def _trim_text(self, start: float, end: float) -> str:
-        return self.tr("Фрагмент: {0} – {1}, длина {2}").format(
-            format_precise(start), format_precise(end), format_precise(end - start)
-        )
 
     # --- клипы -------------------------------------------------------------------------------
 
@@ -329,7 +466,8 @@ class VideoEditorPage(QWidget):
     def _on_clip_probed(self, path: Path, info: MediaInfo) -> None:
         reason = incompatibility(self.session.project.clips[0].info, info)
         self.session.add_clip(Clip(path, info))
-        self._clips.setCurrentRow(len(self.session.project.clips) - 1)
+        self.clip_strip.set_current(len(self.session.project.clips) - 1)
+        self._on_row_changed(self.clip_strip.current)
         if reason is None:
             self.message.emit(self.tr("Клип добавлен: ") + path.name)
         else:
@@ -340,36 +478,45 @@ class VideoEditorPage(QWidget):
             )
 
     def _remove_clip(self) -> None:
+        self._remove_clip_at(self._index)
+
+    def _remove_clip_at(self, index: int) -> None:
         if len(self.session.project.clips) <= 1:
             self.message.emit(self.tr("Последний клип удалить нельзя"))
             return
-        self.session.remove_clip(self._index)
+        if index < self._index:
+            self._index -= 1  # выбранный клип остаётся тем же
+        self.session.remove_clip(index)
 
     def _move_clip(self, delta: int) -> None:
         target = self._index + delta
         if 0 <= target < len(self.session.project.clips):
-            source = self._index
+            self._on_move_requested(self._index, target)
+
+    def _on_move_requested(self, source: int, target: int) -> None:
+        if source == self._index:
             self._index = target  # выбор следует за клипом
-            self.session.move_clip(source, delta)
+        elif source < self._index <= target:
+            self._index -= 1
+        elif target <= self._index < source:
+            self._index += 1
+        self.session.move_clip_to(source, target)
 
     # --- звук --------------------------------------------------------------------------------
 
-    def _on_volume_changed(self, value: int) -> None:
-        self._volume_label.setText(f"{value}%")
-        self._volume_timer.start()  # в историю попадает только итоговое значение
-
-    def _commit_volume(self) -> None:
-        self.session.set_volume(self._volume.value() / 100)
-
     def _choose_replacement(self) -> None:
-        name, _ = QFileDialog.getOpenFileName(
-            self,
-            self.tr("Заменить звук"),
-            "",
-            self.tr("Аудио (%1)").replace("%1", AUDIO_FILTER),
-        )
-        if name:
-            self.session.set_replacement(Path(name))
+        self.audio.choose_replacement()
+
+    # --- инструменты -------------------------------------------------------------------------
+
+    def select_tool(self, name: str) -> None:
+        self.effects_panel.select_tool(name)
+
+    def _on_tool_selected(self, key: object) -> None:
+        self.shell.select(key if isinstance(key, str) else None)
+
+    def _remove_effect(self, entry: EffectEntry) -> None:
+        self.session.remove_effect(entry)
 
     # --- обновление --------------------------------------------------------------------------
 
@@ -383,47 +530,44 @@ class VideoEditorPage(QWidget):
     def _refresh(self) -> None:
         project = self.session.project
         clips = project.clips
-        blocker = QSignalBlocker(self._clips)
-        self._clips.clear()
-        for number, clip in enumerate(clips, start=1):
-            span = f"{format_time(round(clip.start))}–{format_time(round(clip.stop))}"
-            text = f"{number}. {clip.path.name}\n{span}"
-            item = QListWidgetItem(text)
-            item.setToolTip(str(clip.path))
-            self._clips.addItem(item)
-        self._clips.setCurrentRow(self._index)
-        blocker.unblock()
+        infos = [
+            ClipInfo(
+                clip.path.name,
+                format_time(round(clip.length)),
+                str(clip.path),
+            )
+            for clip in clips
+        ]
+        self.clip_strip.set_clips(infos, self._index)
 
         self._undo_button.setEnabled(self.session.can_undo)
         self._redo_button.setEnabled(self.session.can_redo)
         marker = " *" if self.session.modified else ""
         width, height = output_frame_size(project.effects, project.frame_size)
-        self._summary.setText(
-            self.tr("Итог: {0}, {1}×{2}, клипов: {3}").format(
+        self.shell.status.set_summary(
+            self.tr("Итог {0} · {1}×{2} · клипов {3}").format(
                 format_time(project.duration), width, height, len(clips)
             )
             + marker
         )
+        self.effects_chip.set_effects(project.effects)
+        self._refresh_marks(project.effects)
 
-        audio = project.audio
-        with QSignalBlocker(self._volume):
-            self._volume.setValue(round(audio.volume * 100))
-        self._volume_label.setText(f"{round(audio.volume * 100)}%")
-        with QSignalBlocker(self._mute):
-            self._mute.setChecked(audio.mute)
-        self._original_audio.setEnabled(audio.replacement is not None)
-        self._audio_note.setText(
-            self.tr("Звук: ") + audio.replacement.name if audio.replacement else ""
-        )
+        self.audio.refresh()
         self._refresh_trim()
         self._apply_loop()
         self.effects_panel.refresh()
         self._apply_preview()
 
+    def _refresh_marks(self, effects: VideoEffects) -> None:
+        marked = {entry.tool for entry in effect_entries(effects)}
+        for key in self.shell.rail.names():
+            on = key in marked or (key == "audio" and self.audio.is_customised())
+            self.shell.rail.set_marked(key, on)
+
     def _refresh_trim(self) -> None:
         clip = self.clip
         self.trim.set_range(clip.start, clip.stop)
-        self._trim_label.setText(self._trim_text(clip.start, clip.stop))
 
     # --- предпросмотр эффектов в mpv ---------------------------------------------------------
 
@@ -467,9 +611,6 @@ class VideoEditorPage(QWidget):
 
     def apply_pending(self) -> None:
         self.effects_panel.apply_pending()
-
-    def select_tool(self, name: str) -> None:
-        self.effects_panel.select_tool(name)
 
     def copy_result(self) -> None:
         self.message.emit(self.tr("Копирование в буфер доступно только для фото"))
@@ -526,6 +667,7 @@ class VideoEditorPage(QWidget):
         self._export_dir = workdir
         self.export_strip.start(self.tr("Экспорт…"))
         self._progress = self.export_strip
+        self._export_button.setEnabled(False)
         self._worker.start(plan, workdir)
 
     def _cancel_export(self) -> None:
@@ -536,6 +678,7 @@ class VideoEditorPage(QWidget):
         self.export_strip.finish()
         self._progress = None
         self._export_dir = None
+        self._export_button.setEnabled(True)
 
     def _on_export_progress(self, fraction: float) -> None:
         if self._progress is not None:

@@ -136,12 +136,17 @@ class VideoPage(QWidget):
         self.update()
 
     def set_editor_mode(self, value: bool) -> None:
-        """В редакторе верхняя панель не нужна: название и «Редактировать» уже не к месту."""
+        """В редакторе плавающих панелей нет: управление лежит в строке транспорта редактора."""
         self._editor_mode = value
         if value:
-            self.top.hide()
+            self._hide_timer.stop()
+            for panel in (self.controls, self.top, self.tracks, self.bubble, self.mini):
+                panel.hide()
+            self.video.unsetCursor()
 
     def toggle_tracks(self) -> None:
+        if self._editor_mode:
+            return
         if self.tracks.isVisible():
             self.tracks.disappear()
         else:
@@ -179,9 +184,10 @@ class VideoPage(QWidget):
 
     def wake(self) -> None:
         """Показать панели и курсор; спрятать снова, если мышь неподвижна."""
+        if self._editor_mode:
+            return
         self.controls.appear()
-        if not self._editor_mode:
-            self.top.appear()
+        self.top.appear()
         self.mini.hide()
         self.video.unsetCursor()
         self._hide_timer.start(self.hide_delay_ms())

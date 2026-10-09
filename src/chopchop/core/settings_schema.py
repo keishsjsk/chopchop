@@ -498,6 +498,15 @@ SPECS: tuple[Spec, ...] = (
     ),
     # --- Служебное: не показывается в окне, но хранится в файле
     Spec("state.window", "str", "", QT_TRANSLATE_NOOP("Settings", "Положение окна"), shown=False),
+    Spec(
+        "state.trim_height",
+        "int",
+        72,
+        QT_TRANSLATE_NOOP("Settings", "Высота полосы обрезки"),
+        low=56,
+        high=160,
+        shown=False,
+    ),
 )
 
 BY_KEY: dict[str, Spec] = {spec.key: spec for spec in SPECS}

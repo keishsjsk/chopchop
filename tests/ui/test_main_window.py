@@ -202,7 +202,7 @@ def test_video_editor_opens_edits_and_returns_player(
     assert editor is not None
     assert window._on_video_editor()
     assert "редактор" in window.windowTitle()
-    assert fake.parent() is editor  # плеер переехал в редактор
+    assert editor.isAncestorOf(fake)  # плеер переехал в редактор
 
     fake.mpv.time_pos = 2.0
     window._with_editor(lambda e: e.set_in() if isinstance(e, VideoEditorPage) else None)
@@ -211,8 +211,13 @@ def test_video_editor_opens_edits_and_returns_player(
     assert not editor.session.modified
 
     window._on_video_page()  # клавиши плеера работают и внутри редактора
-    window._horizontal(1)
-    assert fake.mpv.seeks[-1][0] == 5
+    window._horizontal(1)  # в редакторе стрелка — один кадр, а не перемотка на 5 секунд
+    assert ("frame-step",) in fake.mpv.commands
+    window._horizontal(-1)
+    assert ("frame-back-step",) in fake.mpv.commands
+    fake.mpv.time_pos = 3.0
+    window._seek_long(1)  # Shift + стрелка — секунда
+    assert fake.mpv.seeks[-1] == (4.0, "absolute", "exact")
 
     window._escape()  # правок нет: выход без вопросов
     assert window.video_editor is None

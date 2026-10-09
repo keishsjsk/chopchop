@@ -99,6 +99,70 @@ class VideoEffects:
 
 
 @dataclass(frozen=True)
+class EffectEntry:
+    """Один применённый эффект для списка в интерфейсе: вид и номер (для скрытий и текстов)."""
+
+    kind: str  # crop, redact, text, adjust, filter, rotation, flip
+    index: int = 0
+
+    @property
+    def tool(self) -> str:
+        """Пункт рейки редактора, к которому относится эффект."""
+        return TOOL_OF_EFFECT[self.kind]
+
+
+TOOL_OF_EFFECT = {
+    "crop": "crop",
+    "redact": "redact",
+    "text": "text",
+    "adjust": "adjust",
+    "filter": "adjust",
+    "rotation": "rotate",
+    "flip": "rotate",
+}
+
+
+def effect_entries(effects: VideoEffects) -> list[EffectEntry]:
+    """Применённые эффекты по порядку обработки; пустой список — «без эффектов»."""
+    entries: list[EffectEntry] = []
+    if effects.crop is not None:
+        entries.append(EffectEntry("crop"))
+    entries += [EffectEntry("redact", i) for i in range(len(effects.redacts))]
+    entries += [EffectEntry("text", i) for i in range(len(effects.texts))]
+    if not effects.adjust.is_identity:
+        entries.append(EffectEntry("adjust"))
+    if effects.filter:
+        entries.append(EffectEntry("filter"))
+    if effects.rotation:
+        entries.append(EffectEntry("rotation"))
+    if effects.flip_h or effects.flip_v:
+        entries.append(EffectEntry("flip"))
+    return entries
+
+
+def without_effect(effects: VideoEffects, entry: EffectEntry) -> VideoEffects:
+    """Те же эффекты без одного."""
+    match entry.kind:
+        case "crop":
+            return replace(effects, crop=None)
+        case "redact":
+            kept = tuple(r for i, r in enumerate(effects.redacts) if i != entry.index)
+            return replace(effects, redacts=kept)
+        case "text":
+            kept_texts = tuple(x for i, x in enumerate(effects.texts) if i != entry.index)
+            return replace(effects, texts=kept_texts)
+        case "adjust":
+            return replace(effects, adjust=Adjust())
+        case "filter":
+            return replace(effects, filter=None)
+        case "rotation":
+            return replace(effects, rotation=0)
+        case "flip":
+            return replace(effects, flip_h=False, flip_v=False)
+    return effects
+
+
+@dataclass(frozen=True)
 class VideoProject:
     clips: tuple[Clip, ...]
     audio: AudioSettings = AudioSettings()
@@ -146,6 +210,14 @@ class VideoProject:
             return self
         clips = list(self.clips)
         clips[index], clips[target] = clips[target], clips[index]
+        return replace(self, clips=tuple(clips))
+
+    def move_clip_to(self, index: int, target: int) -> "VideoProject":
+        """Клип на новое место (остальные сдвигаются); перетаскивание — один шаг истории."""
+        if not (0 <= index < len(self.clips) and 0 <= target < len(self.clips)) or index == target:
+            return self
+        clips = list(self.clips)
+        clips.insert(target, clips.pop(index))
         return replace(self, clips=tuple(clips))
 
     def with_clip(self, index: int, clip: Clip) -> "VideoProject":

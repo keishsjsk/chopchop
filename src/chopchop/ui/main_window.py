@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("CHOPCHOP")
         self.resize(960, 600)
+        self.setMinimumSize(960, 600)
         self.setAcceptDrops(True)
 
         self._settings = settings
@@ -432,6 +433,9 @@ class MainWindow(QMainWindow):
     def _horizontal(self, direction: int) -> None:
         if self._on_editor():
             return
+        if self._on_video_editor() and self.video_editor is not None:
+            self.video_editor.step_frame(direction)  # в редакторе стрелки — по кадрам
+            return
         if self._on_video_page():
             self._with_player(
                 lambda p: p.seek(direction * self._app.get_int("playback.seek_short"))
@@ -441,6 +445,9 @@ class MainWindow(QMainWindow):
 
     def _seek_long(self, direction: int) -> None:
         if self._on_editor() or not self._on_video_page():
+            return
+        if self._on_video_editor() and self.video_editor is not None:
+            self.video_editor.step_seconds(direction)  # в редакторе Shift + стрелки — секунда
             return
         self._with_player(lambda p: p.seek(direction * self._app.get_int("playback.seek_long")))
 
@@ -498,6 +505,8 @@ class MainWindow(QMainWindow):
             self.video_page.refresh_theme()
         if self.editor is not None:
             self.editor.refresh_theme()
+        if self.video_editor is not None:
+            self.video_editor.refresh_theme()
         self.viewer.setBackgroundBrush(QColor(self._app.get_str("photo.background")))
         self.update()
 
@@ -682,6 +691,7 @@ class MainWindow(QMainWindow):
         self.video_editor = editor
         self._stack.addWidget(editor)
         self._stack.setCurrentWidget(editor)
+        self.statusBar().hide()  # у редактора своя строка состояния
         self.setWindowTitle(f"{path.name} — {self.tr('редактор')} — CHOPCHOP")
         self.statusBar().clearMessage()
 
@@ -693,6 +703,7 @@ class MainWindow(QMainWindow):
         page = editor.release_video_page()
         page.player.set_loop(None, None)
         self.video_editor = None
+        self.statusBar().show()
         self._stack.removeWidget(editor)
         editor.deleteLater()
         self._stack.addWidget(page)

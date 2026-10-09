@@ -10,9 +10,11 @@ from chopchop.core.operations import Adjust, FilterName, Redact, Text
 from chopchop.core.video import (
     AudioSettings,
     Clip,
+    EffectEntry,
     ProjectHistory,
     VideoEffects,
     VideoProject,
+    without_effect,
 )
 
 
@@ -68,6 +70,9 @@ class VideoSession(QObject):
     def move_clip(self, index: int, delta: int) -> None:
         self._apply(self.project.move_clip(index, delta))
 
+    def move_clip_to(self, index: int, target: int) -> None:
+        self._apply(self.project.move_clip_to(index, target))
+
     def set_volume(self, volume: float) -> None:
         self._apply(self.project.with_audio(self._audio(volume=volume)))
 
@@ -120,6 +125,9 @@ class VideoSession(QObject):
             self._effects(flip_h=not current.flip_h)
         else:
             self._effects(flip_v=not current.flip_v)
+
+    def remove_effect(self, entry: EffectEntry) -> None:
+        self._apply(self.project.with_effects(without_effect(self.project.effects, entry)))
 
     def clear_effects(self) -> None:
         self._apply(self.project.with_effects(VideoEffects()))

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QToolButton, QWidget
 
 from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.ui.tools.crop_tool import Ratio
+from chopchop.ui.widgets import Segmented, icon_button
 
 RATIOS: tuple[tuple[str, Ratio], ...] = (
     (QT_TRANSLATE_NOOP("CropRatioBar", "Свободно"), None),
@@ -88,3 +89,41 @@ class CropRatioBar(QWidget):
             self._combo.setItemText(self._custom_index, title)
             self._combo.setItemData(self._custom_index, ratio)
         return self._custom_index
+
+
+class RatioChips(QWidget):
+    """Пропорции кадра чипами в одну строку (контекстная панель редактора)."""
+
+    ratioChanged = Signal(object)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._chips = Segmented(variant="chip")
+        for title, ratio in RATIOS:
+            self._chips.add(self.tr(title), ratio)
+        self._chips.changed.connect(self._emit)
+        self._swap = icon_button("flip", self.tr("Повернуть пропорции: 16:9 ↔ 9:16"), self.swap)
+        self._swap.setEnabled(False)
+        self._ratio: Ratio = None
+        self._chips.set_value(None)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self._chips)
+        row.addWidget(self._swap)
+
+    def value(self) -> Ratio:
+        return self._ratio
+
+    def _emit(self, ratio: object) -> None:
+        self._ratio = ratio  # type: ignore[assignment]
+        self._swap.setEnabled(self._ratio is not None)
+        self.ratioChanged.emit(self._ratio)
+
+    def swap(self) -> None:
+        self.set_value(inverse(self._ratio))
+
+    def set_value(self, ratio: Ratio) -> None:
+        self._chips.set_value(ratio)
+        if self._chips.value() != ratio:
+            self._chips.clear_value()  # перевёрнутые «исходные» пропорции: чипа для них нет
+        self._emit(ratio)

@@ -176,6 +176,10 @@ class Player(QObject):
         """Перемотка: по ключевым кадрам (быстро, для перетаскивания) или точно на кадр."""
         self._mpv.seek(max(seconds, 0.0), "absolute", "exact" if exact else "keyframes")
 
+    def step_frame(self, direction: int) -> None:
+        """Шаг на один кадр вперёд (direction > 0) или назад; воспроизведение встаёт на паузу."""
+        self._mpv.command("frame-step" if direction > 0 else "frame-back-step")
+
     def set_volume(self, value: float) -> None:
         self._mpv.volume = min(max(value, 0.0), VOLUME_MAX)
 

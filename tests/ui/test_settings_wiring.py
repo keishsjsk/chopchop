@@ -279,18 +279,29 @@ def test_open_in_new_window_starts_another_process(
     assert window.current_path == second
 
 
-def test_window_geometry_is_remembered(qtbot: QtBot, tmp_path: Path) -> None:
+def test_window_geometry_is_remembered(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     window, settings = _window(qtbot, tmp_path)
-    window.resize(777, 555)
+    window.resize(1011, 655)
     window._remember_window()
     assert settings.get_str("state.window")
     other_settings = AppSettings(None)
     other_settings.set("state.window", settings.get_str("state.window"))
+    restored: list[bytes] = []
+    original = MainWindow.restoreGeometry
+
+    def spy(self: MainWindow, data: object) -> bool:
+        restored.append(bytes(data))  # type: ignore[call-overload]
+        return original(self, data)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(MainWindow, "restoreGeometry", spy)
     other = MainWindow(
         QSettings(str(tmp_path / "o.ini"), QSettings.Format.IniFormat), other_settings
     )
     qtbot.addWidget(other)
-    assert other.width() == 777 and other.height() == 555
+    # размер окна не меньше 960×600, а экран offscreen меньше, поэтому проверяем сам вызов
+    assert restored and restored[0] == window.saveGeometry().data()
     settings.set("general.remember_window", False)
     settings.set("state.window", "")
     window._remember_window()

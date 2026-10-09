@@ -346,3 +346,19 @@ def test_hover_bubble_shows_time_above_the_line(
     assert page.bubble.isVisible()
     assert page.bubble._time.text() == "1:15"
     assert page.bubble.geometry().bottom() <= page.controls.geometry().top() + 1
+
+
+def test_editor_mode_never_shows_player_panels(
+    qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    page, _mpv = _page(qtbot, monkeypatch)
+    page.wake()
+    qtbot.waitUntil(lambda: page.controls.isVisible(), timeout=1000)
+    page.set_editor_mode(True)
+    assert not any(p.isVisible() for p in (page.controls, page.top, page.tracks, page.mini))
+    page.wake()  # мышь над видео панели не возвращает: кадр ничем не закрыт
+    page.toggle_tracks()
+    assert not any(p.isVisible() for p in (page.controls, page.top, page.tracks))
+    page.set_editor_mode(False)  # после выхода из редактора плеер снова обычный
+    page.wake()
+    qtbot.waitUntil(lambda: page.controls.isVisible(), timeout=1000)

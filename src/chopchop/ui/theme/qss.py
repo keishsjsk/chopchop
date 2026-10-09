@@ -202,8 +202,23 @@ QPushButton[variant="primary"]:focus {{ border: {ring}px solid {p.focus_ring}; }
 QPushButton[variant="danger"] {{
     background: {p.danger}; color: {p.on_danger}; border-color: {p.danger};
 }}
-QPushButton[variant="flat"] {{ background: transparent; border-color: transparent; }}
-QPushButton[variant="flat"]:hover {{ background: {p.surface_raised}; border-color: {p.border}; }}
+/* призрачная: без рамки, но с состояниями; сегментная и «чип» — выбор из нескольких */
+QPushButton[variant="ghost"], QPushButton[variant="flat"] {{ background: transparent; border-color: transparent; }}
+QPushButton[variant="ghost"]:hover, QPushButton[variant="flat"]:hover {{ background: {p.surface_raised}; border-color: {p.border}; }}
+QPushButton[variant="ghost"]:pressed {{ background: {p.border}; }}
+QPushButton[variant="ghost"]:disabled {{ background: transparent; border-color: transparent; }}
+QPushButton[variant="ghost"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
+QPushButton[variant="segment"], QPushButton[variant="chip"] {{
+    min-height: {hit - 2 * b}px; padding: 0 {s3}px; background: {p.surface};
+}}
+QPushButton[variant="chip"] {{ padding: 0 {s2}px; }}
+QPushButton[variant="chip"][dense="true"] {{ min-height: {t.STATUS_H - 4 * b}px; padding: 0 {s2}px; }}
+QPushButton[variant="segment"]:checked, QPushButton[variant="chip"]:checked {{
+    background: {p.accent}; color: {p.on_accent}; border-color: {p.accent};
+}}
+QPushButton[variant="segment"]:checked:hover, QPushButton[variant="chip"]:checked:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
+QPushButton[variant="segment"]:checked:disabled, QPushButton[variant="chip"]:checked:disabled {{ background: {p.border}; color: {p.text_muted}; border-color: {p.border}; }}
+QPushButton[variant="segment"]:focus, QPushButton[variant="chip"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
 
 /* кнопки панелей: рейка инструментов и значки */
 QToolButton {{
@@ -218,6 +233,13 @@ QToolButton:pressed {{ background: {p.border}; }}
 QToolButton:checked {{ background: {p.accent}; color: {p.on_accent}; border-color: {p.accent}; }}
 QToolButton:disabled {{ color: {p.text_muted}; }}
 QToolButton:focus {{ border: {ring}px solid {p.focus_ring}; }}
+QToolButton[rail="true"] {{
+    min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px; padding: 0;
+}}
+QToolButton[variant="ghost"] {{
+    min-width: {hit - 2 * b}px; min-height: {hit - 2 * b}px; padding: 0;
+}}
+QToolButton[variant="ghost"][labelled="true"] {{ padding: 0 {s3}px; }}
 QToolButton::menu-indicator {{ image: none; width: 0; }}
 
 /* поля ввода */

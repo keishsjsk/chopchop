@@ -21,10 +21,13 @@ REQUIRED = (
     "exit_fullscreen", "settings", "edit", "back_to_view", "crop", "rotate", "flip", "redact",
     "brush", "marker", "arrow", "rectangle", "text", "adjust", "filters", "trim", "split",
     "add_clip", "remove_clip", "zoom_in", "zoom_out", "fit", "close", "check", "warning",
-    "info", "trash",
+    "info", "trash", "scissors", "drop", "sliders", "step_back", "step_forward",
+    "chevron_up", "chevron_down", "chevron_left", "chevron_right", "mark_in", "mark_out",
+    "reset_trim",
 )  # fmt: skip
 
 _cache: dict[tuple[object, ...], QImage] = {}
+_qicons: dict[tuple[object, ...], QIcon] = {}
 
 COLOR_ROLES = (
     "text",
@@ -140,8 +143,13 @@ def qicon(
 ) -> QIcon:
     """QIcon для кнопок: обычная, выключенная (приглушённая), нажатая (цвет на акцентной плашке).
 
-    Пиксмапы сделаны для масштабов 1–4, Qt выбирает подходящий под экран.
+    Пиксмапы сделаны для масштабов 1–4, Qt выбирает подходящий под экран. Готовые значки
+    запоминаются: редактор создаёт десятки одинаковых кнопок, а сборка значка не бесплатна.
     """
+    key = (name, palette, logical, role, checked_role, size)
+    cached = _qicons.get(key)
+    if cached is not None:
+        return cached
     icon = QIcon()
     side = grid_size(name, size)
     for ratio in (1.0, 2.0, 3.0, 4.0):
@@ -165,8 +173,10 @@ def qicon(
                 mode,
                 state,
             )
+    _qicons[key] = icon
     return icon
 
 
 def clear_cache() -> None:
     _cache.clear()
+    _qicons.clear()
