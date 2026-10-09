@@ -49,8 +49,19 @@ class Tool(QObject):
     def pending_operation(self) -> Operation | None:
         return None
 
+    def dirty_rect(self) -> Rect | None:
+        """Область (в пикселях превью), которую изменило последнее событие; None — всё."""
+        return None
+
     def reset(self) -> None:
         pass
+
+    def commit(self) -> None:
+        """Операцию отдали в историю. Пока считается новое превью, след остаётся на экране."""
+        self.reset()
+
+    def end_commit(self) -> None:
+        """Новое превью готово: след инструмента можно убирать."""
 
     def paint(self, painter: QPainter, view: ViewMapper) -> None:
         pass

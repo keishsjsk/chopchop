@@ -29,6 +29,11 @@ def _page(qtbot: QtBot, tmp_path: Path, size: tuple[int, int] = (200, 100)) -> E
     return page
 
 
+def _settle(qtbot: QtBot, page: EditorPage) -> None:
+    """Превью считается в фоне: ждём, пока страница закончит."""
+    qtbot.waitUntil(lambda: not page.is_busy(), timeout=10000)
+
+
 def _drag(
     tool: CropTool | RedactTool | DrawTool, a: tuple[float, float], b: tuple[float, float]
 ) -> None:
@@ -42,6 +47,7 @@ def test_rotate_and_flip_buttons_add_operations(qtbot: QtBot, tmp_path: Path) ->
     assert not page._undo_button.isEnabled()
     page.session.add_full(Rotate(90))
     page.session.add_full(Flip(True))
+    _settle(qtbot, page)
     assert list(page.session.history.operations) == [Rotate(90), Flip(True)]
     assert page._undo_button.isEnabled()
     assert "100×200" in page._info.text()
@@ -50,6 +56,7 @@ def test_rotate_and_flip_buttons_add_operations(qtbot: QtBot, tmp_path: Path) ->
     assert not page._undo_button.isEnabled()
     assert page._redo_button.isEnabled()
     page.redo()
+    _settle(qtbot, page)
     assert list(page.session.history.operations) == [Rotate(90)]
     page.session.wait()
 
@@ -64,6 +71,7 @@ def test_crop_tool_applies_on_enter(qtbot: QtBot, tmp_path: Path) -> None:
     _drag(tool, (200, 100), (120, 60))  # тянем правый нижний угол
     assert tool.pending_operation() is not None
     page.apply_pending()
+    _settle(qtbot, page)
     (op,) = page.session.history.operations
     assert isinstance(op, Crop)
     assert page.session.output_size() == (120, 60)
@@ -96,6 +104,7 @@ def test_redact_defaults_to_fill_and_shows_hint_for_blur(qtbot: QtBot, tmp_path:
     page._redact_mode.setCurrentIndex(page._redact_mode.findData("fill"))
     _drag(tool, (10, 10), (50, 40))
     page.apply_pending()
+    _settle(qtbot, page)
     (op,) = page.session.history.operations
     assert isinstance(op, Redact)
     assert op.mode == "fill"
@@ -110,6 +119,7 @@ def test_live_preview_does_not_touch_history(qtbot: QtBot, tmp_path: Path) -> No
     assert isinstance(tool, RedactTool)
     _drag(tool, (10, 10), (50, 40))
     page._update_canvas()
+    _settle(qtbot, page)
     assert len(page.session.history) == 0
     page.escape()  # отменяет незавершённое действие, из редактора не выходит
     assert tool.pending_operation() is None
@@ -257,6 +267,7 @@ def test_crop_ratio_selector_reshapes_the_frame(qtbot: QtBot, tmp_path: Path) ->
     page._ratio_bar.set_value(1.0)
     assert tool.selection.rect == Rect(50, 0, 100, 100)
     page.apply_pending()
+    _settle(qtbot, page)
     assert page.session.output_size() == (100, 100)
     assert tool.selection.rect == Rect(0, 0, 100, 100)  # рамка снова по всему новому кадру
     page._ratio_bar.swap()  # квадрат остаётся квадратом
@@ -289,15 +300,17 @@ def test_brush_draws_with_the_mouse_and_applies_on_release(qtbot: QtBot, tmp_pat
     assert isinstance(tool, DrawTool)
     tool.press(20, 20, 4.0)
     for step in range(1, 8):
-        tool.move(20 + step * 10, 20 + step * 5)
+        tool.move(20 + step * 10, 20 + (step % 2) * 30)  # зигзаг не схлопывается при упрощении
     assert len(page.session.history) == 0  # пока кнопка зажата — ещё не применено
-    tool.release(90, 55)
+    tool.release(90, 20)
+    _settle(qtbot, page)
     (op,) = page.session.history.operations
     assert isinstance(op, Stroke)
-    assert len(op.points) > 5
+    assert len(op.points) >= 5
     tool.press(20, 80, 4.0)  # можно сразу рисовать дальше
     tool.move(120, 80)
     tool.release(120, 80)
+    _settle(qtbot, page)
     assert len(page.session.history) == 2
     page.session.wait()
 

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QKeySequence
@@ -21,29 +22,31 @@ from chopchop.core.document import (
     MediaKind,
     detect_kind,
 )
-from chopchop.core.video import Clip, VideoProject
-from chopchop.editor.session import EditSession
-from chopchop.editor.video_session import VideoSession
 from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
-from chopchop.engines.probe import probe
 from chopchop.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
 from chopchop.player.player import Player
 from chopchop.player.resume import ResumeStore
 from chopchop.services.settings import RecentFiles, load_player_prefs, save_player_prefs
 from chopchop.ui.drop_zone import DropZone
-from chopchop.ui.editor_page import EditorPage
-from chopchop.ui.pil_qt import qimage_to_pil
 from chopchop.ui.settings_dialog import SettingsDialog
-from chopchop.ui.video_editor_page import VideoEditorPage
 from chopchop.ui.video_page import VideoPage
 from chopchop.viewer.folder_nav import FolderNav
 from chopchop.viewer.image_viewer import ImageViewer
 from chopchop.viewer.prefetch import ImageCache
 from chopchop.workers.tasks import TaskRunner
 
+if TYPE_CHECKING:  # редакторы тяжёлые: загружаются при первом входе в редактирование
+    from chopchop.editor.session import EditSession
+    from chopchop.ui.editor_page import EditorPage
+    from chopchop.ui.video_editor_page import VideoEditorPage
+
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".ass", ".ssa", ".vtt", ".sub"})
 SEEK_SECONDS = 5
 VOLUME_STEP = 5
+
+
+MIN_PREVIEW_SIDE = 1024
+MAX_PREVIEW_SIDE = 3072
 
 
 class MainWindow(QMainWindow):
@@ -66,7 +69,9 @@ class MainWindow(QMainWindow):
         self._session: EditSession | None = None
         self._cache = ImageCache(parent=self)
         self._cache.loaded.connect(self._on_image_loaded)
+        self._cache.reducedLoaded.connect(self._on_reduced_loaded)
         self._cache.failed.connect(self._on_image_failed)
+        self._showing_reduced = False  # на экране пока уменьшенный вариант, полный грузится
 
         self._drop_zone = DropZone()
         self._drop_zone.fileChosen.connect(self.open_file)
@@ -226,14 +231,34 @@ class MainWindow(QMainWindow):
     def _show(self, path: Path) -> None:
         self.current_path = path
         self._update_title()
+        self._showing_reduced = False
         image = self._cache.get(path)
         if image is not None:
             self._display(image)
         else:
+            # сначала быстрый уменьшенный вариант (если формат умеет), затем полный
+            self._cache.request_reduced(path, self._viewer_side())
             self._cache.request(path)
 
-    def _display(self, image: QImage) -> None:
+    def _viewer_side(self) -> int:
+        """Сколько пикселей нужно длинной стороне картинки, чтобы окно выглядело чётко."""
+        size = self.viewer.viewport().size()
+        return max(1024, round(max(size.width(), size.height()) * self.devicePixelRatioF()))
+
+    def _on_reduced_loaded(self, path: Path, image: QImage) -> None:
+        if path != self.current_path or self._nav is None or self._cache.get(path) is not None:
+            return
+        self._showing_reduced = True
         self.viewer.set_image(image)
+        self._stack.setCurrentWidget(self.viewer)
+        self.statusBar().showMessage(f"{image.width()}×{image.height()}")
+
+    def _display(self, image: QImage) -> None:
+        if self._showing_reduced:
+            self._showing_reduced = False
+            self.viewer.replace_image(image)
+        else:
+            self.viewer.set_image(image)
         self._stack.setCurrentWidget(self.viewer)
         self.statusBar().showMessage(f"{image.width()}×{image.height()}")
         if self._nav is not None:
@@ -347,14 +372,14 @@ class MainWindow(QMainWindow):
     def _on_video_editor(self) -> bool:
         return self.video_editor is not None and self._stack.currentWidget() is self.video_editor
 
-    def _with_editor(self, action: Callable[[EditorPage | VideoEditorPage], object]) -> None:
+    def _with_editor(self, action: Callable[["EditorPage | VideoEditorPage"], object]) -> None:
         """Действие для текущего редактора: фото или видео (у них общие имена методов)."""
         if self._on_editor() and self.editor is not None:
             action(self.editor)
         elif self._on_video_editor() and self.video_editor is not None:
             action(self.video_editor)
 
-    def _with_video_editor(self, action: Callable[[VideoEditorPage], object]) -> None:
+    def _with_video_editor(self, action: Callable[["VideoEditorPage"], object]) -> None:
         if self._on_video_editor() and self.video_editor is not None:
             action(self.video_editor)
 
@@ -371,7 +396,11 @@ class MainWindow(QMainWindow):
         if self._on_editor() or self._on_video_editor():
             self._with_editor(lambda e: e.request_exit())
         elif self._stack.currentWidget() is self.viewer and self.current_path is not None:
-            self._open_editor(EditSession(self.current_path, parent=self))
+            from chopchop.editor.session import EditSession
+
+            self._open_editor(
+                EditSession(self.current_path, parent=self, proxy_side=self._preview_side())
+            )
         elif self._stack.currentWidget() is self.video_page and self._video_path is not None:
             self._open_video_editor(self._video_path)
 
@@ -380,9 +409,20 @@ class MainWindow(QMainWindow):
         if image.isNull():
             self.statusBar().showMessage(self.tr("В буфере обмена нет картинки"), 5000)
             return
-        self._open_editor(EditSession(None, qimage_to_pil(image), parent=self))
+        from chopchop.editor.session import EditSession
+        from chopchop.ui.pil_qt import qimage_to_pil
 
-    def _open_editor(self, session: EditSession) -> None:
+        self._open_editor(
+            EditSession(None, qimage_to_pil(image), parent=self, proxy_side=self._preview_side())
+        )
+
+    def _preview_side(self) -> int:
+        """Размер превью редактора по окну и плотности экрана: больше — только лишние расчёты."""
+        size = self._stack.size()
+        side = round(max(size.width(), size.height()) * self.devicePixelRatioF())
+        return min(max(side, MIN_PREVIEW_SIDE), MAX_PREVIEW_SIDE)
+
+    def _open_editor(self, session: "EditSession") -> None:
         if self._on_editor():
             return
         self._discard_session()
@@ -404,7 +444,9 @@ class MainWindow(QMainWindow):
             self._session.deleteLater()
             self._session = None
 
-    def _show_editor(self, session: EditSession) -> None:
+    def _show_editor(self, session: "EditSession") -> None:
+        from chopchop.ui.editor_page import EditorPage
+
         if session is not self._session:
             return
         self._stop_video()
@@ -439,6 +481,8 @@ class MainWindow(QMainWindow):
     # --- редактор видео ----------------------------------------------------------------------
 
     def _open_video_editor(self, path: Path) -> None:
+        from chopchop.engines.probe import probe
+
         ffmpeg, ffprobe = find_ffmpeg(), find_ffprobe()
         if ffmpeg is None or ffprobe is None:
             self.statusBar().showMessage(
@@ -458,6 +502,10 @@ class MainWindow(QMainWindow):
         )
 
     def _show_video_editor(self, path: Path, info: MediaInfo, ffmpeg: Path, ffprobe: Path) -> None:
+        from chopchop.core.video import Clip, VideoProject
+        from chopchop.editor.video_session import VideoSession
+        from chopchop.ui.video_editor_page import VideoEditorPage
+
         if self.video_page is None or self._video_path != path or self.video_editor is not None:
             return
         self._save_resume()

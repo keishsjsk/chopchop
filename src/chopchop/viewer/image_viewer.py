@@ -43,6 +43,20 @@ class ImageViewer(QGraphicsView):
         self._scene.setSceneRect(self._item.boundingRect())
         self.fit_to_window()
 
+    def replace_image(self, image: QImage) -> None:
+        """Подмена уменьшенной копии полной: то, что видит пользователь, не сдвигается."""
+        old = self._item.boundingRect()
+        if self._fit or old.isEmpty():
+            self.set_image(image)
+            return
+        center = self.mapToScene(self.viewport().rect().center())
+        ratio = image.width() / old.width()
+        zoom = self.zoom() / ratio
+        self._item.setPixmap(QPixmap.fromImage(image))
+        self._scene.setSceneRect(self._item.boundingRect())
+        self._set_zoom(zoom)
+        self.centerOn(center.x() * ratio, center.y() * ratio)
+
     def fit_to_window(self) -> None:
         """Вписать в окно; маленькие картинки не растягиваются сверх 100%."""
         self._fit = True

@@ -79,3 +79,14 @@ def test_set_range_ignored_while_dragging(qtbot: QtBot) -> None:
     QTest.mouseRelease(bar, Qt.MouseButton.LeftButton, pos=QPoint(_x(10), 32))
     bar.set_range(0.0, 5.0)
     assert bar.end == 5.0
+
+
+def test_scrubbing_is_approximate_and_release_asks_for_exact_seek(qtbot: QtBot) -> None:
+    bar = _bar(qtbot)
+    finished: list[float] = []
+    bar.seekFinished.connect(finished.append)
+    QTest.mousePress(bar, Qt.MouseButton.LeftButton, pos=QPoint(_x(20), 32))
+    QTest.mouseMove(bar, QPoint(_x(25), 32))
+    assert finished == []  # пока тянем, точная перемотка не нужна
+    QTest.mouseRelease(bar, Qt.MouseButton.LeftButton, pos=QPoint(_x(25), 32))
+    assert finished == [pytest.approx(25.0, abs=0.2)]

@@ -162,8 +162,9 @@ class Player(QObject):
     def seek(self, delta: float) -> None:
         self._mpv.seek(delta, "relative", "keyframes")
 
-    def seek_to(self, seconds: float) -> None:
-        self._mpv.seek(max(seconds, 0.0), "absolute", "keyframes")
+    def seek_to(self, seconds: float, exact: bool = False) -> None:
+        """Перемотка: по ключевым кадрам (быстро, для перетаскивания) или точно на кадр."""
+        self._mpv.seek(max(seconds, 0.0), "absolute", "exact" if exact else "keyframes")
 
     def set_volume(self, value: float) -> None:
         self._mpv.volume = min(max(value, 0.0), VOLUME_MAX)

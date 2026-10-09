@@ -1,10 +1,10 @@
 """Применение операций к фото через Pillow: и для превью на прокси, и для экспорта."""
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 from chopchop.core.operations import (
     Adjust,
@@ -23,6 +23,7 @@ from chopchop.core.operations import (
 from chopchop.engines.fonts import find_font
 from chopchop.services.metadata import exif_for_export
 from chopchop.services.output import unique_path
+from chopchop.services.profiling import stage
 
 PROXY_SIDE = 2048
 MARKER_ALPHA = 110
@@ -39,18 +40,45 @@ def open_image(path: Path) -> tuple[Image.Image, Image.Exif]:
     import pillow_heif
 
     pillow_heif.register_heif_opener()
-    with Image.open(path) as opened:
+    with stage("photo.open_full"), Image.open(path) as opened:
         exif = opened.getexif()
         image = ImageOps.exif_transpose(opened)
         has_alpha = "A" in image.getbands() or "transparency" in image.info
         return image.convert("RGBA" if has_alpha else "RGB"), exif
 
 
+def load_preview(
+    path: Path, max_side: int = PROXY_SIDE
+) -> tuple[Image.Image, float, tuple[int, int]]:
+    """Уменьшенная копия для редактирования без декодирования файла целиком.
+
+    JPEG при открытии декодируется сразу в уменьшенном виде (draft): 24 Мп читаются в несколько
+    раз быстрее. Возвращает превью, его масштаб относительно оригинала и размер оригинала.
+    """
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    with stage("photo.load_preview"), Image.open(path) as opened:
+        width, height = opened.size
+        if opened.getexif().get(0x0112, 1) in (5, 6, 7, 8):  # снимок повёрнут на 90°
+            width, height = height, width
+        if opened.format == "JPEG":
+            # размер надо просить с пропорциями кадра, иначе декодер не уменьшает в 2 и более раз
+            factor = max_side / max(opened.size)
+            opened.draft("RGB", (round(opened.width * factor), round(opened.height * factor)))
+        image = ImageOps.exif_transpose(opened)
+        has_alpha = "A" in image.getbands() or "transparency" in image.info
+        image = image.convert("RGBA" if has_alpha else "RGB")
+        image.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    return image, image.width / width, (width, height)
+
+
 def make_proxy(image: Image.Image, max_side: int = PROXY_SIDE) -> tuple[Image.Image, float]:
     """Уменьшенная копия для быстрого превью и её масштаб относительно оригинала."""
-    proxy = image.copy()
-    proxy.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
-    return proxy, proxy.width / image.width
+    with stage("photo.make_proxy"):
+        proxy = image.copy()
+        proxy.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+        return proxy, proxy.width / image.width
 
 
 # --- операции ----------------------------------------------------------------------------------
@@ -66,6 +94,11 @@ def apply_operations(
 
 
 def apply_operation(image: Image.Image, op: Operation) -> Image.Image:
+    with stage(f"op.{type(op).__name__}"):
+        return _apply_operation(image, op)
+
+
+def _apply_operation(image: Image.Image, op: Operation) -> Image.Image:
     match op:
         case Crop(rect):
             box = rect.to_box(*image.size)
@@ -119,21 +152,30 @@ def _redact(image: Image.Image, op: Redact) -> Image.Image:
 
 
 def _adjust(image: Image.Image, op: Adjust) -> Image.Image:
+    """Яркость, контраст, насыщенность, гамма.
+
+    Яркость и контраст — таблицы значений (point), в 5–7 раз быстрее ImageEnhance при том же
+    результате с точностью до единицы; насыщенность через ImageEnhance, ей таблицы не подходят.
+    """
     if op.is_identity:
         return image
-    rgb = image.convert("RGB")
+    rgb = image if image.mode == "RGB" else image.convert("RGB")
     if op.brightness != 1.0:
-        rgb = ImageEnhance.Brightness(rgb).enhance(op.brightness)
+        rgb = rgb.point(_table(lambda x: x * op.brightness) * 3)
     if op.contrast != 1.0:
-        rgb = ImageEnhance.Contrast(rgb).enhance(op.contrast)
+        mean = int(ImageStat.Stat(rgb.convert("L")).mean[0] + 0.5)
+        rgb = rgb.point(_table(lambda x: mean + (x - mean) * op.contrast) * 3)
     if op.saturation != 1.0:
         rgb = ImageEnhance.Color(rgb).enhance(op.saturation)
     if op.gamma != 1.0:
-        table = [round(255 * (i / 255) ** (1 / op.gamma)) for i in range(256)]
-        rgb = rgb.point(table * 3)
+        rgb = rgb.point(_table(lambda x: 255 * (x / 255) ** (1 / op.gamma)) * 3)
     if image.mode == "RGBA":
         rgb.putalpha(image.getchannel("A"))
     return rgb
+
+
+def _table(curve: Callable[[float], float]) -> list[int]:
+    return [min(max(round(curve(i)), 0), 255) for i in range(256)]
 
 
 def _filter(image: Image.Image, name: str) -> Image.Image:
@@ -199,22 +241,37 @@ def _annotate(image: Image.Image, op: Annotate) -> Image.Image:
 
 
 def _stroke(image: Image.Image, op: Stroke) -> Image.Image:
-    """Линия от руки со скруглёнными концами; полупрозрачная не темнеет в местах пересечений."""
+    """Линия от руки со скруглёнными концами; полупрозрачная не темнеет в местах пересечений.
+
+    Рисуется и склеивается только в границах штриха: на больших кадрах это в разы быстрее.
+    """
     if not op.points:
         return image
     width = max(1, round(op.width))
     alpha = round(min(max(op.opacity, 0.0), 1.0) * 255)
-    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    points = [(float(x), float(y)) for x, y in op.points]
+    pad = math.ceil(width / 2) + 2
+    left = max(math.floor(min(x for x, _ in points)) - pad, 0)
+    top = max(math.floor(min(y for _, y in points)) - pad, 0)
+    right = min(math.ceil(max(x for x, _ in points)) + pad, image.width)
+    bottom = min(math.ceil(max(y for _, y in points)) + pad, image.height)
+    if right <= left or bottom <= top:
+        return image
+    box = (left, top, right, bottom)
+    region = image.crop(box).convert("RGBA")
+    layer = Image.new("RGBA", region.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
     fill = (*op.color, alpha)
-    points = [(float(x), float(y)) for x, y in op.points]
-    if len(points) > 1:
-        draw.line(points, fill=fill, width=width, joint="curve")
+    local = [(x - left, y - top) for x, y in points]
+    if len(local) > 1:
+        draw.line(local, fill=fill, width=width, joint="curve")
     radius = width / 2
-    for x, y in points[:: max(1, len(points) // 400)] + [points[0], points[-1]]:
+    for x, y in local[:: max(1, len(local) // 400)] + [local[0], local[-1]]:
         draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
-    merged = Image.alpha_composite(image.convert("RGBA"), layer)
-    return merged if image.mode == "RGBA" else merged.convert("RGB")
+    merged = Image.alpha_composite(region, layer)
+    result = image.copy()
+    result.paste(merged if image.mode == "RGBA" else merged.convert("RGB"), (left, top))
+    return result
 
 
 def _text(image: Image.Image, op: Text) -> Image.Image:

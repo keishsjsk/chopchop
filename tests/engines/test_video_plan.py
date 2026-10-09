@@ -199,3 +199,15 @@ def test_default_video_output_never_overwrites(tmp_path: Path) -> None:
     assert default_video_output(source) == tmp_path / "movie_edited (2).mkv"
     assert default_video_output(tmp_path / "clip.avi") == tmp_path / "clip_edited.mkv"
     assert default_video_output(tmp_path / "c.mov", ".mp4") == tmp_path / "c_edited.mp4"
+
+
+def test_thumbnail_batch_uses_one_process_for_all_frames() -> None:
+    from chopchop.engines.video_engine import thumbnail_batch_args
+
+    args = thumbnail_batch_args(
+        Path("ffmpeg"), Path("a.mp4"), [(1.0, Path("0.jpg")), (3.5, Path("1.jpg"))], 160
+    )
+    assert args.count("-i") == 2
+    assert args[args.index("-ss") + 1] == "1.000"
+    assert "1:v:0" in args
+    assert args[-1] == "1.jpg" and "0.jpg" in args

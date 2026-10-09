@@ -12,3 +12,5 @@ dist/
 # ffmpeg и libmpv кладутся при сборке, не в git
 resources/bin/*
 !resources/bin/.gitkeep
+bench/.data/
+bench/results/*.tmp

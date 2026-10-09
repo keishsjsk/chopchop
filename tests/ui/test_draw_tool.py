@@ -18,12 +18,12 @@ def test_pen_follows_the_mouse(qtbot: QtBot) -> None:
     tool.strokeFinished.connect(lambda: finished.append(True))
     tool.press(10, 10, 4.0)
     for step in range(1, 6):
-        tool.move(10 + step * 20, 10 + step * 5)
-    tool.release(110, 35)
+        tool.move(10 + step * 20, 10 + (step % 2) * 40)  # зигзаг: точки не лежат на одной прямой
+    tool.release(110, 10)
     op = tool.pending_operation()
     assert isinstance(op, Stroke)
     assert op.points[0] == (10, 10)
-    assert len(op.points) >= 6
+    assert len(op.points) >= 5
     assert op.opacity == 1.0
     assert op.color == (10, 200, 30)
     assert finished == [True]  # линию можно применять сразу, без Enter

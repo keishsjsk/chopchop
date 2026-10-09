@@ -119,7 +119,8 @@ class VideoEditorPage(QWidget):
         top.addWidget(self._summary)
 
         self.trim = TrimBar()
-        self.trim.seekRequested.connect(self._video_page.player.seek_to)
+        self.trim.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
+        self.trim.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
         self.trim.trimming.connect(self._on_trimming)
         self.trim.trimCommitted.connect(self._on_trim_committed)
         set_in = QPushButton(self.tr("Начало здесь [I]"))
@@ -257,7 +258,7 @@ class VideoEditorPage(QWidget):
         if not player.paused:
             player.toggle_pause()
         self._apply_loop()
-        player.seek_to(self.clip.start)
+        player.seek_to(self.clip.start, exact=True)
 
     def _apply_loop(self) -> None:
         clip = self.clip

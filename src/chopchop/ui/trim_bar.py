@@ -22,6 +22,7 @@ class TrimBar(QWidget):
     seekRequested = Signal(float)
     trimming = Signal(float, float)  # во время перетаскивания границы
     trimCommitted = Signal(float, float)  # граница отпущена
+    seekFinished = Signal(float)  # отпустили мышь: точная перемотка в последнюю позицию
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -150,9 +151,12 @@ class TrimBar(QWidget):
         self._drag_to(x)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if self._drag in ("start", "end"):
+        drag, self._drag = self._drag, None
+        if drag in ("start", "end"):
             self.trimCommitted.emit(self._start, self._end)
-        self._drag = None
+            self.seekFinished.emit(self._start if drag == "start" else self._end)
+        elif drag == "seek":
+            self.seekFinished.emit(self._time_at(event.position().x()))
 
     def _drag_to(self, x: float) -> None:
         seconds = self._time_at(x)

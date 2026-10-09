@@ -8,9 +8,14 @@ from typing import Any
 
 from chopchop.core.document import AudioInfo, MediaInfo
 from chopchop.engines.ffmpeg import find_ffprobe
+from chopchop.services.cache import file_key
 from chopchop.services.process import no_window_flags
+from chopchop.services.profiling import stage
 
 PROBE_TIMEOUT = 30
+MEMO_LIMIT = 64
+
+_memo: dict[str, MediaInfo] = {}  # ffprobe дорог (запуск процесса): один файл читаем один раз
 
 
 class ProbeError(RuntimeError):
@@ -77,7 +82,25 @@ def parse_probe(data: dict[str, Any]) -> MediaInfo:
     )
 
 
+def clear_memo() -> None:
+    _memo.clear()
+
+
 def probe(path: Path, ffprobe: Path | None = None) -> MediaInfo:
+    """Сведения о файле; повторный вопрос про тот же неизменённый файл ffprobe не запускает."""
+    key = file_key(path)
+    known = _memo.get(key)
+    if known is not None:
+        return known
+    with stage("video.probe"):
+        info = _run_probe(path, ffprobe)
+    if len(_memo) >= MEMO_LIMIT:
+        _memo.pop(next(iter(_memo)))
+    _memo[key] = info
+    return info
+
+
+def _run_probe(path: Path, ffprobe: Path | None) -> MediaInfo:
     exe = ffprobe or find_ffprobe()
     if exe is None:
         raise ProbeError("ffprobe not found")

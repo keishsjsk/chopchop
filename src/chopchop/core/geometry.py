@@ -1,5 +1,7 @@
 """Прямоугольники и перевод координат. Чистый Python, без Qt."""
 
+import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 
@@ -42,3 +44,37 @@ class Rect:
 
 def clamp(value: float, low: float, high: float) -> float:
     return min(max(value, low), high)
+
+
+def simplify_path(
+    points: Sequence[tuple[float, float]], tolerance: float
+) -> tuple[tuple[float, float], ...]:
+    """Рамер — Дуглас — Пекер: убирает точки, отклоняющиеся от линии меньше tolerance.
+
+    Итеративная версия (стек вместо рекурсии): длинные штрихи не упираются в лимит глубины.
+    Первая и последняя точки всегда остаются.
+    """
+    if len(points) < 3 or tolerance <= 0:
+        return tuple(points)
+    keep = [False] * len(points)
+    keep[0] = keep[-1] = True
+    stack = [(0, len(points) - 1)]
+    while stack:
+        first, last = stack.pop()
+        (x0, y0), (x1, y1) = points[first], points[last]
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        farthest, index = 0.0, -1
+        for i in range(first + 1, last):
+            px, py = points[i]
+            if length == 0:
+                distance = math.hypot(px - x0, py - y0)
+            else:
+                distance = abs(dy * (px - x0) - dx * (py - y0)) / length
+            if distance > farthest:
+                farthest, index = distance, i
+        if farthest > tolerance:
+            keep[index] = True
+            stack.append((first, index))
+            stack.append((index, last))
+    return tuple(p for p, kept in zip(points, keep, strict=True) if kept)

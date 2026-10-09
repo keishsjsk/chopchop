@@ -53,6 +53,7 @@ class PlayerControls(QWidget):
         self._seek = ClickSlider(Qt.Orientation.Horizontal)
         self._seek.setRange(0, SEEK_RESOLUTION)
         self._seek.sliderMoved.connect(self._on_seek_moved)
+        self._seek.sliderReleased.connect(self._on_seek_released)
 
         self._volume = ClickSlider(Qt.Orientation.Horizontal)
         self._volume.setRange(0, int(VOLUME_MAX))
@@ -115,6 +116,11 @@ class PlayerControls(QWidget):
     def _on_seek_moved(self, value: int) -> None:
         if self._duration > 0:
             self._player.seek_to(value / SEEK_RESOLUTION * self._duration)
+
+    def _on_seek_released(self) -> None:
+        """Ползунок отпустили: окончательная перемотка точно на выбранный кадр."""
+        if self._duration > 0:
+            self._player.seek_to(self._seek.value() / SEEK_RESOLUTION * self._duration, exact=True)
 
     # --- меню дорожек ------------------------------------------------------------------------
 

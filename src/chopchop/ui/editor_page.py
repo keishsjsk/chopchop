@@ -68,7 +68,10 @@ class EditorPage(QWidget):
         self._active: str | None = None  # инструмент для мыши
         self._selected: str | None = None  # выбранная кнопка (инструмент или панель)
         self._exit_after_save = False
-        self._rendered_key: tuple[int, Operation | None] | None = None
+        self._shown_key: tuple[str, int] | None = None  # какая картинка сейчас на холсте
+        self._base_qimage: tuple[int, QImage] | None = None  # превью без операции с экрана
+        self._pending: tuple[Operation, Image.Image] | None = None  # живой предпросмотр
+        self._committing = False  # операция передана в историю, превью ещё считается
         self._syncing = False
 
         self._timer = QTimer(self)
@@ -83,8 +86,15 @@ class EditorPage(QWidget):
         draw_tool = self.tools["draw"]
         assert isinstance(draw_tool, DrawTool)
         draw_tool.strokeFinished.connect(self.apply_pending)
+        redact = self.tools["redact"]
+        assert isinstance(redact, RedactTool)
+        redact.set_overlay_fill(True)  # заливка рисуется на холсте, без расчёта картинки
         self._on_draw_options()  # инструмент берёт то, что выбрано в панели
         session.changed.connect(self.refresh)
+        session.previewReady.connect(self._on_preview_ready)
+        session.pendingReady.connect(self._on_pending_ready)
+        session.frame_converter = pil_to_qimage  # QImage собирается в фоне, не в потоке интерфейса
+        session.previewFailed.connect(self._on_preview_failed)
         session.exported.connect(self._on_exported)
         session.exportFailed.connect(lambda err: self.message.emit(self.tr("Ошибка: ") + err))
         self.refresh()
@@ -376,7 +386,7 @@ class EditorPage(QWidget):
         mouse_tool = self._active_tool() if key != "adjust" else None
         self.canvas.set_tool(mouse_tool)
         self._select_whole_frame()
-        self._rendered_key = None
+        self._drop_pending()
         self._update_canvas()
 
     def _select_whole_frame(self) -> None:
@@ -403,10 +413,14 @@ class EditorPage(QWidget):
             else:
                 self.message.emit(self.tr("Сначала выделите область или задайте параметры"))
             return
-        tool.reset()
+        # если операция уже посчитана для предпросмотра, повторно движок её не гоняет
+        rendered = self._pending[1] if self._pending and self._pending[0] == op else None
+        tool.commit()
         if isinstance(tool, AdjustTool):
             self._reset_sliders()
-        self.session.add(op)
+        self._committing = True
+        self.session.cancel_pending()
+        self.session.add(op, rendered)
 
     def escape(self) -> None:
         """Esc: сначала отменяет незавершённое действие, затем выходит из редактора."""
@@ -426,13 +440,12 @@ class EditorPage(QWidget):
 
     # --- отображение -------------------------------------------------------------------------
 
+    def is_busy(self) -> bool:
+        """Идёт ли расчёт картинки (для тестов и бенчмарков)."""
+        return self._timer.isActive() or self.session.is_busy or self._committing
+
     def refresh(self) -> None:
-        preview = self.session.preview()
-        for tool in self.tools.values():
-            tool.set_bounds(preview.width, preview.height)
-        self._select_whole_frame()  # после обрезки рамка снова охватывает новый кадр
-        self._rendered_key = None
-        self._update_canvas()
+        """Список операций изменился: сразу обновляем кнопки, картинку считает фон."""
         self._undo_button.setEnabled(self.session.history.can_undo)
         self._redo_button.setEnabled(self.session.history.can_redo)
         width, height = self.session.output_size()
@@ -442,21 +455,59 @@ class EditorPage(QWidget):
         self._syncing = False
         marker = " *" if self.session.modified else ""
         self._info.setText(f"{width}×{height}{marker}")
+        self.session.request_preview()
+
+    def _on_preview_ready(self) -> None:
+        self._committing = False
+        preview = self.session.preview()
+        for tool in self.tools.values():
+            tool.set_bounds(preview.width, preview.height)
+            tool.end_commit()
+        self._select_whole_frame()  # после обрезки рамка снова охватывает новый кадр
+        self._drop_pending()
+        self._update_canvas()
+
+    def _on_preview_failed(self, error: str) -> None:
+        self._committing = False
+        self.message.emit(self.tr("Ошибка: ") + error)
+
+    def _drop_pending(self) -> None:
+        self.session.cancel_pending()
+        self._pending = None
+        self._shown_key = None
 
     def _on_tool_changed(self) -> None:
-        self._timer.start()
-        self.canvas.update()
+        self._timer.start()  # холст сам перерисует нужную область; тяжёлое — после паузы
 
     def _update_canvas(self) -> None:
-        preview = self.session.preview()
+        if self._committing:
+            return  # на экране остаётся прежняя картинка и след инструмента
         tool = self._active_tool()
         pending = tool.pending_operation() if tool is not None and tool.live else None
-        key = (id(preview), pending)
-        if key == self._rendered_key:
+        if pending is None:
+            if self._pending is not None:
+                self._drop_pending()
+            self._show_base()
+        elif self._pending is None or self._pending[0] != pending:
+            self.session.request_pending(pending)
+
+    def _show_base(self) -> None:
+        preview = self.session.preview()
+        key = ("base", id(preview))
+        if key == self._shown_key:
             return
-        self._rendered_key = key
-        image = self.session.render_with(pending) if pending is not None else preview
-        self.canvas.set_image(pil_to_qimage(image))
+        self._shown_key = key
+        if self._base_qimage is None or self._base_qimage[0] != id(preview):
+            self._base_qimage = (id(preview), pil_to_qimage(preview))
+        self.canvas.set_image(self._base_qimage[1])
+
+    def _on_pending_ready(self, op: Operation, image: Image.Image, frame: object) -> None:
+        tool = self._active_tool()
+        if tool is None or not tool.live or tool.pending_operation() != op:
+            return  # пока считали, параметры изменились: придёт более свежий ответ
+        self._pending = (op, image)
+        self._shown_key = ("pending", id(image))
+        self.canvas.set_image(frame if isinstance(frame, QImage) else pil_to_qimage(image))
 
     # --- сохранение и буфер обмена -----------------------------------------------------------
 

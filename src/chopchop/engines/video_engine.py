@@ -306,26 +306,31 @@ def _build_copy_plan(project: VideoProject, dest: Path, ffmpeg: Path, workdir: P
 
 def thumbnail_args(ffmpeg: Path, path: Path, at: float, width: int = THUMB_WIDTH) -> list[str]:
     """Один кадр в виде PNG на стандартный вывод."""
-    return [
-        str(ffmpeg),
-        "-hide_banner",
-        "-nostdin",
-        "-loglevel",
-        "error",
-        "-ss",
-        seconds(at),
-        "-i",
-        str(path),
-        "-frames:v",
-        "1",
-        "-vf",
-        f"scale={width}:-2",
-        "-f",
-        "image2pipe",
-        "-c:v",
-        "png",
-        "-",
-    ]
+    return thumbnail_batch_args(ffmpeg, path, [(at, Path("-"))], width, to_stdout=True)
+
+
+def thumbnail_batch_args(
+    ffmpeg: Path,
+    path: Path,
+    frames: Sequence[tuple[float, Path]],
+    width: int = THUMB_WIDTH,
+    to_stdout: bool = False,
+) -> list[str]:
+    """Несколько кадров одним запуском ffmpeg: запуск процесса дороже самого кадра.
+
+    Файл открывается по одному разу на кадр (быстрый переход -ss до входа), каждый кадр
+    пишется в свой JPEG. Для одного кадра в stdout (to_stdout) формат PNG.
+    """
+    args = [str(ffmpeg), "-hide_banner", "-nostdin", "-loglevel", "error", "-y"]
+    for at, _ in frames:
+        args += ["-ss", seconds(at), "-an", "-sn", "-i", str(path)]
+    for index, (_, dest) in enumerate(frames):
+        args += ["-map", f"{index}:v:0", "-frames:v", "1", "-vf", f"scale={width}:-2"]
+        if to_stdout:
+            args += ["-f", "image2pipe", "-c:v", "png", "-"]
+        else:
+            args += ["-q:v", "4", "-c:v", "mjpeg", "-f", "image2", "-update", "1", str(dest)]
+    return args
 
 
 def default_video_output(source: Path, extension: str | None = None) -> Path:

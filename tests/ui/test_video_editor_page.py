@@ -76,7 +76,7 @@ def test_file_loaded_pauses_and_seeks_to_start(qtbot: QtBot, tmp_path: Path) -> 
     fake.mpv.pause = False
     fake.mpv.event_handlers[1](object())  # file-loaded
     qtbot.waitUntil(lambda: fake.mpv.pause is True, timeout=2000)
-    assert fake.mpv.seeks[-1] == (3.0, "absolute", "keyframes")
+    assert fake.mpv.seeks[-1] == (3.0, "absolute", "exact")
     page.shutdown()
 
 

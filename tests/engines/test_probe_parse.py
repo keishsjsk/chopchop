@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pytest
 
+from chopchop.core.document import MediaInfo
 from chopchop.engines.ffmpeg import parse_progress_line
 from chopchop.engines.probe import ProbeError, parse_probe
 
@@ -56,3 +59,27 @@ def test_parse_progress_line() -> None:
     assert parse_progress_line("out_time_us=N/A") is None
     assert parse_progress_line("frame=42") is None
     assert parse_progress_line("progress=end") is None
+
+
+def test_probe_asks_ffprobe_once_per_unchanged_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chopchop.engines import probe as probe_module
+
+    calls: list[Path] = []
+
+    def fake_run(path: Path, ffprobe: Path | None) -> MediaInfo:
+        calls.append(path)
+        return parse_probe({"streams": [VIDEO], "format": {}})
+
+    monkeypatch.setattr(probe_module, "_run_probe", fake_run)
+    probe_module.clear_memo()
+    clip = tmp_path / "a.mp4"
+    clip.write_bytes(b"1234")
+    probe_module.probe(clip)
+    probe_module.probe(clip)
+    assert len(calls) == 1
+    clip.write_bytes(b"12345678")  # файл изменился
+    probe_module.probe(clip)
+    assert len(calls) == 2
+    probe_module.clear_memo()

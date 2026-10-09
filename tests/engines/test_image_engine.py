@@ -291,3 +291,21 @@ def test_stroke_is_scaled_with_the_preview() -> None:
 
     scaled = scale_operation(Stroke(((10, 20), (30, 40)), (1, 2, 3), 4.0, 0.5), 2.0)
     assert scaled == Stroke(((20, 40), (60, 80)), (1, 2, 3), 8.0, 0.5)
+
+
+def test_adjust_matches_the_reference_enhance_chain() -> None:
+    """Таблицы значений дают результат цепочки ImageEnhance (с точностью до нескольких единиц)."""
+    from PIL import ImageChops, ImageEnhance
+
+    from chopchop.core.operations import Adjust
+
+    source = Image.effect_noise((160, 120), 70).convert("RGB")
+    op = Adjust(brightness=1.25, contrast=1.4, saturation=0.6, gamma=1.3)
+    reference = ImageEnhance.Brightness(source).enhance(op.brightness)
+    reference = ImageEnhance.Contrast(reference).enhance(op.contrast)
+    reference = ImageEnhance.Color(reference).enhance(op.saturation)
+    table = [round(255 * (i / 255) ** (1 / op.gamma)) for i in range(256)]
+    reference = reference.point(table * 3)
+    result = apply_operation(source, op)
+    difference = ImageChops.difference(result, reference).getextrema()
+    assert max(high for _, high in difference) <= 4  # округление на каждом шаге

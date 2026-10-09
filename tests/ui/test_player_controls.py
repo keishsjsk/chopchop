@@ -96,3 +96,12 @@ def test_clicking_seek_slider_jumps_to_that_point(qtbot: QtBot) -> None:
     assert click_at(slider.width() // 2) == pytest.approx(50.0, abs=5.0)
     assert click_at(2) < 5.0
     assert click_at(slider.width() - 2) > 95.0
+
+
+def test_releasing_seek_slider_seeks_exactly(qtbot: QtBot) -> None:
+    controls, _player, fake = _controls(qtbot)
+    fake.fire("duration", 200.0)
+    qtbot.waitUntil(lambda: controls._duration == 200.0, timeout=2000)
+    controls._seek.setValue(500)
+    controls._seek.sliderReleased.emit()
+    assert fake.seeks[-1] == (100.0, "absolute", "exact")
