@@ -27,6 +27,8 @@ class FakeMpv:
         self.secondary_sid: Any = "no"
         self.sub_delay = 0.0
         self.secondary_sub_delay = 0.0
+        self.secondary_sub_pos = 0.0
+        self.sub_codepage = "auto"
         self.sub_font_size = 55
         self.sub_margin_y = 22
         self.alang = ""

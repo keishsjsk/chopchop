@@ -34,9 +34,11 @@ from PySide6.QtWidgets import (
 from chopchop.core import settings_schema as schema
 from chopchop.core.settings import SettingsFileError
 from chopchop.core.settings_schema import Spec
-from chopchop.services import cache, logs
+from chopchop.services import cache, logs, sub_presets
 from chopchop.services.app_settings import AppSettings, config_dir
+from chopchop.services.sub_presets import PresetStore
 from chopchop.ui.color_button import ColorButton, color_to_hex, hex_to_color
+from chopchop.ui.subtitle_style_editor import SubtitleStyleEditor
 
 SETTINGS_FILTER = "TOML (*.toml)"
 NUMBER_WIDTH = 140  # числа и цвет не растягиваются на всю ширину окна
@@ -56,9 +58,15 @@ class _Row:
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: AppSettings, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        settings: AppSettings,
+        parent: QWidget | None = None,
+        presets: PresetStore | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Настройки"))
+        self._presets = presets or PresetStore(config_dir() / sub_presets.FILE_NAME)
         self.setMinimumSize(720, 520)
         self._settings = settings
         self._rows: dict[str, _Row] = {}
@@ -71,7 +79,7 @@ class SettingsDialog(QDialog):
         self._page_sections: list[str] = []
         for section, title in schema.SECTIONS:
             specs = [s for s in schema.specs_of(section) if s.shown]
-            if not specs:
+            if not specs and section != "subtitles":  # субтитры рисует свой виджет
                 continue
             self._sections.addItem(_tr(title))
             self._pages.addWidget(self._build_page(section, specs))
@@ -117,6 +125,8 @@ class SettingsDialog(QDialog):
 
     def _build_page(self, section: str, specs: list[Spec]) -> QWidget:
         """Страница раздела: настройки одна под другой (название, элемент, пояснение)."""
+        if section == "subtitles":
+            return self._subtitle_page()
         content = QWidget()
         outer = QVBoxLayout(content)
         main = QVBoxLayout()
@@ -161,6 +171,29 @@ class SettingsDialog(QDialog):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidget(content)
         return scroll
+
+    def _subtitle_page(self) -> QWidget:
+        """Раздел «Субтитры»: шрифт, цвета, положение, пресеты и образец на заглушке."""
+        self.subtitle_editor = SubtitleStyleEditor(self._settings, self._presets)
+        content = QWidget()
+        outer = QVBoxLayout(content)
+        outer.addWidget(self.subtitle_editor)
+        outer.addStretch(1)
+        reset = QPushButton(self.tr("Сбросить раздел"))
+        reset.clicked.connect(lambda: self._settings.reset_section("subtitles"))
+        row_end = QHBoxLayout()
+        row_end.addStretch(1)
+        row_end.addWidget(reset)
+        outer.addLayout(row_end)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(content)
+        return scroll
+
+    def open_section(self, section: str) -> None:
+        if section in self._page_sections:
+            self._sections.setCurrentRow(self._page_sections.index(section))
 
     def _block(self, spec: Spec) -> QWidget:
         """Одна настройка: подпись, элемент управления, сообщение об ошибке и пояснение."""

@@ -953,12 +953,140 @@
         <translation>Speed step</translation>
     </message>
     <message>
+        <source>Шрифт субтитров</source>
+        <translation>Subtitle font</translation>
+    </message>
+    <message>
+        <source>Пусто — шрифт по умолчанию</source>
+        <translation>Empty means the default font</translation>
+    </message>
+    <message>
         <source>Размер шрифта субтитров</source>
         <translation>Subtitle font size</translation>
     </message>
     <message>
-        <source>Отступ субтитров снизу</source>
-        <translation>Subtitle bottom margin</translation>
+        <source>Относительно высоты видео: 55 ≈ 7,6 % высоты кадра</source>
+        <translation>Relative to the video height: 55 is about 7.6 % of the frame height</translation>
+    </message>
+    <message>
+        <source>Жирный</source>
+        <translation>Bold</translation>
+    </message>
+    <message>
+        <source>Курсив</source>
+        <translation>Italic</translation>
+    </message>
+    <message>
+        <source>Цвет текста субтитров</source>
+        <translation>Subtitle text colour</translation>
+    </message>
+    <message>
+        <source>Цвет контура</source>
+        <translation>Outline colour</translation>
+    </message>
+    <message>
+        <source>Толщина контура</source>
+        <translation>Outline width</translation>
+    </message>
+    <message>
+        <source>Цвет тени</source>
+        <translation>Shadow colour</translation>
+    </message>
+    <message>
+        <source>Смещение тени</source>
+        <translation>Shadow offset</translation>
+    </message>
+    <message>
+        <source>Подложка под текстом</source>
+        <translation>Box behind the text</translation>
+    </message>
+    <message>
+        <source>Цвет подложки</source>
+        <translation>Box colour</translation>
+    </message>
+    <message>
+        <source>Непрозрачность подложки, %</source>
+        <translation>Box opacity, %</translation>
+    </message>
+    <message>
+        <source>Межстрочный интервал</source>
+        <translation>Line spacing</translation>
+    </message>
+    <message>
+        <source>Вертикальный отступ субтитров</source>
+        <translation>Subtitle vertical margin</translation>
+    </message>
+    <message>
+        <source>Горизонтальный отступ субтитров</source>
+        <translation>Subtitle horizontal margin</translation>
+    </message>
+    <message>
+        <source>Выравнивание по горизонтали</source>
+        <translation>Horizontal alignment</translation>
+    </message>
+    <message>
+        <source>слева</source>
+        <translation>left</translation>
+    </message>
+    <message>
+        <source>по центру</source>
+        <translation>centre</translation>
+    </message>
+    <message>
+        <source>справа</source>
+        <translation>right</translation>
+    </message>
+    <message>
+        <source>Выравнивание по вертикали</source>
+        <translation>Vertical alignment</translation>
+    </message>
+    <message>
+        <source>сверху</source>
+        <translation>top</translation>
+    </message>
+    <message>
+        <source>снизу</source>
+        <translation>bottom</translation>
+    </message>
+    <message>
+        <source>Положение по высоте, %</source>
+        <translation>Vertical position, %</translation>
+    </message>
+    <message>
+        <source>0 — вверху кадра, 100 — внизу; действует и на картинки</source>
+        <translation>0 is the top of the frame, 100 the bottom; also applies to picture subtitles</translation>
+    </message>
+    <message>
+        <source>Положение второй строки, %</source>
+        <translation>Second line position, %</translation>
+    </message>
+    <message>
+        <source>Масштаб субтитров</source>
+        <translation>Subtitle scale</translation>
+    </message>
+    <message>
+        <source>Оформление из файла или моё</source>
+        <translation>Style from the file or mine</translation>
+    </message>
+    <message>
+        <source>как в файле</source>
+        <translation>as in the file</translation>
+    </message>
+    <message>
+        <source>как в файле, мой масштаб</source>
+        <translation>as in the file, my scale</translation>
+    </message>
+    <message>
+        <source>моё оформление</source>
+        <translation>my style</translation>
+    </message>
+    <message>
+        <source>Кодировка текстовых субтитров</source>
+        <translation>Text subtitle encoding</translation>
+    </message>
+    <message>
+        <source>Последний выбранный пресет</source>
+        <translation>Last chosen preset</translation>
     </message>
     <message>
         <source>Масштаб при открытии</source>
@@ -1321,6 +1449,304 @@
     </message>
 </context>
 <context>
+    <name>SubtitleStyle</name>
+    <message>
+        <source>Как в файле</source>
+        <translation>As in the file</translation>
+    </message>
+    <message>
+        <source>Как в файле, мой масштаб</source>
+        <translation>As in the file, my scale</translation>
+    </message>
+    <message>
+        <source>Моё оформление</source>
+        <translation>My style</translation>
+    </message>
+    <message>
+        <source>Автоопределение</source>
+        <translation>Auto-detect</translation>
+    </message>
+    <message>
+        <source>UTF-8, иначе CP1251</source>
+        <translation>UTF-8, otherwise CP1251</translation>
+    </message>
+    <message>
+        <source>CP1251 (кириллица, Windows)</source>
+        <translation>CP1251 (Cyrillic, Windows)</translation>
+    </message>
+    <message>
+        <source>KOI8-R (кириллица)</source>
+        <translation>KOI8-R (Cyrillic)</translation>
+    </message>
+    <message>
+        <source>KOI8-U (украинская)</source>
+        <translation>KOI8-U (Ukrainian)</translation>
+    </message>
+    <message>
+        <source>CP866 (кириллица, DOS)</source>
+        <translation>CP866 (Cyrillic, DOS)</translation>
+    </message>
+    <message>
+        <source>CP1252 (Западная Европа)</source>
+        <translation>CP1252 (Western Europe)</translation>
+    </message>
+    <message>
+        <source>CP1250 (Центральная Европа)</source>
+        <translation>CP1250 (Central Europe)</translation>
+    </message>
+    <message>
+        <source>ISO-8859-5 (кириллица)</source>
+        <translation>ISO-8859-5 (Cyrillic)</translation>
+    </message>
+    <message>
+        <source>CP1253 (греческая)</source>
+        <translation>CP1253 (Greek)</translation>
+    </message>
+    <message>
+        <source>CP1254 (турецкая)</source>
+        <translation>CP1254 (Turkish)</translation>
+    </message>
+    <message>
+        <source>CP932 (японская)</source>
+        <translation>CP932 (Japanese)</translation>
+    </message>
+    <message>
+        <source>GBK (китайская)</source>
+        <translation>GBK (Chinese)</translation>
+    </message>
+    <message>
+        <source>Big5 (китайская)</source>
+        <translation>Big5 (Chinese)</translation>
+    </message>
+    <message>
+        <source>EUC-KR (корейская)</source>
+        <translation>EUC-KR (Korean)</translation>
+    </message>
+    <message>
+        <source>Стандарт</source>
+        <translation>Standard</translation>
+    </message>
+    <message>
+        <source>Кино</source>
+        <translation>Cinema</translation>
+    </message>
+    <message>
+        <source>Высокий контраст</source>
+        <translation>High contrast</translation>
+    </message>
+    <message>
+        <source>Крупно</source>
+        <translation>Large</translation>
+    </message>
+    <message>
+        <source>Образец субтитров</source>
+        <translation>Subtitle sample</translation>
+    </message>
+</context>
+<context>
+    <name>SubtitleStyleEditor</name>
+    <message>
+        <source>Все настройки субтитров…</source>
+        <translation>All subtitle settings…</translation>
+    </message>
+    <message>
+        <source>Пресет оформления</source>
+        <translation>Style preset</translation>
+    </message>
+    <message>
+        <source>Сохранить…</source>
+        <translation>Save…</translation>
+    </message>
+    <message>
+        <source>Сохранить как пресет</source>
+        <translation>Save as a preset</translation>
+    </message>
+    <message>
+        <source>Удалить</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Удалить свой пресет</source>
+        <translation>Delete your preset</translation>
+    </message>
+    <message>
+        <source>Импорт…</source>
+        <translation>Import…</translation>
+    </message>
+    <message>
+        <source>Экспорт…</source>
+        <translation>Export…</translation>
+    </message>
+    <message>
+        <source>По умолчанию</source>
+        <translation>Default</translation>
+    </message>
+    <message>
+        <source>Шрифт</source>
+        <translation>Font</translation>
+    </message>
+    <message>
+        <source>Относительно высоты видео: 55 ≈ 7,6 % высоты кадра, растёт вместе с окном</source>
+        <translation>Relative to the video height: 55 is about 7.6 % of the frame height, grows with the window</translation>
+    </message>
+    <message>
+        <source>Жирный</source>
+        <translation>Bold</translation>
+    </message>
+    <message>
+        <source>Курсив</source>
+        <translation>Italic</translation>
+    </message>
+    <message>
+        <source>Размер</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <source>Цвет текста</source>
+        <translation>Text colour</translation>
+    </message>
+    <message>
+        <source>Контур: цвет и толщина</source>
+        <translation>Outline: colour and width</translation>
+    </message>
+    <message>
+        <source>Тень: цвет и смещение</source>
+        <translation>Shadow: colour and offset</translation>
+    </message>
+    <message>
+        <source>Подложка</source>
+        <translation>Box</translation>
+    </message>
+    <message>
+        <source>Непрозрачность подложки</source>
+        <translation>Box opacity</translation>
+    </message>
+    <message>
+        <source>Включить</source>
+        <translation>Turn on</translation>
+    </message>
+    <message>
+        <source>0 — вверху кадра, 100 — внизу; действует и на картинки</source>
+        <translation>0 is the top of the frame, 100 the bottom; also applies to picture subtitles</translation>
+    </message>
+    <message>
+        <source>Положение по высоте</source>
+        <translation>Vertical position</translation>
+    </message>
+    <message>
+        <source>Масштаб</source>
+        <translation>Scale</translation>
+    </message>
+    <message>
+        <source>Вертикальный отступ</source>
+        <translation>Vertical margin</translation>
+    </message>
+    <message>
+        <source>Горизонтальный отступ</source>
+        <translation>Horizontal margin</translation>
+    </message>
+    <message>
+        <source>Межстрочный интервал</source>
+        <translation>Line spacing</translation>
+    </message>
+    <message>
+        <source>Слева</source>
+        <translation>Left</translation>
+    </message>
+    <message>
+        <source>По центру</source>
+        <translation>Centre</translation>
+    </message>
+    <message>
+        <source>Справа</source>
+        <translation>Right</translation>
+    </message>
+    <message>
+        <source>Выравнивание</source>
+        <translation>Alignment</translation>
+    </message>
+    <message>
+        <source>Сверху</source>
+        <translation>Top</translation>
+    </message>
+    <message>
+        <source>Снизу</source>
+        <translation>Bottom</translation>
+    </message>
+    <message>
+        <source>По вертикали</source>
+        <translation>Vertical</translation>
+    </message>
+    <message>
+        <source>Положение второй строки субтитров, 0 — вверху</source>
+        <translation>Position of the second subtitle line, 0 is the top</translation>
+    </message>
+    <message>
+        <source>Вторая строка: положение</source>
+        <translation>Second line: position</translation>
+    </message>
+    <message>
+        <source>Для файлов .ass и .ssa: взять оформление из файла или навязать своё. Простые .srt всегда оформляются по этим настройкам.</source>
+        <translation>For .ass and .ssa files: take the style from the file or force your own. Plain .srt files always follow these settings.</translation>
+    </message>
+    <message>
+        <source>Оформление из файла или моё</source>
+        <translation>Style from the file or mine</translation>
+    </message>
+    <message>
+        <source>Если вместо русских букв «кракозябры», выберите CP1251 или KOI8-R</source>
+        <translation>If you see garbage instead of Cyrillic letters, pick CP1251 or KOI8-R</translation>
+    </message>
+    <message>
+        <source>Кодировка текстовых субтитров</source>
+        <translation>Text subtitle encoding</translation>
+    </message>
+    <message>
+        <source>В этом шрифте нет кириллицы: русские буквы возьмутся из другого шрифта.</source>
+        <translation>This font has no Cyrillic: Russian letters will come from another font.</translation>
+    </message>
+    <message>
+        <source>Такого шрифта в системе нет, будет использован шрифт по умолчанию.</source>
+        <translation>This font is not installed, the default font will be used.</translation>
+    </message>
+    <message>
+        <source>Свои настройки</source>
+        <translation>Custom settings</translation>
+    </message>
+    <message>
+        <source>Пресет</source>
+        <translation>Preset</translation>
+    </message>
+    <message>
+        <source>Название пресета:</source>
+        <translation>Preset name:</translation>
+    </message>
+    <message>
+        <source>Импорт пресетов</source>
+        <translation>Import presets</translation>
+    </message>
+    <message>
+        <source>Пресеты (*.json)</source>
+        <translation>Presets (*.json)</translation>
+    </message>
+    <message>
+        <source>Экспорт пресетов</source>
+        <translation>Export presets</translation>
+    </message>
+    <message>
+        <source>Текущее</source>
+        <translation>Current</translation>
+    </message>
+    <message>
+        <source>Выбраны картиночные субтитры (PGS, VobSub): шрифт и цвета к ним неприменимы, доступны только положение и масштаб.</source>
+        <translation>Picture subtitles (PGS, VobSub) are selected: font and colours do not apply, only position and scale do.</translation>
+    </message>
+    <message>
+        <source>Эта версия libmpv не поддерживает: {0}. Остальное работает.</source>
+        <translation>This libmpv version does not support: {0}. The rest works.</translation>
+    </message>
+</context>
+<context>
     <name>TopBar</name>
     <message>
         <source>Редактировать  Ctrl+E</source>
@@ -1356,6 +1782,10 @@
     <message>
         <source>Нет дорожек</source>
         <translation>No tracks</translation>
+    </message>
+    <message>
+        <source>Оформление субтитров</source>
+        <translation>Subtitle style</translation>
     </message>
     <message>
         <source>Субтитры</source>

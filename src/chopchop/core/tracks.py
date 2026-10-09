@@ -15,6 +15,7 @@ class Track:
     title: str | None = None
     external: bool = False
     selected: bool = False
+    codec: str | None = None
 
     @property
     def label(self) -> str:
@@ -43,6 +44,7 @@ def parse_tracks(track_list: Iterable[Mapping[str, Any]]) -> list[Track]:
                 title=raw.get("title") or None,
                 external=bool(raw.get("external")),
                 selected=bool(raw.get("selected")),
+                codec=raw.get("codec") or None,
             )
         )
     return tracks

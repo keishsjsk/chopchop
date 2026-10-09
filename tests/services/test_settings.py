@@ -38,4 +38,9 @@ def test_player_prefs_follow_the_settings() -> None:
     settings.set("subtitles.margin", 10)
     settings.set("playback.hwdec", "off")
     settings.set("playback.volume_default", 80)
-    assert player_prefs(settings) == PlayerPrefs("jpn,eng", "", 40, 10, "no", 80.0)
+    prefs = player_prefs(settings)
+    assert prefs == PlayerPrefs("jpn,eng", "", 40, 10, "no", 80.0, prefs.style)
+    assert (prefs.style.font_size, prefs.style.margin_y) == (
+        40,
+        10,
+    )  # стиль строится из тех же настроек

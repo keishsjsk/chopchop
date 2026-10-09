@@ -16,6 +16,7 @@ from chopchop.engines.ffmpeg import find_ffmpeg
 from chopchop.player.mpv_widget import MpvWidget
 from chopchop.player.player import Player
 from chopchop.services.app_settings import AppSettings
+from chopchop.services.sub_presets import PresetStore
 from chopchop.ui.player_controls import PlayerControls, PreviewBubble
 from chopchop.ui.theme import current, tokens
 from chopchop.ui.top_bar import TopBar
@@ -57,6 +58,7 @@ class MiniProgress(QWidget):
 class VideoPage(QWidget):
     fullscreenRequested = Signal()
     editRequested = Signal()
+    subtitleSettingsRequested = Signal()
 
     def __init__(
         self,
@@ -64,6 +66,7 @@ class VideoPage(QWidget):
         mpv: Any,
         parent: QWidget | None = None,
         settings: AppSettings | None = None,
+        presets: PresetStore | None = None,
     ) -> None:
         super().__init__(parent)
         self._app = settings or AppSettings(None)
@@ -81,7 +84,7 @@ class VideoPage(QWidget):
         self.video = MpvWidget(module, mpv, self)
         self.controls = PlayerControls(self.player, self)
         self.top = TopBar(self)
-        self.tracks = TracksPanel(self.player, self)
+        self.tracks = TracksPanel(self.player, self, self._app, presets)
         self.bubble = PreviewBubble(self)
         self.mini = MiniProgress(self)
         for panel in (self.controls, self.top, self.tracks, self.bubble, self.mini):
@@ -102,6 +105,7 @@ class VideoPage(QWidget):
         self.controls.tracksRequested.connect(self.toggle_tracks)
         self.tracks.closed.connect(self.toggle_tracks)
         self.top.editRequested.connect(self.editRequested)
+        self.tracks.openAllRequested.connect(self.subtitleSettingsRequested)
         self.controls._seek.hovered.connect(self._on_progress_hover)
         self.controls._seek.left.connect(self.bubble.hide)
         self.player.pausedChanged.connect(lambda paused: self.wake() if paused else None)

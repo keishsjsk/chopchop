@@ -1,10 +1,11 @@
 """Список последних файлов (QSettings) и параметры плеера, собранные из настроек приложения."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
 
+from chopchop.core.subtitle_style import SubtitleStyle, style_from_dict
 from chopchop.services.app_settings import AppSettings
 
 MAX_RECENT = 10
@@ -44,6 +45,67 @@ class PlayerPrefs:
     sub_margin: int = 22
     hwdec: str = "auto-copy-safe"
     volume: float = 100.0  # громкость для файлов, у которых своя не запомнена
+    style: SubtitleStyle = field(default_factory=SubtitleStyle)
+    codepage: str = "auto"
+    sub_pos2: int = 0  # положение второй строки субтитров, % от верха
+
+
+def subtitle_style(settings: AppSettings) -> SubtitleStyle:
+    """Оформление субтитров из настроек (значения проходят проверку пределов)."""
+    return style_from_dict(
+        {
+            "font": settings.get_str("subtitles.font"),
+            "font_size": settings.get_int("subtitles.font_size"),
+            "bold": settings.get_bool("subtitles.bold"),
+            "italic": settings.get_bool("subtitles.italic"),
+            "color": settings.get_str("subtitles.color"),
+            "outline_color": settings.get_str("subtitles.outline_color"),
+            "outline_size": settings.get_float("subtitles.outline_size"),
+            "shadow_color": settings.get_str("subtitles.shadow_color"),
+            "shadow_offset": settings.get_float("subtitles.shadow_offset"),
+            "back_enabled": settings.get_bool("subtitles.back_enabled"),
+            "back_color": settings.get_str("subtitles.back_color"),
+            "back_opacity": settings.get_int("subtitles.back_opacity"),
+            "line_spacing": settings.get_int("subtitles.line_spacing"),
+            "margin_y": settings.get_int("subtitles.margin"),
+            "margin_x": settings.get_int("subtitles.margin_x"),
+            "align_x": settings.get_str("subtitles.align_x"),
+            "align_y": settings.get_str("subtitles.align_y"),
+            "pos": settings.get_int("subtitles.pos"),
+            "scale": settings.get_float("subtitles.scale"),
+            "ass_mode": settings.get_str("subtitles.ass_mode"),
+        }
+    )
+
+
+STYLE_KEYS = {
+    "font": "subtitles.font",
+    "font_size": "subtitles.font_size",
+    "bold": "subtitles.bold",
+    "italic": "subtitles.italic",
+    "color": "subtitles.color",
+    "outline_color": "subtitles.outline_color",
+    "outline_size": "subtitles.outline_size",
+    "shadow_color": "subtitles.shadow_color",
+    "shadow_offset": "subtitles.shadow_offset",
+    "back_enabled": "subtitles.back_enabled",
+    "back_color": "subtitles.back_color",
+    "back_opacity": "subtitles.back_opacity",
+    "line_spacing": "subtitles.line_spacing",
+    "margin_y": "subtitles.margin",
+    "margin_x": "subtitles.margin_x",
+    "align_x": "subtitles.align_x",
+    "align_y": "subtitles.align_y",
+    "pos": "subtitles.pos",
+    "scale": "subtitles.scale",
+    "ass_mode": "subtitles.ass_mode",
+}  # поле SubtitleStyle -> ключ настройки
+
+
+def save_subtitle_style(settings: AppSettings, style: SubtitleStyle) -> None:
+    """Записать оформление в настройки целиком (применяется к mpv на лету)."""
+    for field_name, key in STYLE_KEYS.items():
+        settings.set(key, getattr(style, field_name))
 
 
 def player_prefs(settings: AppSettings) -> PlayerPrefs:
@@ -52,6 +114,9 @@ def player_prefs(settings: AppSettings) -> PlayerPrefs:
         sub_langs=settings.get_str("playback.sub_langs"),
         sub_font_size=settings.get_int("subtitles.font_size"),
         sub_margin=settings.get_int("subtitles.margin"),
+        style=subtitle_style(settings),
+        codepage=settings.get_str("subtitles.codepage"),
+        sub_pos2=settings.get_int("subtitles.pos2"),
         hwdec=settings.mpv_hwdec(),
         volume=float(settings.get_int("playback.volume_default")),
     )

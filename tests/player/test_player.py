@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
+from chopchop.core.subtitle_style import SubtitleStyle
 from chopchop.player.player import Player
 from chopchop.player.resume import ResumeState
 from chopchop.services.settings import PlayerPrefs
@@ -127,7 +128,9 @@ def test_add_subtitle_and_apply_prefs() -> None:
     player, fake = _player()
     player.add_subtitle(Path("movie.srt"))
     assert fake.subtitles == ["movie.srt"]
-    player.apply_prefs(PlayerPrefs("rus", "eng", 40, 10))
+    player.apply_prefs(
+        PlayerPrefs("rus", "eng", 40, 10, style=SubtitleStyle(font_size=40, margin_y=10))
+    )
     assert (fake.sub_font_size, fake.sub_margin_y, fake.alang, fake.slang) == (40, 10, "rus", "eng")
 
 

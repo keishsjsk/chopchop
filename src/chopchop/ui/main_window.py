@@ -35,9 +35,10 @@ from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
 from chopchop.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
 from chopchop.player.player import Player
 from chopchop.player.resume import ResumeStore
-from chopchop.services import logs, temp_files
-from chopchop.services.app_settings import AppSettings
+from chopchop.services import logs, sub_presets, temp_files
+from chopchop.services.app_settings import AppSettings, config_dir
 from chopchop.services.settings import RecentFiles, player_prefs
+from chopchop.services.sub_presets import PresetStore
 from chopchop.ui import anim
 from chopchop.ui.drop_zone import DropZone
 from chopchop.ui.settings_dialog import SettingsDialog
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
         self._app = app_settings or AppSettings(None)
         self._theme = theme
         self._recent = RecentFiles(settings)
+        self._presets = PresetStore(config_dir() / sub_presets.FILE_NAME)
         self._resume = ResumeStore(settings)
         self.current_path: Path | None = None
         self._nav: FolderNav | None = None
@@ -361,8 +363,9 @@ class MainWindow(QMainWindow):
             )
             QMessageBox.warning(self, self.tr("Плеер недоступен"), f"{hint}\n\n{error}")
             return None
-        page = VideoPage(module, mpv, settings=self._app)
+        page = VideoPage(module, mpv, settings=self._app, presets=self._presets)
         page.editRequested.connect(self.toggle_editor)
+        page.subtitleSettingsRequested.connect(lambda: self.show_settings("subtitles"))
         page.fullscreenRequested.connect(self.toggle_fullscreen)
         page.player.errorOccurred.connect(self._on_video_error)
         page.player.ended.connect(self._on_video_ended)
@@ -462,8 +465,11 @@ class MainWindow(QMainWindow):
     def _volume(self, delta: float) -> None:
         self._with_player(lambda p: p.add_volume(delta))
 
-    def show_settings(self) -> None:
-        SettingsDialog(self._app, self).exec()
+    def show_settings(self, section: object = "") -> None:
+        dialog = SettingsDialog(self._app, self, self._presets)
+        if isinstance(section, str) and section:
+            dialog.open_section(section)  # быстрая панель плеера ведёт сразу в «Субтитры»
+        dialog.exec()
         self._app.flush()
 
     def _on_setting_changed(self, key: str, _value: object) -> None:

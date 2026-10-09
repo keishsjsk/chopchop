@@ -1,10 +1,12 @@
 """Управление воспроизведением: mpv живёт в своём потоке, наружу идут сигналы Qt."""
 
+import contextlib
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
+from chopchop.core.subtitle_style import SubtitleStyle, to_mpv
 from chopchop.core.tracks import Track, next_track_id, of_kind, parse_tracks
 from chopchop.player.resume import ResumeState
 from chopchop.services.settings import PlayerPrefs
@@ -45,6 +47,8 @@ class Player(QObject):
         self._current: Path | None = None
         self._copy_decoding = False
         self._default_volume = 100.0
+        self.unsupported_style: set[str] = set()
+        self._applied_codepage = "auto"
         # обработчики вызываются из потока mpv; сигналы Qt сами ставят доставку в очередь
         mpv.observe_property("time-pos", lambda _n, v: self._emit_float(self.positionChanged, v))
         mpv.observe_property("duration", lambda _n, v: self._emit_float(self.durationChanged, v))
@@ -301,11 +305,38 @@ class Player(QObject):
     def add_subtitle(self, path: Path) -> None:
         self._mpv.sub_add(str(path))
 
+    def apply_style(self, style: SubtitleStyle, codepage: str = "auto", pos2: int = 0) -> None:
+        """Оформление субтитров в mpv на лету. Свойства, которых нет в этой версии libmpv,
+        пропускаются и запоминаются в `unsupported_style`, чтобы интерфейс мог об этом сказать."""
+        missing: set[str] = set()
+        for name, value in to_mpv(style).items():
+            if not self._set_property(name, value):
+                missing.add(name)
+        for name, value in (("sub_codepage", codepage), ("secondary_sub_pos", pos2)):
+            if not self._set_property(name, value):
+                missing.add(name)
+        self.unsupported_style = missing
+        if codepage != self._applied_codepage:
+            self._applied_codepage = codepage
+            if self._current is not None:
+                with contextlib.suppress(Exception):  # старый libmpv без sub-reload: со след. файла
+                    self._mpv.command("sub-reload")
+
+    def _set_property(self, name: str, value: object) -> bool:
+        if self._closed:
+            return True
+        try:
+            setattr(self._mpv, name, value)
+        except AttributeError:
+            return False  # такого свойства в этой версии libmpv нет
+        except Exception:  # noqa: BLE001 - mpv сообщает о неверном значении своими ошибками
+            return False
+        return True
+
     def apply_prefs(self, prefs: PlayerPrefs) -> None:
         """Применить настройки без перезапуска: вид субтитров сразу, языки со следующего файла."""
         self._default_volume = prefs.volume
-        self._mpv.sub_font_size = prefs.sub_font_size
-        self._mpv.sub_margin_y = prefs.sub_margin
+        self.apply_style(prefs.style, prefs.codepage, prefs.sub_pos2)
         self._mpv.alang = prefs.audio_langs
         self._mpv.slang = prefs.sub_langs
         if str(self._mpv.hwdec) != prefs.hwdec:
