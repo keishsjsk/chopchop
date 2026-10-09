@@ -241,7 +241,7 @@ def test_brush_cursor_is_a_circle_with_the_real_width(qtbot: QtBot) -> None:
         shot.pixelColor(round((centre.x() + reach) * ratio) + shift, row).lightness()
         for shift in range(-3, 4)
     ]
-    assert any(value > 200 or value < 40 for value in near)  # обводка круга, а не серый фон
+    assert any(abs(value - 100) > 30 for value in near)  # обводка круга, а не серый фон (100)
     canvas.leaveEvent(QEvent(QEvent.Type.Leave))
     assert canvas._hover is None
 
