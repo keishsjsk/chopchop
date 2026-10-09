@@ -34,14 +34,15 @@ from chopchop.core.operations import (
 )
 from chopchop.editor.session import EditSession
 from chopchop.engines.image_engine import default_output_path, format_for_source
+from chopchop.services.app_settings import AppSettings
 from chopchop.ui.canvas import Canvas
-from chopchop.ui.color_button import ColorButton
+from chopchop.ui.color_button import ColorButton, hex_to_color
 from chopchop.ui.crop_ratio import CropRatioBar
 from chopchop.ui.export_dialog import ExportDialog
 from chopchop.ui.pil_qt import pil_to_qimage
 from chopchop.ui.tools.adjust_tool import AdjustTool
 from chopchop.ui.tools.base import Tool
-from chopchop.ui.tools.crop_tool import CropTool
+from chopchop.ui.tools.crop_tool import CropTool, ratio_from_setting
 from chopchop.ui.tools.draw_tool import DrawShape, DrawTool
 from chopchop.ui.tools.redact_tool import RedactTool
 from chopchop.ui.tools.text_tool import TextTool
@@ -54,9 +55,15 @@ class EditorPage(QWidget):
     exitRequested = Signal()
     message = Signal(str)
 
-    def __init__(self, session: EditSession, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        session: EditSession,
+        settings: AppSettings | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.session = session
+        self._app = settings or AppSettings(None)
         self.canvas = Canvas()
         self.tools: dict[str, Tool] = {
             "crop": CropTool(self),
@@ -90,6 +97,7 @@ class EditorPage(QWidget):
         assert isinstance(redact, RedactTool)
         redact.set_overlay_fill(True)  # заливка рисуется на холсте, без расчёта картинки
         self._on_draw_options()  # инструмент берёт то, что выбрано в панели
+        self._ratio_bar.set_value(ratio_from_setting(self._app.get_str("editor.crop_ratio")))
         session.changed.connect(self.refresh)
         session.previewReady.connect(self._on_preview_ready)
         session.pendingReady.connect(self._on_pending_ready)
@@ -238,10 +246,10 @@ class EditorPage(QWidget):
         self._shape.addItem(self.tr("Стрелка"), "arrow")
         self._shape.addItem(self.tr("Рамка"), "rect")
         self._shape.addItem(self.tr("Выделение области"), "marker")
-        self._draw_color = ColorButton((255, 0, 0))
+        self._draw_color = ColorButton(hex_to_color(self._app.get_str("editor.brush_color")))
         self._thickness = QSpinBox()
         self._thickness.setRange(1, 20)
-        self._thickness.setValue(4)
+        self._thickness.setValue(self._app.get_int("editor.brush_width"))
         self._thickness.setPrefix(self.tr("Толщина: "))
         for signal in (
             self._shape.currentIndexChanged,
@@ -511,21 +519,38 @@ class EditorPage(QWidget):
 
     # --- сохранение и буфер обмена -----------------------------------------------------------
 
+    def _quality_for(self, fmt: str) -> int:
+        key = {"jpeg": "editor.jpeg_quality", "webp": "editor.webp_quality"}.get(fmt)
+        return self._app.get_int(key) if key else 92
+
+    def _default_path(self, fmt: str) -> Path:
+        folder = self._app.get_str("editor.output_dir")
+        return default_output_path(
+            self.session.source,
+            fmt,
+            Path(folder) if folder else None,
+            self._app.get_str("editor.output_template"),
+        )
+
     def save_quick(self) -> None:
         fmt = format_for_source(self.session.source)
-        dest = default_output_path(self.session.source, fmt)
         self.message.emit(self.tr("Сохранение…"))
-        self.session.export(dest, fmt)
+        self.session.export(
+            self._default_path(fmt),
+            fmt,
+            self._quality_for(fmt),
+            keep_metadata=not self._app.get_bool("editor.strip_metadata"),
+        )
 
     def save_as(self) -> None:
         source = self.session.source
-        dialog = ExportDialog(source, format_for_source(source), self)
+        dialog = ExportDialog(source, format_for_source(source), self, self._app)
         if not dialog.exec():
             return
         choice = dialog.choice()
         path = choice.path
         if source is not None and path.resolve() == source.resolve():
-            path = default_output_path(source, choice.fmt)  # исходник не перезаписывается
+            path = self._default_path(choice.fmt)  # исходник не перезаписывается
             self.message.emit(
                 self.tr("Исходный файл не перезаписывается, сохраняю как ") + path.name
             )

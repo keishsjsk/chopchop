@@ -3,11 +3,12 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QToolButton, QWidget
 
+from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.ui.tools.crop_tool import Ratio
 
 RATIOS: tuple[tuple[str, Ratio], ...] = (
-    ("Свободно", None),
-    ("Исходное", "original"),
+    (QT_TRANSLATE_NOOP("CropRatioBar", "Свободно"), None),
+    (QT_TRANSLATE_NOOP("CropRatioBar", "Исходное"), "original"),
     ("1:1", 1.0),
     ("4:3", 4 / 3),
     ("3:2", 3 / 2),

@@ -14,14 +14,15 @@ from PySide6.QtWidgets import (
 )
 
 from chopchop.core.operations import Adjust, FilterName
+from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 
 GAMMA_RANGE = 50.0  # положение ползунка гаммы: 2 ** (значение / 50)
 FILTERS: tuple[tuple[str, FilterName | None], ...] = (
-    ("Без фильтра", None),
-    ("Чёрно-белое", "grayscale"),
-    ("Сепия", "sepia"),
-    ("Резкость", "sharpen"),
-    ("Размытие", "blur"),
+    (QT_TRANSLATE_NOOP("VideoColorDialog", "Без фильтра"), None),
+    (QT_TRANSLATE_NOOP("VideoColorDialog", "Чёрно-белое"), "grayscale"),
+    (QT_TRANSLATE_NOOP("VideoColorDialog", "Сепия"), "sepia"),
+    (QT_TRANSLATE_NOOP("VideoColorDialog", "Резкость"), "sharpen"),
+    (QT_TRANSLATE_NOOP("VideoColorDialog", "Размытие"), "blur"),
 )
 
 

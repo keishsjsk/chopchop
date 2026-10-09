@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from chopchop.core.operations import Crop, Operation, Redact, RedactMode, Text
+from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.editor.video_session import VideoSession
 from chopchop.ui.color_button import ColorButton
 from chopchop.ui.crop_ratio import CropRatioBar
@@ -26,7 +27,11 @@ from chopchop.ui.tools.text_tool import TextTool
 from chopchop.ui.video_color_dialog import VideoColorDialog
 from chopchop.ui.video_overlay import VideoOverlay
 
-TOOL_LABELS = {"crop": "Кадр", "redact": "Скрыть", "text": "Текст"}
+TOOL_LABELS = {
+    "crop": QT_TRANSLATE_NOOP("VideoEffectsPanel", "Кадр"),
+    "redact": QT_TRANSLATE_NOOP("VideoEffectsPanel", "Скрыть"),
+    "text": QT_TRANSLATE_NOOP("VideoEffectsPanel", "Текст"),
+}
 TOOL_KEYS = {"crop": "C", "redact": "B", "text": "T"}
 
 

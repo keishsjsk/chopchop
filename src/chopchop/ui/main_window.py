@@ -1,10 +1,11 @@
 """Главное окно: стартовый экран, просмотр фото и плеер видео."""
 
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QByteArray, QProcess, QSettings, Qt
 from PySide6.QtGui import QAction, QCloseEvent, QDragEnterEvent, QDropEvent, QImage, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -26,7 +27,9 @@ from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
 from chopchop.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
 from chopchop.player.player import Player
 from chopchop.player.resume import ResumeStore
-from chopchop.services.settings import RecentFiles, load_player_prefs, save_player_prefs
+from chopchop.services import logs, temp_files
+from chopchop.services.app_settings import AppSettings
+from chopchop.services.settings import RecentFiles, player_prefs
 from chopchop.ui.drop_zone import DropZone
 from chopchop.ui.settings_dialog import SettingsDialog
 from chopchop.ui.video_page import VideoPage
@@ -41,8 +44,6 @@ if TYPE_CHECKING:  # редакторы тяжёлые: загружаются �
     from chopchop.ui.video_editor_page import VideoEditorPage
 
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".ass", ".ssa", ".vtt", ".sub"})
-SEEK_SECONDS = 5
-VOLUME_STEP = 5
 
 
 MIN_PREVIEW_SIDE = 1024
@@ -50,18 +51,20 @@ MAX_PREVIEW_SIDE = 3072
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, settings: QSettings) -> None:
+    def __init__(self, settings: QSettings, app_settings: AppSettings | None = None) -> None:
         super().__init__()
         self.setWindowTitle("CHOPCHOP")
         self.resize(960, 600)
         self.setAcceptDrops(True)
 
         self._settings = settings
+        self._app = app_settings or AppSettings(None)
         self._recent = RecentFiles(settings)
         self._resume = ResumeStore(settings)
         self.current_path: Path | None = None
         self._nav: FolderNav | None = None
         self._video_path: Path | None = None
+        self._video_nav: FolderNav | None = None
         self.video_page: VideoPage | None = None
         self.editor: EditorPage | None = None
         self.video_editor: VideoEditorPage | None = None
@@ -82,6 +85,8 @@ class MainWindow(QMainWindow):
         self.viewer.setAcceptDrops(False)  # перетаскивание обрабатывает окно
         self.viewer.doubleClicked.connect(self.toggle_fullscreen)
         self.viewer.zoomChanged.connect(self._on_zoom_changed)
+        self.viewer.navigateRequested.connect(self.step)
+        self._apply_viewer_settings()
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._drop_zone)
@@ -93,6 +98,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self._tools_summary())
 
         self._build_actions()
+        self._app.changed.connect(self._on_setting_changed)
+        self._restore_window()
 
     def _build_actions(self) -> None:
         file_menu = self.menuBar().addMenu(self.tr("Файл"))
@@ -125,8 +132,21 @@ class MainWindow(QMainWindow):
         add = self._add_action
         add(self.tr("Следующее"), Qt.Key.Key_Right, lambda: self._horizontal(1))
         add(self.tr("Предыдущее"), Qt.Key.Key_Left, lambda: self._horizontal(-1))
-        add(self.tr("Громче"), Qt.Key.Key_Up, lambda: self._volume(VOLUME_STEP))
-        add(self.tr("Тише"), Qt.Key.Key_Down, lambda: self._volume(-VOLUME_STEP))
+        add(
+            self.tr("Громче"),
+            Qt.Key.Key_Up,
+            lambda: self._volume(self._app.get_int("playback.volume_step")),
+        )
+        add(
+            self.tr("Тише"),
+            Qt.Key.Key_Down,
+            lambda: self._volume(-self._app.get_int("playback.volume_step")),
+        )
+        add(self.tr("Перемотка вперёд"), "Shift+Right", lambda: self._seek_long(1))
+        add(self.tr("Перемотка назад"), "Shift+Left", lambda: self._seek_long(-1))
+        player_action(self.tr("Медленнее"), "[", lambda p: self._change_speed(p, -1))
+        player_action(self.tr("Быстрее"), "]", lambda p: self._change_speed(p, 1))
+        player_action(self.tr("Обычная скорость"), "Backspace", lambda p: self._reset_speed(p))
         player_action(self.tr("Пауза"), "Space", lambda p: p.toggle_pause())
         player_action(self.tr("Аудиодорожка"), "A", lambda p: p.cycle_audio())
         player_action(self.tr("Субтитры 1"), "S", lambda p: p.cycle_sub())
@@ -150,7 +170,7 @@ class MainWindow(QMainWindow):
             ("T", "text"),
         ):
             add(tool, key, self._tool_slot(tool))
-        add(self.tr("Вписать в окно"), "Ctrl+0", self.viewer.fit_to_window)
+        add(self.tr("Вписать в окно"), "Ctrl+0", lambda: self.viewer.fit_to_window())
         add(self.tr("Масштаб 100%"), "Ctrl+1", self.viewer.actual_size)
 
     def _action(
@@ -193,6 +213,9 @@ class MainWindow(QMainWindow):
         if kind is None:
             self.statusBar().showMessage(self.tr("Формат не поддерживается: ") + path.name, 5000)
             return
+        wants_new_window = self._app.get_str("general.open_in") == "new"
+        if self.current_path is not None and wants_new_window and self._open_in_new_window(path):
+            return
         if not self._leave_editors():
             return
         self._save_resume()
@@ -201,9 +224,28 @@ class MainWindow(QMainWindow):
         if kind is MediaKind.IMAGE:
             self._stop_video()
             self._nav = FolderNav(path)
-            self._show(path)
+            if self._app.get_str("general.open_mode") == "edit":
+                self._open_in_editor(path)
+            else:
+                self._show(path)
         else:
             self._open_video(path)
+
+    def _open_in_new_window(self, path: Path) -> bool:
+        """Запускает ещё одно окно программы с этим файлом; False — запустить не удалось."""
+        if getattr(sys, "frozen", False):
+            program, arguments = sys.executable, [str(path)]
+        else:
+            program, arguments = sys.executable, ["-m", "chopchop", str(path)]
+        return bool(QProcess.startDetached(program, arguments))
+
+    def _open_in_editor(self, path: Path) -> None:
+        from chopchop.editor.session import EditSession
+
+        self._stop_video()
+        self.current_path = path
+        self._update_title()
+        self._open_editor(EditSession(path, parent=self, proxy_side=self._preview_side()))
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
         if event.mimeData().hasUrls():
@@ -262,7 +304,8 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentWidget(self.viewer)
         self.statusBar().showMessage(f"{image.width()}×{image.height()}")
         if self._nav is not None:
-            for neighbor in self._nav.neighbors():
+            ahead = self._app.get_int("photo.preload")
+            for neighbor in self._nav.neighbors(ahead, 1 if ahead else 0):
                 self._cache.request(neighbor)
 
     def _on_image_loaded(self, path: Path, image: QImage) -> None:
@@ -289,7 +332,7 @@ class MainWindow(QMainWindow):
             return self.video_page
         try:
             module = load_mpv_module()
-            mpv = create_mpv(module, load_player_prefs(self._settings))
+            mpv = create_mpv(module, player_prefs(self._app))
         except MpvUnavailableError as error:
             hint = self.tr(
                 "Не удалось загрузить libmpv. Положите libmpv-2.dll (Windows) "
@@ -300,6 +343,8 @@ class MainWindow(QMainWindow):
         page = VideoPage(module, mpv)
         page.fullscreenRequested.connect(self.toggle_fullscreen)
         page.player.errorOccurred.connect(self._on_video_error)
+        page.player.ended.connect(self._on_video_ended)
+        page.player.apply_prefs(player_prefs(self._app))
         page.player.pausedChanged.connect(lambda _paused: self._save_resume())
         self._stack.addWidget(page)
         self.video_page = page
@@ -310,14 +355,37 @@ class MainWindow(QMainWindow):
         if page is None:
             return
         self._nav = None
+        self._video_nav = FolderNav(path, VIDEO_EXTENSIONS)
         self.current_path = path
         self._video_path = path
         self._update_title()
         self.statusBar().clearMessage()
         self._zoom_label.clear()
         self._stack.setCurrentWidget(page)
-        page.player.load(path, self._resume.load(path))
+        resume = self._resume.load(path)
+        if resume is not None and not self._app.get_bool("playback.remember_position"):
+            resume.position = 0.0  # позицию не возобновляем; дорожки и громкость остаются
+        page.player.load(path, resume)
         page.wake()
+
+    def _on_video_ended(self) -> None:
+        """Файл доигран: следующее видео в папке, повтор или возврат на стартовый экран."""
+        if not self._on_video_page() or self._on_video_editor() or self.video_page is None:
+            return
+        nav = self._video_nav
+        has_next = nav is not None and nav.index + 1 < len(nav.files)
+        if self._app.get_bool("playback.autoplay_next") and nav is not None and has_next:
+            self._open_video(nav.files[nav.index + 1])
+            return
+        action = self._app.get_str("playback.end_action")
+        if action == "loop":
+            self.video_page.player.seek_to(0.0, exact=True)
+            if self.video_page.player.paused:
+                self.video_page.player.toggle_pause()
+        elif action == "close":
+            self._stop_video()
+            self._stack.setCurrentWidget(self._drop_zone)
+            self.setWindowTitle("CHOPCHOP")
 
     def _on_video_error(self, _message: str) -> None:
         name = self._video_path.name if self._video_path else ""
@@ -343,20 +411,63 @@ class MainWindow(QMainWindow):
         if self._on_editor():
             return
         if self._on_video_page():
-            self._with_player(lambda p: p.seek(direction * SEEK_SECONDS))
+            self._with_player(
+                lambda p: p.seek(direction * self._app.get_int("playback.seek_short"))
+            )
         else:
             self.step(direction)
+
+    def _seek_long(self, direction: int) -> None:
+        if self._on_editor() or not self._on_video_page():
+            return
+        self._with_player(lambda p: p.seek(direction * self._app.get_int("playback.seek_long")))
+
+    def _change_speed(self, player: Player, direction: int) -> None:
+        player.add_speed(direction * self._app.get_float("playback.speed_step"))
+        self.statusBar().showMessage(f"{player.speed:g}×", 2000)
+
+    def _reset_speed(self, player: Player) -> None:
+        player.set_speed(1.0)
+        self.statusBar().showMessage("1×", 2000)
 
     def _volume(self, delta: float) -> None:
         self._with_player(lambda p: p.add_volume(delta))
 
     def show_settings(self) -> None:
-        dialog = SettingsDialog(load_player_prefs(self._settings), self)
-        if dialog.exec():
-            prefs = dialog.prefs()
-            save_player_prefs(self._settings, prefs)
-            if self.video_page is not None:
-                self.video_page.player.apply_prefs(prefs)
+        SettingsDialog(self._app, self).exec()
+        self._app.flush()
+
+    def _on_setting_changed(self, key: str, _value: object) -> None:
+        """Настройка изменилась (в окне настроек, сбросом или импортом): применяем на лету."""
+        section = key.split(".", 1)[0]
+        if section in ("playback", "subtitles") and self.video_page is not None:
+            self.video_page.player.apply_prefs(player_prefs(self._app))
+        elif section == "photo":
+            self._apply_viewer_settings()
+        elif key == "advanced.temp_dir":
+            temp_files.set_root(Path(self._app.get_str(key)) if self._app.get_str(key) else None)
+        elif key == "advanced.log_level":
+            logs.set_level(self._app.get_str(key))
+
+    def _apply_viewer_settings(self) -> None:
+        app = self._app
+        self.viewer.apply_settings(
+            fit_mode=app.get_str("photo.fit_mode"),
+            zoom_step=app.get_float("photo.zoom_step"),
+            wheel_action=app.get_str("photo.wheel_action"),
+            background=app.get_str("photo.background"),
+            smoothing=app.get_str("photo.smoothing"),
+        )
+
+    def _restore_window(self) -> None:
+        saved = self._app.get_str("state.window")
+        if self._app.get_bool("general.remember_window") and saved:
+            self.restoreGeometry(QByteArray.fromBase64(saved.encode("ascii", "ignore")))
+
+    def _remember_window(self) -> None:
+        if self._app.get_bool("general.remember_window") and not self.isFullScreen():
+            encoded = bytes(self.saveGeometry().toBase64().data()).decode("ascii")
+            self._app.set("state.window", encoded)
 
     # --- редактор ----------------------------------------------------------------------------
 
@@ -453,7 +564,7 @@ class MainWindow(QMainWindow):
         if self.editor is not None:
             self._stack.removeWidget(self.editor)
             self.editor.deleteLater()
-        self.editor = EditorPage(session)
+        self.editor = EditorPage(session, self._app)
         self.editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
         self.editor.exitRequested.connect(self._leave_editor)
         self._stack.addWidget(self.editor)
@@ -471,6 +582,8 @@ class MainWindow(QMainWindow):
         self.editor = None
         self._discard_session()
         if self._nav is not None and self.current_path is not None:
+            if not self.viewer.has_image():
+                self._show(self.current_path)  # открыли сразу в редакторе: просмотр ещё пуст
             self._stack.setCurrentWidget(self.viewer)
             self._update_title()
             self.statusBar().showMessage(self.tr("Просмотр"), 3000)
@@ -511,7 +624,7 @@ class MainWindow(QMainWindow):
         self._save_resume()
         session = VideoSession(VideoProject((Clip(path, info),)), self)
         self._stack.removeWidget(self.video_page)
-        editor = VideoEditorPage(session, self.video_page, ffmpeg, ffprobe)
+        editor = VideoEditorPage(session, self.video_page, ffmpeg, ffprobe, settings=self._app)
         editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
         editor.exitRequested.connect(self._leave_video_editor)
         self.video_editor = editor
@@ -599,6 +712,8 @@ class MainWindow(QMainWindow):
         self._tasks.wait()
         self._save_resume()
         self._cache.wait()
+        self._remember_window()
+        self._app.flush()
         if self.video_page is not None:
             self.video_page.release()
         super().closeEvent(event)

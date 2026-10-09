@@ -13,10 +13,64 @@ from chopchop.core.operations import Text
 from chopchop.core.video import AudioSettings, Clip, VideoProject
 from chopchop.engines.ffmpeg import FfmpegStep
 from chopchop.engines.video_filters import build_effects_graph
-from chopchop.services.output import unique_path
+from chopchop.services.output import render_name, unique_path
 
 AUDIO_BITRATE = "192k"
-VIDEO_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+HW_ENCODERS = {"nvenc": "h264_nvenc", "qsv": "h264_qsv", "amf": "h264_amf"}
+
+
+@dataclass(frozen=True)
+class EncodeOptions:
+    """Как перекодировать видео: качество (crf), скорость, кодер и число потоков."""
+
+    crf: int = 20
+    preset: str = "veryfast"
+    encoder: str = "cpu"  # cpu (libx264), nvenc, qsv или amf
+    threads: int = 0  # 0 — решает ffmpeg
+
+    @property
+    def is_hardware(self) -> bool:
+        return self.encoder in HW_ENCODERS
+
+    def video_args(self) -> list[str]:
+        """Аргументы видеокодера; качество видеокарт задаётся той же шкалой, что и crf."""
+        crf = str(self.crf)
+        match self.encoder:
+            case "nvenc":
+                args = ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", crf]
+                args += ["-b:v", "0"]
+            case "qsv":
+                args = ["-c:v", "h264_qsv", "-preset", self.preset, "-global_quality", crf]
+            case "amf":
+                args = ["-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp"]
+                args += ["-qp_i", crf, "-qp_p", crf, "-qp_b", crf]
+            case _:
+                args = ["-c:v", "libx264", "-preset", self.preset, "-crf", crf]
+                if self.threads > 0:
+                    args += ["-threads", str(self.threads)]
+        return [*args, "-pix_fmt", "yuv420p"]
+
+    def on_cpu(self) -> "EncodeOptions":
+        return EncodeOptions(self.crf, self.preset, "cpu", self.threads)
+
+
+def pick_encoder(wanted: str, available: Sequence[str]) -> str:
+    """Кодер из настройки: «auto» берёт первый доступный аппаратный, неизвестный — процессор."""
+    if wanted == "auto":
+        return next((key for key, name in HW_ENCODERS.items() if name in available), "cpu")
+    if wanted in HW_ENCODERS and HW_ENCODERS[wanted] in available:
+        return wanted
+    return "cpu"
+
+
+def parse_encoder_names(output: str) -> list[str]:
+    """Имена аппаратных кодеров из вывода `ffmpeg -encoders`."""
+    names = set(HW_ENCODERS.values())
+    found = [line.split()[1] for line in output.splitlines() if len(line.split()) > 1]
+    return [name for name in found if name in names]
+
+
+DEFAULT_ENCODE = EncodeOptions()
 SAMPLE_RATE = 48000
 MAX_FPS = 60.0
 DEFAULT_FPS = 30.0
@@ -121,6 +175,7 @@ def build_plan(
     *,
     precise: bool = False,
     font: Path | None = None,
+    encode: EncodeOptions = DEFAULT_ENCODE,
 ) -> ExportPlan:
     """Шаги экспорта. workdir — пустая временная папка для промежуточных файлов.
 
@@ -136,7 +191,7 @@ def build_plan(
         raise ExportPlanError("output would overwrite a source file")
     if project.reencode_reason(precise) is None:
         return _build_copy_plan(project, dest, ffmpeg, workdir)
-    return _build_reencode_plan(project, dest, ffmpeg, workdir, font)
+    return _build_reencode_plan(project, dest, ffmpeg, workdir, font, encode)
 
 
 def write_text_files(texts: tuple[Text, ...], workdir: Path) -> dict[int, Path]:
@@ -173,7 +228,12 @@ def _normalize_audio(index: int, clip: Clip) -> str:
 
 
 def _build_reencode_plan(
-    project: VideoProject, dest: Path, ffmpeg: Path, workdir: Path, font: Path | None
+    project: VideoProject,
+    dest: Path,
+    ffmpeg: Path,
+    workdir: Path,
+    font: Path | None,
+    encode: EncodeOptions,
 ) -> ExportPlan:
     """Один вызов ffmpeg: клипы нормализуются, склеиваются, затем идут эффекты."""
     clips = project.clips
@@ -240,7 +300,7 @@ def _build_reencode_plan(
         *inputs,
         *["-filter_complex", ";".join(graph), "-map", "[vout]"],
         *audio_args,
-        *VIDEO_ARGS,
+        *encode.video_args(),
         *_output_options(dest),
     ]
     files = tuple(text_files.values())
@@ -333,7 +393,12 @@ def thumbnail_batch_args(
     return args
 
 
-def default_video_output(source: Path, extension: str | None = None) -> Path:
+def default_video_output(
+    source: Path,
+    extension: str | None = None,
+    folder: Path | None = None,
+    template: str = "{name}_edited",
+) -> Path:
     """Путь вида movie_edited.mp4 рядом с исходником; существующие файлы не перезаписываются."""
     suffix = extension or (source.suffix.lower() if source.suffix.lower() in CONTAINERS else ".mkv")
-    return unique_path(source.parent, f"{source.stem}_edited", suffix)
+    return unique_path(folder or source.parent, render_name(template, source.stem), suffix)

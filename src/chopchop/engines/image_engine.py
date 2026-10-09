@@ -22,7 +22,7 @@ from chopchop.core.operations import (
 )
 from chopchop.engines.fonts import find_font
 from chopchop.services.metadata import exif_for_export
-from chopchop.services.output import unique_path
+from chopchop.services.output import render_name, unique_path
 from chopchop.services.profiling import stage
 
 PROXY_SIDE = 2048
@@ -286,11 +286,16 @@ def _text(image: Image.Image, op: Text) -> Image.Image:
 # --- экспорт -----------------------------------------------------------------------------------
 
 
-def default_output_path(source: Path | None, fmt: str, folder: Path | None = None) -> Path:
+def default_output_path(
+    source: Path | None,
+    fmt: str,
+    folder: Path | None = None,
+    template: str = "{name}_edited",
+) -> Path:
     """Путь вида photo_edited.jpg рядом с исходником; существующие файлы не перезаписываются."""
     extension = FORMATS[fmt][0]
     directory = folder or (source.parent if source else Path.home() / "Pictures")
-    stem = f"{source.stem}_edited" if source else "image_edited"
+    stem = render_name(template, source.stem if source else "image")
     return unique_path(directory, stem, extension)
 
 

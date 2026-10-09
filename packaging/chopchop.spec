@@ -33,7 +33,10 @@ def system_libmpv() -> list[tuple[str, str]]:
     raise SystemExit("libmpv не найдена: установите libmpv2 (apt install libmpv2)")
 
 
-datas = [(str(ROOT / "resources" / "icons"), "resources/icons")]
+datas = [
+    (str(ROOT / "resources" / "icons"), "resources/icons"),
+    (str(ROOT / "resources" / "i18n"), "resources/i18n"),
+]
 datas += folder(BINARIES / "bin", "bin")
 datas += folder(BINARIES / "lib", "lib")
 

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from chopchop.engines.image_engine import FORMATS, default_output_path
+from chopchop.services.app_settings import AppSettings
 
 
 @dataclass(frozen=True)
@@ -30,8 +31,15 @@ class ExportChoice:
 
 
 class ExportDialog(QDialog):
-    def __init__(self, source: Path | None, default_format: str, parent: QWidget | None = None):
+    def __init__(
+        self,
+        source: Path | None,
+        default_format: str,
+        parent: QWidget | None = None,
+        settings: AppSettings | None = None,
+    ):
         super().__init__(parent)
+        self._app = settings or AppSettings(None)
         self.setWindowTitle(self.tr("Сохранить как"))
         self._source = source
 
@@ -43,12 +51,23 @@ class ExportDialog(QDialog):
 
         self._quality = QSpinBox()
         self._quality.setRange(1, 100)
-        self._quality.setValue(92)
+        self._quality.setValue(self._quality_default(default_format))
 
         self._keep = QCheckBox(self.tr("Сохранить метаданные (EXIF, GPS)"))
+        self._keep.setChecked(not self._app.get_bool("editor.strip_metadata"))
         self._keep.setToolTip(self.tr("По умолчанию метаданные удаляются"))
 
-        self._path = QLineEdit(str(default_output_path(source, default_format)))
+        folder = self._app.get_str("editor.output_dir")
+        self._path = QLineEdit(
+            str(
+                default_output_path(
+                    source,
+                    default_format,
+                    Path(folder) if folder else None,
+                    self._app.get_str("editor.output_template"),
+                )
+            )
+        )
         browse = QPushButton(self.tr("Обзор…"))
         browse.clicked.connect(self._browse)
         path_row = QHBoxLayout()
@@ -73,11 +92,16 @@ class ExportDialog(QDialog):
         self._on_format_changed()
         self.setMinimumWidth(460)
 
+    def _quality_default(self, fmt: str) -> int:
+        key = {"jpeg": "editor.jpeg_quality", "webp": "editor.webp_quality"}.get(fmt)
+        return self._app.get_int(key) if key else 92
+
     def _fmt(self) -> str:
         return str(self._format.currentData())
 
     def _on_format_changed(self) -> None:
         self._quality.setEnabled(self._fmt() != "png")
+        self._quality.setValue(self._quality_default(self._fmt()))
         current = Path(self._path.text())
         extension = FORMATS[self._fmt()][0]
         if current.suffix.lower() != extension:

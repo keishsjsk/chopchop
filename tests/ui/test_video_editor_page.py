@@ -351,3 +351,54 @@ def test_export_dialog_explains_the_mode(qtbot: QtBot, tmp_path: Path) -> None:
     untrimmed = VideoExportDialog(VideoProject((Clip(source, probe(source)),)))
     qtbot.addWidget(untrimmed)
     assert not untrimmed._precise.isEnabled()  # резать нечего
+
+
+def test_hardware_encoder_failure_falls_back_to_the_processor(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chopchop.services.app_settings import AppSettings
+
+    assert FFMPEG is not None and FFPROBE is not None
+    source = make_video(tmp_path / "a.mp4", seconds=2)
+    settings = AppSettings(None)
+    settings.set("editor.hw_encoder", "nvenc")
+    session = VideoSession(VideoProject((Clip(source, probe(source)),)))
+    fake = FakeVideoPage()
+    page = VideoEditorPage(session, fake.as_video_page(), FFMPEG, FFPROBE, settings=settings)
+    qtbot.addWidget(page)
+    monkeypatch.setattr(
+        "chopchop.ui.video_editor_page.available_hw_encoders", lambda _ffmpeg: ("h264_nvenc",)
+    )
+    assert page._encode_options().encoder == "nvenc"  # видеокарта выбрана
+    session.set_filter("grayscale")  # эффект: без перекодирования не обойтись
+    dest = tmp_path / "out.mp4"
+    monkeypatch.setattr(VideoExportDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(VideoExportDialog, "path", lambda self: dest)
+    messages: list[str] = []
+    page.message.connect(messages.append)
+    page.export()
+    qtbot.waitUntil(lambda: page._export_dir is None and bool(messages), timeout=120000)
+    assert dest.exists() and dest.stat().st_size > 0  # результат есть в любом случае
+    args = page._export_args
+    assert args is not None
+    if not args[2].is_hardware:  # на машине без подходящей видеокарты экспорт повторён
+        assert any("процессоре" in text for text in messages)
+    page.shutdown()
+
+
+def test_cpu_encoder_options_come_from_settings(qtbot: QtBot, tmp_path: Path) -> None:
+    from chopchop.services.app_settings import AppSettings
+
+    assert FFMPEG is not None and FFPROBE is not None
+    source = make_video(tmp_path / "a.mp4", seconds=2)
+    settings = AppSettings(None)
+    settings.set("editor.x264_crf", 31)
+    settings.set("editor.x264_preset", "slow")
+    settings.set("advanced.threads", 3)
+    session = VideoSession(VideoProject((Clip(source, probe(source)),)))
+    fake = FakeVideoPage()
+    page = VideoEditorPage(session, fake.as_video_page(), FFMPEG, FFPROBE, settings=settings)
+    qtbot.addWidget(page)
+    options = page._encode_options()
+    assert (options.crf, options.preset, options.encoder, options.threads) == (31, "slow", "cpu", 3)
+    page.shutdown()

@@ -16,6 +16,7 @@ class FakeMpv:
         self.hwdec: Any = "auto-safe"
         self.hwdec_current: Any = "no"
         self.volume = 100.0
+        self.speed = 1.0
         self.time_pos: float | None = 0.0
         self.duration: float | None = None
         self.track_list: list[dict[str, Any]] = []
@@ -94,6 +95,9 @@ class FakeVideoPage(QWidget):
         self.mpv = FakeMpv()
         self.player = Player(self.mpv, self)
         self.controls = QWidget(self)
+
+    def wake(self) -> None:
+        pass
 
     def as_video_page(self) -> VideoPage:
         return cast(VideoPage, self)

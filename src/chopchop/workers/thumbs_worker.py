@@ -107,8 +107,10 @@ class ThumbnailLoader(QObject):
         parent: QObject | None = None,
         parallel: int = PARALLEL,
         width: int = THUMB_WIDTH,
+        limit_bytes: int = cache.DEFAULT_LIMIT_BYTES,
     ) -> None:
         super().__init__(parent)
+        self._limit = limit_bytes
         self.ffmpeg = ffmpeg
         self.signals = _Signals()
         self.signals.ready.connect(self._on_ready)
@@ -126,7 +128,7 @@ class ThumbnailLoader(QObject):
         if self._folder is None:
             self._folder = cache.cache_dir() / "thumbs"
             self._folder.mkdir(parents=True, exist_ok=True)
-            cache.prune(self._folder)
+            cache.prune(self._folder, self._limit)
         return self._folder
 
     def request(self, path: Path, duration: float, count: int) -> list[QImage | None]:

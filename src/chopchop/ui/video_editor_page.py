@@ -21,12 +21,21 @@ from PySide6.QtWidgets import (
 
 from chopchop.core.document import MediaInfo
 from chopchop.core.operations import Adjust, FilterName
+from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.core.video import Clip, VideoEffects, incompatibility
 from chopchop.editor.video_session import VideoSession
+from chopchop.engines.encoders import available_hw_encoders
 from chopchop.engines.fonts import find_font_path
 from chopchop.engines.probe import probe
-from chopchop.engines.video_engine import ExportPlanError, build_plan, write_text_files
+from chopchop.engines.video_engine import (
+    EncodeOptions,
+    ExportPlanError,
+    build_plan,
+    pick_encoder,
+    write_text_files,
+)
 from chopchop.engines.video_filters import build_effects_graph, output_frame_size
+from chopchop.services.app_settings import AppSettings
 from chopchop.services.temp_files import new_workspace, remove_workspace
 from chopchop.ui.click_slider import ClickSlider
 from chopchop.ui.player_controls import format_time
@@ -45,11 +54,11 @@ AUDIO_FILTER = "*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.opus"
 VIDEO_FILTER = "*.mp4 *.mkv *.avi *.mov *.webm *.m4v *.mpg *.mpeg *.ts"
 
 _REASONS = {
-    "codec": "видеокодек",
-    "resolution": "разрешение или поворот",
-    "fps": "частота кадров",
-    "pixel format": "формат пикселей",
-    "audio": "параметры звука",
+    "codec": QT_TRANSLATE_NOOP("VideoEditorPage", "видеокодек"),
+    "resolution": QT_TRANSLATE_NOOP("VideoEditorPage", "разрешение или поворот"),
+    "fps": QT_TRANSLATE_NOOP("VideoEditorPage", "частота кадров"),
+    "pixel format": QT_TRANSLATE_NOOP("VideoEditorPage", "формат пикселей"),
+    "audio": QT_TRANSLATE_NOOP("VideoEditorPage", "параметры звука"),
 }
 
 
@@ -64,9 +73,12 @@ class VideoEditorPage(QWidget):
         ffmpeg: Path,
         ffprobe: Path,
         parent: QWidget | None = None,
+        settings: AppSettings | None = None,
     ) -> None:
         super().__init__(parent)
         self.session = session
+        self._app = settings or AppSettings(None)
+        self._export_args: tuple[Path, bool, EncodeOptions] | None = None
         self._video_page = video_page
         self._ffmpeg = ffmpeg
         self._ffprobe = ffprobe
@@ -77,7 +89,9 @@ class VideoEditorPage(QWidget):
         self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
         self._preview_key: str | None = None
 
-        self._thumbs = ThumbnailLoader(ffmpeg, self)
+        self._thumbs = ThumbnailLoader(
+            ffmpeg, self, limit_bytes=self._app.get_int("advanced.thumb_cache_mb") * 1024 * 1024
+        )
         self._thumbs.thumbnail.connect(self._on_thumbnail)
         self._tasks = TaskRunner(self)
         self._worker = ExportWorker(self)
@@ -468,18 +482,35 @@ class VideoEditorPage(QWidget):
     def export(self) -> None:
         if self._export_dir is not None:
             return  # предыдущий экспорт ещё идёт
-        dialog = VideoExportDialog(self.session.project, self)
+        dialog = VideoExportDialog(self.session.project, self, self._app)
         if not dialog.exec():
             return
+        self._start_export(dialog.path(), dialog.precise(), self._encode_options())
+
+    def _encode_options(self) -> EncodeOptions:
+        """Качество, скорость и кодер из настроек; аппаратный кодер — только если он есть."""
+        app = self._app
+        return EncodeOptions(
+            crf=app.get_int("editor.x264_crf"),
+            preset=app.get_str("editor.x264_preset"),
+            encoder=pick_encoder(
+                app.get_str("editor.hw_encoder"), available_hw_encoders(self._ffmpeg)
+            ),
+            threads=app.get_int("advanced.threads"),
+        )
+
+    def _start_export(self, dest: Path, precise: bool, encode: EncodeOptions) -> None:
+        self._export_args = (dest, precise, encode)
         workdir = new_workspace()
         try:
             plan = build_plan(
                 self.session.project,
-                dialog.path(),
+                dest,
                 self._ffmpeg,
                 workdir,
-                precise=dialog.precise(),
+                precise=precise,
                 font=find_font_path(),
+                encode=encode,
             )
         except ExportPlanError as error:
             remove_workspace(workdir)
@@ -515,6 +546,18 @@ class VideoEditorPage(QWidget):
 
     def _on_export_failed(self, error: str) -> None:
         self._close_progress()
+        args = self._export_args
+        if (
+            args is not None
+            and args[2].is_hardware
+            and self.session.project.reencode_reason(args[1])
+        ):
+            # видеокарта не справилась (нет драйвера, формат не поддержан): повторяем на процессоре
+            self.message.emit(
+                self.tr("Аппаратный кодер не сработал, экспорт повторён на процессоре")
+            )
+            self._start_export(args[0], args[1], args[2].on_cpu())
+            return
         QMessageBox.critical(self, self.tr("Ошибка экспорта"), error)
 
     def _on_export_cancelled(self) -> None:

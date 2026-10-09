@@ -2,14 +2,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings
 
-from chopchop.services.settings import (
-    MAX_RECENT,
-    PlayerPrefs,
-    RecentFiles,
-    clean_langs,
-    load_player_prefs,
-    save_player_prefs,
-)
+from chopchop.services.app_settings import AppSettings
+from chopchop.services.settings import MAX_RECENT, PlayerPrefs, RecentFiles, player_prefs
 
 
 def _recent(tmp_path: Path) -> RecentFiles:
@@ -31,24 +25,17 @@ def test_list_is_capped(tmp_path: Path) -> None:
     assert len(recent.items()) == MAX_RECENT
 
 
-def test_clean_langs_drops_junk() -> None:
-    assert clean_langs(" rus, eng;rm -rf,,en-US ") == "rus,engrm-rf,en-US"
+def test_player_prefs_default_to_safe_hardware_decoding() -> None:
+    prefs = player_prefs(AppSettings(None))
+    assert prefs == PlayerPrefs()
+    assert prefs.hwdec == "auto-copy-safe"
 
 
-def test_player_prefs_roundtrip(tmp_path: Path) -> None:
-    settings = QSettings(str(tmp_path / "p.ini"), QSettings.Format.IniFormat)
-    assert load_player_prefs(settings) == PlayerPrefs()
-    prefs = PlayerPrefs(audio_langs="jpn,eng", sub_langs="rus", sub_font_size=40, sub_margin=10)
-    save_player_prefs(settings, prefs)
-    assert load_player_prefs(settings) == prefs
-
-
-def test_hwdec_default_is_the_safe_copy_mode_and_bad_values_fall_back(tmp_path: Path) -> None:
-    settings = QSettings(str(tmp_path / "h.ini"), QSettings.Format.IniFormat)
-    assert load_player_prefs(settings).hwdec == "auto-copy-safe"
-    save_player_prefs(settings, PlayerPrefs(hwdec="no"))
-    assert load_player_prefs(settings).hwdec == "no"
-    settings.setValue("player/hwdec", "vulkan-hack")  # неизвестное значение из другой версии
-    assert load_player_prefs(settings).hwdec == "auto-copy-safe"
-    save_player_prefs(settings, PlayerPrefs(hwdec="rm -rf"))
-    assert load_player_prefs(settings).hwdec == "auto-copy-safe"
+def test_player_prefs_follow_the_settings() -> None:
+    settings = AppSettings(None)
+    settings.set("playback.audio_langs", "jpn,eng")
+    settings.set("subtitles.font_size", 40)
+    settings.set("subtitles.margin", 10)
+    settings.set("playback.hwdec", "off")
+    settings.set("playback.volume_default", 80)
+    assert player_prefs(settings) == PlayerPrefs("jpn,eng", "", 40, 10, "no", 80.0)

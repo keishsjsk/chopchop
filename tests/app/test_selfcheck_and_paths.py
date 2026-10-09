@@ -78,3 +78,32 @@ def test_ffmpeg_is_found_in_the_frozen_internal_bin(
     monkeypatch.setattr(sys, "executable", str(tmp_path / "CHOPCHOP.exe"))
     monkeypatch.setattr(sys, "_MEIPASS", str(internal), raising=False)
     assert find_ffmpeg() == internal / "bin" / name
+
+
+def test_first_run_picks_language_and_imports_old_values(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    from chopchop.app import load_settings
+
+    old = QSettings(str(tmp_path / "old.ini"), QSettings.Format.IniFormat)
+    old.setValue("player/audio_langs", "jpn")
+    path = tmp_path / "cfg" / "settings.toml"
+    settings = load_settings(path, old)
+    assert settings.get_str("general.language") in ("ru", "en")
+    assert settings.get_str("playback.audio_langs") == "jpn"
+    assert not settings.restart_pending
+    assert path.exists()  # первый запуск сразу создаёт читаемый файл
+    again = load_settings(path, old)
+    assert not again.first_run
+
+
+def test_existing_file_wins_over_old_values(tmp_path: Path) -> None:
+    from PySide6.QtCore import QSettings
+
+    from chopchop.app import load_settings
+
+    old = QSettings(str(tmp_path / "old.ini"), QSettings.Format.IniFormat)
+    old.setValue("player/audio_langs", "jpn")
+    path = tmp_path / "settings.toml"
+    path.write_text('[playback]\naudio_langs = "fra"\n', encoding="utf-8")
+    assert load_settings(path, old).get_str("playback.audio_langs") == "fra"

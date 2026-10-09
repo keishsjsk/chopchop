@@ -39,3 +39,30 @@ def test_unique_path(tmp_path: Path) -> None:
     (tmp_path / "a.mp4").write_bytes(b"")
     (tmp_path / "a (2).mp4").write_bytes(b"")
     assert unique_path(tmp_path, "a", ".mp4") == tmp_path / "a (3).mp4"
+
+
+def test_custom_temp_root_is_used_and_created(tmp_path: Path) -> None:
+    from chopchop.services import temp_files
+
+    target = tmp_path / "scratch" / "deep"
+    temp_files.set_root(target)
+    try:
+        workspace = new_workspace()
+        assert workspace.parent == target
+        remove_workspace(workspace)
+    finally:
+        temp_files.set_root(None)
+
+
+def test_unusable_custom_root_falls_back_to_system_temp(tmp_path: Path) -> None:
+    import tempfile
+
+    from chopchop.services import temp_files
+
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    temp_files.set_root(blocker / "inside")  # «папка» внутри файла создана быть не может
+    try:
+        assert temp_files.temp_root() == Path(tempfile.gettempdir())
+    finally:
+        temp_files.set_root(None)

@@ -1,10 +1,11 @@
-"""Настройки приложения поверх QSettings: последние файлы и параметры плеера."""
+"""Список последних файлов (QSettings) и параметры плеера, собранные из настроек приложения."""
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
+
+from chopchop.services.app_settings import AppSettings
 
 MAX_RECENT = 10
 _RECENT_KEY = "recent_files"
@@ -29,55 +30,28 @@ class RecentFiles:
 
 
 def default_settings() -> QSettings:
+    """Служебное хранилище состояния (последние файлы, позиции просмотра); не настройки."""
     return QSettings("CHOPCHOP", "CHOPCHOP")
-
-
-# режимы аппаратного декодирования видео: с копированием кадров (надёжнее), без копирования
-# (быстрее, но на некоторых видеокартах и файлах даёт мусор в картинке), программное
-HWDEC_MODES = ("auto-copy-safe", "auto-safe", "no")
 
 
 @dataclass
 class PlayerPrefs:
+    """То, что нужно mpv. hwdec — режим mpv: auto-copy-safe (по умолчанию), auto-safe или no."""
+
     audio_langs: str = ""  # предпочитаемые языки аудио через запятую: "rus,eng"
     sub_langs: str = ""
     sub_font_size: int = 55
     sub_margin: int = 22
     hwdec: str = "auto-copy-safe"
+    volume: float = 100.0  # громкость для файлов, у которых своя не запомнена
 
 
-def clean_langs(text: str) -> str:
-    """Оставляет только коды языков через запятую (они уходят в параметры mpv)."""
-    codes = (re.sub(r"[^A-Za-z-]", "", part) for part in text.split(","))
-    return ",".join(code for code in codes if code)
-
-
-def load_player_prefs(settings: QSettings) -> PlayerPrefs:
-    defaults = PlayerPrefs()
+def player_prefs(settings: AppSettings) -> PlayerPrefs:
     return PlayerPrefs(
-        audio_langs=clean_langs(str(settings.value("player/audio_langs", defaults.audio_langs))),
-        sub_langs=clean_langs(str(settings.value("player/sub_langs", defaults.sub_langs))),
-        sub_font_size=_int(settings.value("player/sub_font_size"), defaults.sub_font_size),
-        sub_margin=_int(settings.value("player/sub_margin"), defaults.sub_margin),
-        hwdec=_hwdec(settings.value("player/hwdec", defaults.hwdec), defaults.hwdec),
+        audio_langs=settings.get_str("playback.audio_langs"),
+        sub_langs=settings.get_str("playback.sub_langs"),
+        sub_font_size=settings.get_int("subtitles.font_size"),
+        sub_margin=settings.get_int("subtitles.margin"),
+        hwdec=settings.mpv_hwdec(),
+        volume=float(settings.get_int("playback.volume_default")),
     )
-
-
-def save_player_prefs(settings: QSettings, prefs: PlayerPrefs) -> None:
-    settings.setValue("player/audio_langs", clean_langs(prefs.audio_langs))
-    settings.setValue("player/sub_langs", clean_langs(prefs.sub_langs))
-    settings.setValue("player/sub_font_size", prefs.sub_font_size)
-    settings.setValue("player/sub_margin", prefs.sub_margin)
-    settings.setValue("player/hwdec", _hwdec(prefs.hwdec, PlayerPrefs().hwdec))
-
-
-def _hwdec(value: object, default: str) -> str:
-    """Допустимый режим декодирования; неизвестное значение (из старой версии) — по умолчанию."""
-    return str(value) if str(value) in HWDEC_MODES else default
-
-
-def _int(value: object, default: int) -> int:
-    try:
-        return int(str(value))
-    except ValueError:
-        return default

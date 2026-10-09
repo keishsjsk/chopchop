@@ -10,6 +10,8 @@ from chopchop.player.resume import ResumeState
 from chopchop.services.settings import PlayerPrefs
 
 VOLUME_MAX = 130.0
+SPEED_MIN = 0.25
+SPEED_MAX = 4.0
 SUB_DELAY_STEP = 0.1
 
 
@@ -29,6 +31,7 @@ class Player(QObject):
     durationChanged = Signal(float)
     pausedChanged = Signal(bool)
     volumeChanged = Signal(float)
+    speedChanged = Signal(float)
     tracksChanged = Signal()
     ended = Signal()
     fileLoaded = Signal()
@@ -40,10 +43,12 @@ class Player(QObject):
         self._closed = False
         self._current: Path | None = None
         self._copy_decoding = False
+        self._default_volume = 100.0
         # обработчики вызываются из потока mpv; сигналы Qt сами ставят доставку в очередь
         mpv.observe_property("time-pos", lambda _n, v: self._emit_float(self.positionChanged, v))
         mpv.observe_property("duration", lambda _n, v: self._emit_float(self.durationChanged, v))
         mpv.observe_property("volume", lambda _n, v: self._emit_float(self.volumeChanged, v))
+        mpv.observe_property("speed", lambda _n, v: self._emit_float(self.speedChanged, v))
         mpv.observe_property("pause", lambda _n, v: self.pausedChanged.emit(bool(v)))
         mpv.observe_property("eof-reached", self._on_eof)
         for name in ("track-list", "aid", "sid", "secondary-sid"):
@@ -85,8 +90,11 @@ class Player(QObject):
             options["sub-delay"] = resume.sub_delay
             if self.supports_secondary_delay:
                 options["secondary-sub-delay"] = resume.secondary_sub_delay
-            if resume.volume is not None:
-                self.set_volume(resume.volume)
+        # у файла нет своей громкости: берём ту, что выбрана в настройках
+        if resume is not None and resume.volume is not None:
+            self.set_volume(resume.volume)
+        else:
+            self.set_volume(self._default_volume)
         self._mpv.loadfile(str(path), **options)
 
     def stop(self) -> None:
@@ -168,6 +176,16 @@ class Player(QObject):
 
     def set_volume(self, value: float) -> None:
         self._mpv.volume = min(max(value, 0.0), VOLUME_MAX)
+
+    @property
+    def speed(self) -> float:
+        return float(self._mpv.speed or 1.0)
+
+    def set_speed(self, value: float) -> None:
+        self._mpv.speed = round(min(max(value, SPEED_MIN), SPEED_MAX), 3)
+
+    def add_speed(self, delta: float) -> None:
+        self.set_speed(self.speed + delta)
 
     def add_volume(self, delta: float) -> None:
         self.set_volume(self.volume + delta)
@@ -268,6 +286,7 @@ class Player(QObject):
 
     def apply_prefs(self, prefs: PlayerPrefs) -> None:
         """Применить настройки без перезапуска: вид субтитров сразу, языки со следующего файла."""
+        self._default_volume = prefs.volume
         self._mpv.sub_font_size = prefs.sub_font_size
         self._mpv.sub_margin_y = prefs.sub_margin
         self._mpv.alang = prefs.audio_langs

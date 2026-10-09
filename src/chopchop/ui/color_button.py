@@ -7,6 +7,14 @@ from PySide6.QtWidgets import QColorDialog, QPushButton, QWidget
 from chopchop.core.operations import Color
 
 
+def hex_to_color(value: str) -> Color:
+    return int(value[1:3], 16), int(value[3:5], 16), int(value[5:7], 16)
+
+
+def color_to_hex(color: Color) -> str:
+    return "#{:02x}{:02x}{:02x}".format(*color)
+
+
 class ColorButton(QPushButton):
     colorChanged = Signal(tuple)
 

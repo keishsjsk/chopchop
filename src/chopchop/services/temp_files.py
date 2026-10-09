@@ -9,7 +9,22 @@ PREFIX = "chopchop-"
 STALE_SECONDS = 3600
 
 
+_custom_root: Path | None = None
+
+
+def set_root(path: Path | None) -> None:
+    """Папка для временных файлов из настроек; None или недоступная — системная."""
+    global _custom_root
+    _custom_root = path
+
+
 def temp_root() -> Path:
+    if _custom_root is not None:
+        try:
+            _custom_root.mkdir(parents=True, exist_ok=True)
+            return _custom_root
+        except OSError:
+            pass  # папка недоступна (например, отключённый диск): работаем в системной
     return Path(tempfile.gettempdir())
 
 

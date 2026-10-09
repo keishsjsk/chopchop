@@ -8,6 +8,19 @@ from chopchop.ui.tools.base import RectSelectTool
 # значение пропорций: None — свободно, число — ширина / высота,
 # "original" — как у кадра, "original_flipped" — как у кадра, но перевёрнутые
 Ratio = float | str | None
+
+
+def ratio_from_setting(text: str) -> Ratio:
+    """«free», «original» или «16:9» из настройки -> значение пропорций инструмента."""
+    if text == "original":
+        return "original"
+    width, _, height = text.partition(":")
+    try:
+        return int(width) / int(height)
+    except (ValueError, ZeroDivisionError):
+        return None  # «free» и всё непонятное: рамка свободная
+
+
 COVERS_TOLERANCE = 0.5  # пикселей: рамка с такими отступами считается «весь кадр»
 
 

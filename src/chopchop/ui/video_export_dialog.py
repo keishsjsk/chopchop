@@ -19,15 +19,28 @@ from PySide6.QtWidgets import (
 
 from chopchop.core.video import VideoProject
 from chopchop.engines.video_engine import CONTAINERS, default_video_output
+from chopchop.services.app_settings import AppSettings
 
 
 class VideoExportDialog(QDialog):
-    def __init__(self, project: VideoProject, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        project: VideoProject,
+        parent: QWidget | None = None,
+        settings: AppSettings | None = None,
+    ) -> None:
         super().__init__(parent)
+        self._app = settings or AppSettings(None)
         self.setWindowTitle(self.tr("Экспорт видео"))
         self._project = project
         source = project.clips[0].path
-        default = default_video_output(source)
+        folder = self._app.get_str("editor.output_dir")
+        default = default_video_output(
+            source,
+            None,
+            Path(folder) if folder else None,
+            self._app.get_str("editor.output_template"),
+        )
 
         self._container = QComboBox()
         for extension in CONTAINERS:
@@ -47,6 +60,7 @@ class VideoExportDialog(QDialog):
             self.tr("Без неё резать можно только по ключевым кадрам, начало может сдвинуться")
         )
         self._precise.setEnabled(any(clip.is_trimmed for clip in project.clips))
+        self._precise.setChecked(self._app.get_str("editor.cut_mode") == "precise")
         self._precise.toggled.connect(self._update_notes)
 
         form = QFormLayout()
@@ -124,4 +138,4 @@ class VideoExportDialog(QDialog):
         return Path(self._path.text())
 
     def precise(self) -> bool:
-        return self._precise.isChecked()
+        return self._precise.isChecked() and self._precise.isEnabled()
