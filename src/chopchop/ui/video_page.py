@@ -13,7 +13,7 @@ from PySide6.QtGui import QColor, QContextMenuEvent, QImage, QPainter, QPaintEve
 from PySide6.QtWidgets import QApplication, QWidget
 
 from chopchop.engines.ffmpeg import find_ffmpeg
-from chopchop.player.mpv_widget import MpvWidget
+from chopchop.player.mpv_widget import create_video_widget
 from chopchop.player.player import Player
 from chopchop.services.app_settings import AppSettings
 from chopchop.services.sub_presets import PresetStore
@@ -81,7 +81,7 @@ class VideoPage(QWidget):
             self._loader.thumbnail.connect(self._on_thumbnail)
 
         self.player = Player(mpv, self)
-        self.video = MpvWidget(module, mpv, self)
+        self.video = create_video_widget(module, mpv, self)
         self.controls = PlayerControls(self.player, self)
         self.top = TopBar(self)
         self.tracks = TracksPanel(self.player, self, self._app, presets)

@@ -1,10 +1,11 @@
 """Виджет, в который mpv рисует кадры через render API (Windows, X11 и Wayland)."""
 
+import ctypes
 from types import ModuleType
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QMouseEvent, QOpenGLContext
+from PySide6.QtGui import QImage, QMouseEvent, QOpenGLContext, QPainter, QPaintEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
@@ -98,3 +99,103 @@ class MpvWidget(QOpenGLWidget):
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         self.doubleClicked.emit()
         event.accept()
+
+
+class _SwSize(ctypes.Structure):
+    _fields_ = (("w", ctypes.c_int), ("h", ctypes.c_int))
+
+
+class _SwStride(ctypes.Structure):
+    _fields_ = (("value", ctypes.c_size_t),)
+
+
+def _register_software_params(module: ModuleType) -> None:
+    """Учит python-mpv параметрам программного рендера (`MPV_RENDER_PARAM_SW_*` из render.h)."""
+    types = module.MpvRenderParam.TYPES
+    types.setdefault("sw_size", (17, _SwSize))
+    types.setdefault("sw_format", (18, str))
+    types.setdefault("sw_stride", (19, _SwStride))
+    types.setdefault("sw_pointer", (20, ctypes.c_void_p))
+
+
+class SoftwareMpvWidget(QWidget):
+    """Тот же плеер без OpenGL: mpv рисует кадр в память (render API `sw`), окно обычное растровое.
+
+    Нужен там, где нет аппаратного OpenGL или он тормозит (виртуальные машины, старые драйверы,
+    гибридные ноутбуки): окно не проходит через GL и не копируется между видеокартами.
+    Интерфейс тот же, что у `MpvWidget`.
+    """
+
+    clicked = Signal()
+    doubleClicked = Signal()
+    mouseMoved = Signal()
+    _updateRequested = Signal()
+    renderContextRecreated = Signal()  # здесь контекст не пересоздаётся; сигнал для совместимости
+
+    def __init__(self, module: ModuleType, mpv: Any, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        _register_software_params(module)
+        self._module = module
+        self._mpv = mpv
+        self._ctx: Any = module.MpvRenderContext(mpv, "sw")
+        self._frame = QImage()
+        self._updateRequested.connect(self.update)
+        self._ctx.update_cb = self._updateRequested.emit  # зовётся из потока mpv
+        self.setMouseTracking(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
+        painter = QPainter(self)
+        if self._ctx is None:
+            painter.fillRect(self.rect(), Qt.GlobalColor.black)
+            return
+        ratio = self.devicePixelRatioF()
+        width, height = max(int(self.width() * ratio), 1), max(int(self.height() * ratio), 1)
+        if self._frame.width() != width or self._frame.height() != height:
+            self._frame = QImage(width, height, QImage.Format.Format_RGB32)
+            self._frame.fill(Qt.GlobalColor.black)
+            self._frame.setDevicePixelRatio(ratio)
+        self._ctx.update()
+        bits = self._frame.bits()
+        address = ctypes.addressof(ctypes.c_char.from_buffer(bits))
+        self._ctx.render(
+            sw_size={"w": width, "h": height},
+            sw_format="bgr0",  # байты B, G, R, пусто: это `Format_RGB32` в памяти
+            sw_stride={"value": self._frame.bytesPerLine()},
+            sw_pointer=address,
+            block_for_target_time=False,
+        )
+        painter.drawImage(0, 0, self._frame)
+
+    def release(self) -> None:
+        """Освободить контекст рендера; вызывать до остановки mpv."""
+        if self._ctx is None:
+            return
+        self._ctx.update_cb = None
+        self._ctx.free()
+        self._ctx = None
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self.mouseMoved.emit()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self.doubleClicked.emit()
+        event.accept()
+
+
+def create_video_widget(
+    module: ModuleType, mpv: Any, parent: QWidget | None = None
+) -> "MpvWidget | SoftwareMpvWidget":
+    """Видеовиджет по выбранному режиму рендера: OpenGL или программный."""
+    from chopchop.services import graphics
+
+    if graphics.software():
+        return SoftwareMpvWidget(module, mpv, parent)
+    return MpvWidget(module, mpv, parent)

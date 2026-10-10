@@ -9,7 +9,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from chopchop import __version__, i18n
-from chopchop.services import event_profile, logs, temp_files
+from chopchop.services import event_profile, graphics, logs, temp_files
 from chopchop.services.app_settings import AppSettings, default_settings_path
 from chopchop.services.event_profile import ProfiledApplication
 from chopchop.services.paths import resource_dir
@@ -58,6 +58,14 @@ def run(initial: Path | None = None) -> int:
     scale = settings.get_int("appearance.ui_scale")
     if scale != 100 and "QT_SCALE_FACTOR" not in os.environ:
         os.environ["QT_SCALE_FACTOR"] = f"{scale / 100:g}"  # масштаб интерфейса, после перезапуска
+    # режим рендера и видеокарта решаются до создания приложения (до первого обращения к OpenGL)
+    graphics.apply(
+        graphics.plan(
+            settings.get_str("graphics.render"),
+            settings.get_str("graphics.gpu"),
+            settings.get_bool("state.graphics_fallback"),
+        )
+    )
     app_class = ProfiledApplication if enabled() else QApplication  # время обработчиков событий
     app = app_class(sys.argv[:1])
     app.setApplicationVersion(__version__)

@@ -10,7 +10,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -699,6 +699,7 @@ class Timeline(QWidget):
 
     def _move_to(self, x: float) -> None:
         """Переносимый блок следует за указателем; слот вставки — ближайший шов."""
+        previous = self._ghost_area()
         self._move_x = x
         offsets = self._offsets()
         edges = [*offsets, self.duration]
@@ -712,7 +713,20 @@ class Timeline(QWidget):
         if slot_value != self._drop_slot:
             self._drop_slot = slot_value
             self._invalidate()
-        self.update()
+            self.update()  # индикатор вставки лежит в закэшированном слое: перерисовка целиком
+        else:
+            # двигается только «призрак» блока: обновляем его прежнее и новое место
+            self.update(previous.united(self._ghost_area()))
+
+    def _ghost_area(self) -> QRect:
+        """Где сейчас нарисован «призрак» переносимого блока (с запасом на рамку)."""
+        if self._press is None or self._drag != "move":
+            return QRect()
+        rect = self.block_rect(self._press[1])
+        track = self._track()
+        x = self._move_x - rect.width() / 2
+        area = QRectF(x, track.top(), rect.width(), track.height())
+        return area.toAlignedRect().adjusted(-3, -3, 3, 3).intersected(self.rect())
 
     def _auto_scroll(self) -> None:
         """Прокрутка у краёв при переносе блока."""

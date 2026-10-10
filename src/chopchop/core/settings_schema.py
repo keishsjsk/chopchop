@@ -50,6 +50,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     ("subtitles", QT_TRANSLATE_NOOP("Settings", "Субтитры")),
     ("appearance", QT_TRANSLATE_NOOP("Settings", "Внешний вид")),
     ("editor", QT_TRANSLATE_NOOP("Settings", "Редактор")),
+    ("graphics", QT_TRANSLATE_NOOP("Settings", "Графика")),
     ("advanced", QT_TRANSLATE_NOOP("Settings", "Дополнительно")),
 )
 
@@ -653,6 +654,64 @@ SPECS: tuple[Spec, ...] = (
             ("ask", QT_TRANSLATE_NOOP("Settings", "спрашивать при экспорте")),
         ),
     ),
+    # --- Графика
+    Spec(
+        "graphics.render",
+        "choice",
+        "auto",
+        QT_TRANSLATE_NOOP("Settings", "Режим рендера"),
+        QT_TRANSLATE_NOOP(
+            "Settings",
+            "Программный рисует видео без OpenGL: для старых видеокарт и виртуальных машин",
+        ),
+        choices=(
+            ("auto", QT_TRANSLATE_NOOP("Settings", "авто")),
+            ("hardware", QT_TRANSLATE_NOOP("Settings", "аппаратный")),
+            ("software", QT_TRANSLATE_NOOP("Settings", "программный")),
+        ),
+        apply="restart",
+    ),
+    Spec(
+        "graphics.gpu",
+        "choice",
+        "auto",
+        QT_TRANSLATE_NOOP("Settings", "Видеокарта"),
+        QT_TRANSLATE_NOOP(
+            "Settings", "Для ноутбуков с двумя видеокартами: авто выбирает встроенную"
+        ),
+        choices=(
+            ("auto", QT_TRANSLATE_NOOP("Settings", "авто")),
+            ("integrated", QT_TRANSLATE_NOOP("Settings", "встроенная")),
+            ("discrete", QT_TRANSLATE_NOOP("Settings", "дискретная")),
+            ("system", QT_TRANSLATE_NOOP("Settings", "решает система")),
+        ),
+        apply="restart",
+    ),
+    Spec(
+        "graphics.hang_grace",
+        "int",
+        6,
+        QT_TRANSLATE_NOOP("Settings", "Авто-откат: пауза после открытия, с"),
+        QT_TRANSLATE_NOOP(
+            "Settings", "Столько секунд после начала воспроизведения зависания не считаются"
+        ),
+        low=0,
+        high=60,
+        advanced=True,
+    ),
+    Spec(
+        "graphics.hang_limit",
+        "int",
+        12,
+        QT_TRANSLATE_NOOP("Settings", "Авто-откат: порог зависаний"),
+        QT_TRANSLATE_NOOP(
+            "Settings",
+            "Сколько пауз дольше 0,1 с за 12 секунд включат программный рендер в режиме «авто»",
+        ),
+        low=3,
+        high=200,
+        advanced=True,
+    ),
     # --- Дополнительно
     Spec(
         "advanced.temp_dir",
@@ -696,6 +755,13 @@ SPECS: tuple[Spec, ...] = (
         advanced=True,
     ),
     # --- Служебное: не показывается в окне, но хранится в файле
+    Spec(
+        "state.graphics_fallback",
+        "bool",
+        False,
+        QT_TRANSLATE_NOOP("Settings", "Авто-откат на программный рендер"),
+        shown=False,
+    ),
     Spec("state.window", "str", "", QT_TRANSLATE_NOOP("Settings", "Положение окна"), shown=False),
     Spec(
         "state.settings_size",

@@ -1,11 +1,12 @@
 """Главное окно: стартовый экран, просмотр фото и плеер видео."""
 
+import logging
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QByteArray, QPoint, QProcess, QSettings, Qt
+from PySide6.QtCore import QByteArray, QPoint, QProcess, QSettings, Qt, QTimer
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
@@ -34,7 +35,7 @@ from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
 from chopchop.player.libmpv import MpvUnavailableError, create_mpv, find_libmpv, load_mpv_module
 from chopchop.player.player import Player
 from chopchop.player.resume import ResumeStore
-from chopchop.services import logs, sub_presets, temp_files
+from chopchop.services import graphics, logs, sub_presets, temp_files
 from chopchop.services.app_settings import AppSettings, config_dir
 from chopchop.services.settings import RecentFiles, player_prefs
 from chopchop.services.sub_presets import PresetStore
@@ -94,6 +95,17 @@ class MainWindow(QMainWindow):
         self.editor: EditorPage | None = None
         self.video_editor: VideoEditorPage | None = None
         self._font_choice: str | None = None  # какой шрифт интерфейса уже применён
+        # зависания в первые секунды игры: в режиме «авто» включают программный рендер
+        self._hang_guard = graphics.HangGuard(
+            self._on_graphics_hang,
+            grace_s=float(self._app.get_int("graphics.hang_grace")),
+            limit=self._app.get_int("graphics.hang_limit"),
+        )
+        self._hang_checked = False
+        self._hang_timer = QTimer(self)
+        self._hang_timer.setInterval(16)
+        self._hang_timer.timeout.connect(self._tick_hang_guard)
+        self._hang_timer.start()
         self._tasks = TaskRunner(self)
         self._session: EditSession | None = None
         self._cache = ImageCache(parent=self)
@@ -393,12 +405,43 @@ class MainWindow(QMainWindow):
         page.subtitleSettingsRequested.connect(lambda: self.show_settings("subtitles"))
         page.fullscreenRequested.connect(self.toggle_fullscreen)
         page.player.errorOccurred.connect(self._on_video_error)
+        page.player.fileLoaded.connect(self._start_hang_guard)
         page.player.ended.connect(self._on_video_ended)
         page.player.apply_prefs(player_prefs(self._app))
         page.player.pausedChanged.connect(lambda _paused: self._save_resume())
         self._stack.addWidget(page)
         self.video_page = page
         return page
+
+    def _tick_hang_guard(self) -> None:
+        """Паузы считаются только пока открыт плеер: в редакторе и в свёрнутом окне нет."""
+        watching = (
+            self.isVisible()
+            and not self.isMinimized()
+            and self.video_editor is None
+            and self.video_page is not None
+            and self._stack.currentWidget() is self.video_page
+        )
+        self._hang_guard.tick(active=watching)
+
+    def _start_hang_guard(self) -> None:
+        """Следить за зависаниями только при первом воспроизведении за сеанс."""
+        if self._hang_checked or graphics.software():
+            return
+        self._hang_checked = True
+        self._hang_guard.start()
+
+    def _on_graphics_hang(self) -> None:
+        if self._app.get_str("graphics.render") != "auto":
+            return
+        self._app.set("state.graphics_fallback", True)
+        logging.getLogger(__name__).warning(
+            "interface stalls during playback: software rendering from the next start"
+        )
+        self.statusBar().showMessage(
+            self.tr("Интерфейс подтормаживает: при следующем запуске включится программный рендер"),
+            15000,
+        )
 
     def _open_video(self, path: Path) -> None:
         page = self._ensure_video_page()

@@ -976,6 +976,10 @@
         <translation>Player unavailable</translation>
     </message>
     <message>
+        <source>Интерфейс подтормаживает: при следующем запуске включится программный рендер</source>
+        <translation>The interface is lagging: software rendering will turn on at the next start</translation>
+    </message>
+    <message>
         <source>Не удалось воспроизвести: </source>
         <translation>Could not play: </translation>
     </message>
@@ -1375,6 +1379,10 @@
         <translation>Bold</translation>
     </message>
     <message>
+        <source>Графика</source>
+        <translation>Graphics</translation>
+    </message>
+    <message>
         <source>Курсив</source>
         <translation>Italic</translation>
     </message>
@@ -1679,6 +1687,58 @@
         <translation>ask on export</translation>
     </message>
     <message>
+        <source>Режим рендера</source>
+        <translation>Render mode</translation>
+    </message>
+    <message>
+        <source>Программный рисует видео без OpenGL: для старых видеокарт и виртуальных машин</source>
+        <translation>Software draws the video without OpenGL: for old graphics cards and virtual machines</translation>
+    </message>
+    <message>
+        <source>аппаратный</source>
+        <translation>hardware</translation>
+    </message>
+    <message>
+        <source>программный</source>
+        <translation>software</translation>
+    </message>
+    <message>
+        <source>Видеокарта</source>
+        <translation>Graphics card</translation>
+    </message>
+    <message>
+        <source>Для ноутбуков с двумя видеокартами: авто выбирает встроенную</source>
+        <translation>For laptops with two graphics cards: auto picks the integrated one</translation>
+    </message>
+    <message>
+        <source>встроенная</source>
+        <translation>integrated</translation>
+    </message>
+    <message>
+        <source>дискретная</source>
+        <translation>discrete</translation>
+    </message>
+    <message>
+        <source>решает система</source>
+        <translation>let the system decide</translation>
+    </message>
+    <message>
+        <source>Авто-откат: пауза после открытия, с</source>
+        <translation>Auto fallback: grace after opening, s</translation>
+    </message>
+    <message>
+        <source>Столько секунд после начала воспроизведения зависания не считаются</source>
+        <translation>Stalls are not counted for this many seconds after playback starts</translation>
+    </message>
+    <message>
+        <source>Авто-откат: порог зависаний</source>
+        <translation>Auto fallback: stall threshold</translation>
+    </message>
+    <message>
+        <source>Сколько пауз дольше 0,1 с за 12 секунд включат программный рендер в режиме «авто»</source>
+        <translation>How many pauses longer than 0.1 s within 12 seconds turn on software rendering in auto mode</translation>
+    </message>
+    <message>
         <source>Папка временных файлов</source>
         <translation>Temporary files folder</translation>
     </message>
@@ -1717,6 +1777,10 @@
     <message>
         <source>отладка</source>
         <translation>debug</translation>
+    </message>
+    <message>
+        <source>Авто-откат на программный рендер</source>
+        <translation>Auto fallback to software rendering</translation>
     </message>
     <message>
         <source>Положение окна</source>
@@ -1793,6 +1857,10 @@
     <message>
         <source>Инструменты фото</source>
         <translation>Photo tools</translation>
+    </message>
+    <message>
+        <source>Рисование</source>
+        <translation>Drawing</translation>
     </message>
     <message>
         <source>Файлы и кэш</source>

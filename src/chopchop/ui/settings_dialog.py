@@ -54,6 +54,7 @@ SECTION_ICONS = {
     "subtitles": "subtitles",
     "appearance": "adjust",
     "editor": "scissors",
+    "graphics": "fit",
     "advanced": "sliders",
 }
 
@@ -135,6 +136,16 @@ GROUPS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
         (
             QT_TRANSLATE_NOOP("Settings", "Инструменты фото"),
             ("editor.brush_color", "editor.brush_width", "editor.crop_ratio"),
+        ),
+    ),
+    "graphics": (
+        (
+            QT_TRANSLATE_NOOP("Settings", "Рисование"),
+            ("graphics.render", "graphics.gpu"),
+        ),
+        (
+            QT_TRANSLATE_NOOP("Settings", "Авто-откат на программный рендер"),
+            ("graphics.hang_grace", "graphics.hang_limit"),
         ),
     ),
     "advanced": (
