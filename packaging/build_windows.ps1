@@ -1,5 +1,5 @@
 ﻿# Сборка для Windows: папка, портативный zip и установщик.
-#   powershell -File packaging\build_windows.ps1 [-Version 0.1.0] [-SkipInstaller]
+#   powershell -File packaging\build_windows.ps1 [-Version 0.2.0] [-SkipInstaller]
 # Нужны: Python с зависимостями ( pip install -e ".[build]" ) и, для установщика, Inno Setup 6.
 param(
     [string]$Version = "",

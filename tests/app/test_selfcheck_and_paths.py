@@ -19,8 +19,9 @@ def test_self_check_report_has_all_checks(tmp_path: Path) -> None:
     code = main(["--self-check", str(report_path)])
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["version"] == __version__
-    assert set(report["checks"]) == {"qt", "pillow", "ffmpeg", "ffprobe", "libmpv"}
+    assert set(report["checks"]) == {"qt", "pillow", "ffmpeg", "ffprobe", "libmpv", "resources"}
     assert report["checks"]["qt"]["ok"] and report["checks"]["pillow"]["ok"]
+    assert report["checks"]["resources"]["ok"], report["checks"]["resources"]
     assert code == (0 if report["ok"] else 1)  # код выхода отражает итог
 
 

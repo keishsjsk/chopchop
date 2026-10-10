@@ -31,6 +31,7 @@ def _load(name: str) -> ModuleType:
 generate = _load("generate")
 fetch = _load("fetch_binaries")
 notes = _load("release_notes")
+font_components = _load("font_components")
 
 ALL_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
@@ -197,3 +198,35 @@ def test_versions_agree_everywhere() -> None:
 def test_license_and_notices_exist() -> None:
     assert "GNU GENERAL PUBLIC LICENSE" in (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert "FFmpeg" in (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+
+
+# --- шрифты в SBOM и в сборке ----------------------------------------------------------------
+
+
+def test_every_bundled_font_is_described_with_its_license() -> None:
+    fonts = ROOT / "resources" / "fonts"
+    bundled = {path.name for path in fonts.iterdir() if path.suffix in {".ttf", ".otf"}}
+    assert bundled == set(font_components.FONT_INFO), "шрифт без записи для SBOM (или наоборот)"
+    components = font_components.font_components()
+    assert {item["name"] for item in components} == {"Tiny5"}
+    licence = components[0]["licenses"][0]["license"]
+    assert licence["id"] == "OFL-1.1"
+    assert licence["text"]["content"]
+
+
+def test_add_fonts_is_idempotent() -> None:
+    sbom: dict[str, object] = {"components": []}
+    once = len(font_components.add_fonts(sbom)["components"])
+    twice = len(font_components.add_fonts(sbom)["components"])
+    assert once == twice == 1
+
+
+def test_spec_bundles_fonts_and_other_resources() -> None:
+    spec = (PACKAGING / "chopchop.spec").read_text(encoding="utf-8")
+    for folder in ("icons", "i18n", "fonts"):
+        assert f'"resources" / "{folder}"' in spec
+
+
+def test_sbom_step_adds_fonts() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "packaging/font_components.py" in workflow

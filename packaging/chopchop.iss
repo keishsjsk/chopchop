@@ -1,5 +1,5 @@
 ﻿; Установщик Windows (Inno Setup 6): ISCC packaging\chopchop.iss
-; Версия берётся из переменной среды CHOPCHOP_VERSION (по умолчанию 0.1.0).
+; Версия берётся из переменной среды CHOPCHOP_VERSION (по умолчанию 0.2.0).
 
 #define AppName "CHOPCHOP"
 #define AppExe "CHOPCHOP.exe"
@@ -8,7 +8,7 @@
 #endif
 #if AppVersion == ""
   #undef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 
 [Setup]

@@ -82,6 +82,25 @@ def _check_libmpv() -> dict[str, Any]:
     return _result(True, f"{path} — {version}")
 
 
+REQUIRED_RESOURCES = (
+    "fonts/Tiny5.ttf",
+    "fonts/OFL-Tiny5.txt",
+    "i18n/chopchop_en.ts",
+    "icons/chopchop.png",
+)
+
+
+def _check_resources() -> dict[str, Any]:
+    """Шрифт, его лицензия, перевод и значок попали в сборку (PyInstaller, AppImage)."""
+    from chopchop.services.paths import resource_dir
+
+    root = resource_dir()
+    missing = [name for name in REQUIRED_RESOURCES if not (root / name).is_file()]
+    if missing:
+        return _result(False, "нет файлов: " + ", ".join(missing))
+    return _result(True, str(root))
+
+
 def collect() -> dict[str, Any]:
     checks = {
         "qt": _check_qt(),
@@ -89,6 +108,7 @@ def collect() -> dict[str, Any]:
         "ffmpeg": _check_ffmpeg(),
         "ffprobe": _check_ffprobe(),
         "libmpv": _check_libmpv(),
+        "resources": _check_resources(),
     }
     return {
         "version": __version__,
