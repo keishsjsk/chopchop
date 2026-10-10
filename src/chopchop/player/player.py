@@ -130,6 +130,21 @@ class Player(QObject):
             self.set_volume(self._default_volume)
         self._mpv.loadfile(str(path), **options)
 
+    def load_source(
+        self, source: str, current: Path, position: float = 0.0, paused: bool = False
+    ) -> None:
+        """Загрузка того, что не является одним файлом (EDL предпросмотра монтажа).
+
+        `current` — файл, который считается открытым; позиция и пауза сохраняются между
+        перезагрузками, когда блоки поменялись.
+        """
+        self._current = current
+        options: dict[str, object] = {}
+        if position > 0:
+            options["start"] = f"{position:.3f}"
+        self._mpv.pause = paused
+        self._mpv.loadfile(source, **options)
+
     def stop(self) -> None:
         if not self._closed:
             self._mpv.command("stop")

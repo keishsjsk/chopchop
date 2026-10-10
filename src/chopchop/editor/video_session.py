@@ -65,15 +65,15 @@ class VideoSession(QObject):
             self.changed.emit()
 
     def set_trim(self, index: int, start: float, end: float) -> None:
-        clip = self.project.clips[index]
-        self._apply(self.project.with_clip(index, clip.with_trim(start, end)))
+        """Края блока в исходном времени (тянуть можно до границ файла)."""
+        self._apply(self.project.trim_clip(index, start, end))
 
     def cut(self, operation: CutOperation) -> None:
-        """Разрезать, вырезать или вернуть участок: одна операция — один шаг истории."""
+        """Разрезать, удалить, переставить блок или сдвинуть его край: один шаг истории."""
         self._apply(operation.apply(self.project))
 
     def reset_clip(self, index: int) -> None:
-        """Вернуть клип целиком: без обрезки, вырезов и разрезов."""
+        """Вернуть блок целым: границы исходного файла."""
         self._apply(self.project.with_clip(index, self.project.clips[index].reset()))
 
     def add_clip(self, clip: Clip) -> None:

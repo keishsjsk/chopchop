@@ -53,7 +53,8 @@ HINTS = {
     ),
 }
 IDLE_HINT = QT_TRANSLATE_NOOP(
-    "VideoEffectsPanel", "Выберите инструмент слева. Пробел — пауза, I и O — границы фрагмента"
+    "VideoEffectsPanel",
+    "Выберите инструмент слева. Пробел — пауза, K — разрезать, Delete — удалить блок",
 )
 
 

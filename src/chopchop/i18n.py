@@ -15,6 +15,13 @@ LANGUAGES = ("ru", "en")
 
 Catalog = dict[tuple[str, str, str], str]
 
+_language = SOURCE_LANGUAGE
+
+
+def current_language() -> str:
+    """Язык, установленный `install_language` (по умолчанию исходный, русский)."""
+    return _language
+
 
 def parse_ts(text: str) -> Catalog:
     """(контекст, исходный текст, пояснение) -> перевод; недопереведённые записи пропускаются."""
@@ -85,6 +92,8 @@ def load_catalog(language: str) -> Catalog:
 
 def install_language(app: QCoreApplication, language: str) -> list[QTranslator]:
     """Устанавливает переводы для языка; для исходного (русского) только стандартные диалоги Qt."""
+    global _language
+    _language = language
     installed: list[QTranslator] = []
     qt = QTranslator()
     folder = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)

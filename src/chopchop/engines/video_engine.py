@@ -410,23 +410,30 @@ def _build_piece_plan(
     keyframes: Mapping[Path, Sequence[float]],
     audio: "_AudioArgs",
 ) -> ExportPlan:
-    """Быстрый экспорт из нескольких разных файлов: каждый клип сначала в общий контейнер.
+    """Быстрый экспорт из нескольких разных файлов: каждый файл сначала в общий контейнер.
 
     Склеивать разные файлы напрямую concat demuxer нельзя: у контейнеров разные единицы
-    времени (mp4 и mkv), метки времени ломаются, а звук растягивается в разы. Поэтому каждый
-    клип копируется в mkv (вырезы одного клипа — тем же списком inpoint и outpoint), а затем
-    куски склеиваются.
+    времени (mp4 и mkv), метки времени ломаются, а звук растягивается в разы. Поэтому подряд
+    идущие блоки одного файла копируются в mkv одним списком inpoint и outpoint, а затем куски
+    склеиваются.
     """
     steps: list[FfmpegStep] = []
     temp_files: list[Path] = []
     pieces: list[Path] = []
-    for number, clip in enumerate(project.clips):
+    runs: list[list[Clip]] = []
+    for clip in project.clips:
+        if runs and runs[-1][0].path == clip.path:
+            runs[-1].append(clip)
+        else:
+            runs.append([clip])
+    for number, run in enumerate(runs):
         piece = workdir / f"clip{number:03d}.mkv"
-        if len(clip.ranges) == 1:
+        clip = run[0]
+        if len(run) == 1:
             source = _trim_input(clip)
         else:
             listing = workdir / f"clip{number:03d}.txt"
-            single = VideoProject((clip,))
+            single = VideoProject(tuple(run))
             flat = single.flat_ranges()
             listing.write_text(
                 ranges_concat_list(_entries(single, flat, keyframes)), encoding="utf-8"
@@ -439,7 +446,7 @@ def _build_piece_plan(
             *["-map", "0:v", "-map", "0:a?", "-c", "copy", "-avoid_negative_ts", "make_zero"],
             str(piece),
         ]
-        steps.append(FfmpegStep(tuple(trim_args), clip.length, piece))
+        steps.append(FfmpegStep(tuple(trim_args), sum(c.length for c in run), piece))
         pieces.append(piece)
         temp_files.append(piece)
     list_file = workdir / "list.txt"

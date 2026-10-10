@@ -326,7 +326,7 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
     ve = video_editor
     add(
         "mark_in",
-        QCoreApplication.translate("MainWindow", "Начало здесь"),
+        QCoreApplication.translate("MainWindow", "Обрезать начало здесь"),
         "I",
         ve(lambda e: e.set_in()),
         icon="mark_in",
@@ -334,7 +334,7 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
     )
     add(
         "mark_out",
-        QCoreApplication.translate("MainWindow", "Конец здесь"),
+        QCoreApplication.translate("MainWindow", "Обрезать конец здесь"),
         "O",
         ve(lambda e: e.set_out()),
         icon="mark_out",
@@ -350,23 +350,23 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
     )
     add(
         "delete_segment",
-        QCoreApplication.translate("MainWindow", "Удалить сегмент"),
+        QCoreApplication.translate("MainWindow", "Удалить блок"),
         Qt.Key.Key_Delete,
         ve(lambda e: e.delete_selected()),
         icon="trash",
         contexts={VIDEO_EDITOR},
     )
     add(
-        "cut_marks",
-        QCoreApplication.translate("MainWindow", "Вырезать выделение"),
-        "Ctrl+X",
-        ve(lambda e: e.cut_marks()),
-        icon="trim",
+        "add_clip",
+        QCoreApplication.translate("MainWindow", "Добавить клип…"),
+        "",
+        ve(lambda e: e.add_clip()),
+        icon="add_clip",
         contexts={VIDEO_EDITOR},
     )
     add(
         "reset_trim",
-        QCoreApplication.translate("MainWindow", "Сбросить обрезку"),
+        QCoreApplication.translate("MainWindow", "Вернуть блок целиком"),
         "",
         ve(lambda e: e.reset_trim()),
         icon="reset_trim",
@@ -376,7 +376,7 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
         "trim_zoom_in",
         QCoreApplication.translate("MainWindow", "Увеличить полосу"),
         "",
-        ve(lambda e: e.trim.zoom_in()),
+        ve(lambda e: e.timeline.zoom_in()),
         icon="zoom_in",
         contexts={VIDEO_EDITOR},
     )
@@ -384,7 +384,7 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
         "trim_zoom_out",
         QCoreApplication.translate("MainWindow", "Уменьшить полосу"),
         "",
-        ve(lambda e: e.trim.zoom_out()),
+        ve(lambda e: e.timeline.zoom_out()),
         icon="zoom_out",
         contexts={VIDEO_EDITOR},
     )
@@ -392,7 +392,7 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
         "trim_fit",
         QCoreApplication.translate("MainWindow", "Вписать полосу целиком"),
         "",
-        ve(lambda e: e.trim.fit()),
+        ve(lambda e: e.timeline.fit()),
         icon="fit",
         contexts={VIDEO_EDITOR},
     )

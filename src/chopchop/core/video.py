@@ -17,45 +17,19 @@ EPS = 0.0005
 DEFAULT_FRAME = 0.04
 
 
-def _merge(ranges: list[Range]) -> list[Range]:
-    """Отсортировать диапазоны и объединить соседние и пересекающиеся."""
-    merged: list[Range] = []
-    for start, stop in sorted(ranges):
-        if merged and start <= merged[-1][1] + EPS:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
-        else:
-            merged.append((start, stop))
-    return merged
-
-
-def _subtract(ranges: list[Range], start: float, stop: float) -> list[Range]:
-    result: list[Range] = []
-    for a, b in ranges:
-        if b <= start or a >= stop:
-            result.append((a, b))
-            continue
-        if a < start:
-            result.append((a, start))
-        if b > stop:
-            result.append((stop, b))
-    return result
-
-
 @dataclass(frozen=True)
 class Clip:
-    """Клип: исходный файл и то, что от него оставлено.
+    """Блок: непрерывный кусок исходного файла. Ролик — блоки подряд в порядке списка.
 
-    Оставленное — это внешние границы (`start`, `end`) минус вырезанные куски (`cuts`). Один
-    диапазон без вырезов — это прежняя обрезка. `splits` — метки разрезов внутри оставленного:
-    они дают границы сегментов для выбора и удаления, на результат без удаления не влияют.
+    Резка делит блок на два, удаление убирает блок, перемещение меняет порядок, а края блока
+    можно тянуть в пределах исходного файла (вернуть то, что было обрезано). Склейка разных
+    роликов — тот же список блоков.
     """
 
     path: Path
     info: MediaInfo
     start: float = 0.0
     end: float = -1.0  # отрицательное значение — до конца файла
-    cuts: tuple[Range, ...] = ()
-    splits: tuple[float, ...] = ()
 
     @property
     def stop(self) -> float:
@@ -63,120 +37,80 @@ class Clip:
 
     @property
     def frame(self) -> float:
-        """Длительность одного кадра: меньше оставленный диапазон быть не может."""
+        """Длительность одного кадра: меньше блок быть не может."""
         fps = self.info.fps
         return 1.0 / fps if fps > 0 else DEFAULT_FRAME
 
     @property
     def ranges(self) -> tuple[Range, ...]:
-        """Оставленные диапазоны в исходном времени, по порядку."""
-        kept: list[Range] = [(self.start, self.stop)]
-        for a, b in self.cuts:
-            kept = _subtract(kept, a, b)
-        return tuple(kept)
+        """Оставленное в исходном времени: у блока один диапазон (общий вид для экспорта)."""
+        return ((self.start, self.stop),)
 
     @property
     def length(self) -> float:
-        return sum(b - a for a, b in self.ranges)
-
-    @property
-    def has_cuts(self) -> bool:
-        return bool(self.cuts)
+        return self.stop - self.start
 
     @property
     def is_trimmed(self) -> bool:
-        return self.start > EPS or self.stop < self.info.duration - EPS or self.has_cuts
-
-    def segments(self) -> tuple[Range, ...]:
-        """Оставленное, разделённое метками разрезов: то, что можно выбрать и удалить."""
-        pieces: list[Range] = []
-        for a, b in self.ranges:
-            points = [s for s in self.splits if a < s < b]
-            edges = [a, *sorted(points), b]
-            pieces += list(zip(edges[:-1], edges[1:], strict=True))
-        return tuple(pieces)
-
-    def ghosts(self) -> tuple[Range, ...]:
-        """Удалённые участки (вместе с обрезанными краями): их показывают «призраками»."""
-        gaps: list[Range] = []
-        cursor = 0.0
-        for a, b in self.ranges:
-            if a - cursor > EPS:
-                gaps.append((cursor, a))
-            cursor = b
-        if self.info.duration - cursor > EPS:
-            gaps.append((cursor, self.info.duration))
-        return tuple(gaps)
+        return self.start > EPS or self.stop < self.info.duration - EPS
 
     def to_result(self, source: float) -> float:
-        """Время в итоговом ролике для момента исходного файла (внутри оставленного)."""
-        total = 0.0
-        for a, b in self.ranges:
-            if source >= b:
-                total += b - a
-            elif source > a:
-                return total + (source - a)
-        return total
+        """Смещение от начала блока для момента исходного файла (внутри блока)."""
+        return min(max(source, self.start), self.stop) - self.start
+
+    def contains(self, source: float) -> bool:
+        return self.start - EPS <= source <= self.stop + EPS
 
     def with_trim(self, start: float, end: float) -> "Clip":
-        """Новые внешние границы; вырезы внутри них остаются. Границы приводятся к допустимым."""
+        """Новые границы блока в пределах исходного файла; короче `MIN_CLIP_SECONDS` не бывает."""
         duration = self.info.duration
         start = min(max(start, 0.0), max(duration - MIN_CLIP_SECONDS, 0.0))
         end = min(max(end, start + MIN_CLIP_SECONDS), duration)
-        stored_end = -1.0 if end >= duration - EPS else end
-        cuts = tuple((max(a, start), min(b, end)) for a, b in self.cuts if b > start and a < end)
-        candidate = replace(self, start=start, end=stored_end, cuts=cuts)
-        if not candidate.ranges:  # вырезы съели всё: оставляем только границы
-            candidate = replace(candidate, cuts=())
-        return candidate._clean_splits()
+        return replace(self, start=start, end=-1.0 if end >= duration - EPS else end)
 
     def reset(self) -> "Clip":
-        """Вернуть клип целиком: без обрезки, вырезов и разрезов."""
-        return replace(self, start=0.0, end=-1.0, cuts=(), splits=())
+        """Вернуть блок целым: границы файла."""
+        return replace(self, start=0.0, end=-1.0)
 
-    # --- разрезы и вырезы --------------------------------------------------------------------
+    def split_source(self, source: float) -> tuple["Clip", "Clip"] | None:
+        """Разрезать в момент исходного файла; None, если до края меньше кадра."""
+        if source - self.start < self.frame - EPS or self.stop - source < self.frame - EPS:
+            return None
+        return replace(self, end=source), replace(self, start=source)
 
-    def _from_ranges(self, ranges: list[Range]) -> "Clip":
-        """Клип с таким оставленным; куски короче кадра пропадают, соседние склеиваются."""
-        kept = [(a, b) for a, b in _merge(ranges) if b - a >= self.frame - EPS]
-        if not kept:
-            return self
-        duration = self.info.duration
-        start, stop = kept[0][0], kept[-1][1]
-        cuts = tuple((kept[i][1], kept[i + 1][0]) for i in range(len(kept) - 1))
-        end = -1.0 if stop >= duration - EPS else stop
-        return replace(self, start=max(start, 0.0), end=end, cuts=cuts)._clean_splits()
 
-    def _clean_splits(self) -> "Clip":
-        """Оставить только метки внутри оставленного и не ближе кадра друг к другу и к краям."""
-        kept: list[float] = []
-        for s in sorted(self.splits):
-            inside = any(a + self.frame <= s <= b - self.frame for a, b in self.ranges)
-            apart = all(abs(s - other) >= self.frame for other in kept)
-            if inside and apart:
-                kept.append(s)
-        return replace(self, splits=tuple(kept))
+def legacy_blocks(
+    path: Path,
+    info: MediaInfo,
+    start: float = 0.0,
+    end: float = -1.0,
+    cuts: tuple[Range, ...] = (),
+    splits: tuple[float, ...] = (),
+) -> tuple[Clip, ...]:
+    """Блоки из прежнего описания клипа (внешние границы, вырезы, метки разрезов).
 
-    def split_at(self, time: float) -> "Clip":
-        """Разрезать в указанный момент: появляются два сегмента, ничего не удаляется."""
-        candidate = replace(self, splits=(*self.splits, time))._clean_splits()
-        return candidate if len(candidate.splits) > len(self.splits) else self
-
-    def remove_span(self, start: float, stop: float) -> "Clip":
-        """Вырезать участок с удалением паузы: остаток встаёт вплотную. Всё удалить нельзя."""
-        if stop - start < self.frame / 2:
-            return self  # короче половины кадра: вырезать нечего
-        remaining = _subtract(list(self.ranges), start, stop)
-        if not [r for r in remaining if r[1] - r[0] >= self.frame - EPS]:
-            return self
-        return self._from_ranges(remaining)
-
-    def restore_span(self, start: float, stop: float) -> "Clip":
-        """Вернуть удалённый участок (клик по призраку)."""
-        start, stop = max(start, 0.0), min(stop, self.info.duration)
-        if stop - start < EPS:
-            return self
-        return self._from_ranges([*self.ranges, (start, stop)])
+    Каждый оставленный диапазон становится блоком, а метка разреза внутри диапазона делит его на
+    два соседних блока: так прежние проекты открываются в том же виде, что и раньше.
+    """
+    stop = info.duration if end < 0 else min(end, info.duration)
+    kept: list[Range] = [(start, stop)]
+    for a, b in cuts:
+        next_kept: list[Range] = []
+        for x, y in kept:
+            if b <= x or a >= y:
+                next_kept.append((x, y))
+                continue
+            if a > x:
+                next_kept.append((x, a))
+            if b < y:
+                next_kept.append((b, y))
+        kept = next_kept
+    blocks: list[Clip] = []
+    for a, b in kept:
+        edges = [a, *sorted(s for s in splits if a < s < b), b]
+        for x, y in zip(edges[:-1], edges[1:], strict=True):
+            blocks.append(Clip(path, info, x, -1.0 if y >= info.duration - EPS else y))
+    return tuple(blocks)
 
 
 @dataclass(frozen=True)
@@ -372,15 +306,70 @@ class VideoProject:
         return replace(self, clips=tuple(clips))
 
     def flat_ranges(self) -> list[FlatRange]:
-        """Итог склейки: плоский список оставленных диапазонов по клипам в порядке следования."""
-        return [
-            FlatRange(index, a, b) for index, clip in enumerate(self.clips) for a, b in clip.ranges
-        ]
+        """Итог склейки: плоский список блоков по порядку (на блок один диапазон)."""
+        return [FlatRange(index, clip.start, clip.stop) for index, clip in enumerate(self.clips)]
+
+    def offsets(self) -> list[float]:
+        """Где в итоге начинается каждый блок."""
+        result: list[float] = []
+        total = 0.0
+        for clip in self.clips:
+            result.append(total)
+            total += clip.length
+        return result
+
+    def locate(self, time: float, *, end: bool = False) -> tuple[int, float]:
+        """Момент итога -> (номер блока, время исходного файла).
+
+        На шве начало берёт следующий блок, а конец (`end=True`) предыдущий.
+        """
+        offsets = self.offsets()
+        time = min(max(time, 0.0), self.duration)
+        for index, clip in enumerate(self.clips):
+            low, high = offsets[index], offsets[index] + clip.length
+            if low < time < high:
+                return index, clip.start + (time - low)
+            if end and abs(time - high) <= EPS:
+                return index, clip.stop
+            if not end and abs(time - low) <= EPS:
+                return index, clip.start
+        last = len(self.clips) - 1
+        return last, self.clips[last].stop
 
     def with_clip(self, index: int, clip: Clip) -> "VideoProject":
         clips = list(self.clips)
         clips[index] = clip
         return replace(self, clips=tuple(clips))
+
+    def split_at(self, time: float) -> "VideoProject":
+        """Разрезать ролик в момент итога: блок делится надвое, ничего не удаляется."""
+        index, source = self.locate(time)
+        parts = self.clips[index].split_source(source)
+        if parts is None:
+            return self
+        clips = list(self.clips)
+        clips[index : index + 1] = list(parts)
+        return replace(self, clips=tuple(clips))
+
+    def remove_span(self, start: float, stop: float) -> "VideoProject":
+        """Вырезать участок итога: блоки по краям делятся, всё внутри удаляется, остаток встаёт
+        вплотную. Удалить весь ролик нельзя."""
+        if stop - start < EPS:
+            return self
+        project = self.split_at(start).split_at(stop)
+        offsets = project.offsets()
+        kept = [
+            clip
+            for clip, offset in zip(project.clips, offsets, strict=True)
+            if not (offset >= start - EPS and offset + clip.length <= stop + EPS)
+        ]
+        if not kept:
+            return self
+        return replace(project, clips=tuple(kept))
+
+    def trim_clip(self, index: int, start: float, end: float) -> "VideoProject":
+        """Края блока в пределах исходного файла (укоротить или вернуть обрезанное)."""
+        return self.with_clip(index, self.clips[index].with_trim(start, end))
 
     def with_audio(self, audio: AudioSettings) -> "VideoProject":
         return replace(self, audio=audio)
@@ -453,44 +442,85 @@ class ProjectHistory:
         self._saved = self.current
 
 
-# --- операции разрезания в истории -----------------------------------------------------------
+# --- операции монтажа в истории --------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class SplitAt:
-    """Разрезать клип в момент исходного файла."""
+    """Разрезать ролик в момент итога."""
 
-    clip: int
     time: float
 
     def apply(self, project: VideoProject) -> VideoProject:
-        return project.with_clip(self.clip, project.clips[self.clip].split_at(self.time))
+        return project.split_at(self.time)
 
 
 @dataclass(frozen=True)
 class RemoveRange:
-    """Вырезать участок исходного файла (рип-удаление: остаток сдвигается)."""
+    """Вырезать участок итога (остаток сдвигается)."""
 
-    clip: int
     start: float
     stop: float
 
     def apply(self, project: VideoProject) -> VideoProject:
-        clip = project.clips[self.clip].remove_span(self.start, self.stop)
-        return project.with_clip(self.clip, clip)
+        return project.remove_span(self.start, self.stop)
 
 
 @dataclass(frozen=True)
-class RestoreRange:
-    """Вернуть удалённый участок."""
+class RemoveBlock:
+    """Удалить блок. Последний блок удалить нельзя."""
 
-    clip: int
-    start: float
-    stop: float
+    index: int
 
     def apply(self, project: VideoProject) -> VideoProject:
-        clip = project.clips[self.clip].restore_span(self.start, self.stop)
-        return project.with_clip(self.clip, clip)
+        return project.remove_clip(self.index)
 
 
-CutOperation = SplitAt | RemoveRange | RestoreRange
+@dataclass(frozen=True)
+class MoveBlock:
+    """Переставить блок на новое место (остальные сдвигаются)."""
+
+    index: int
+    target: int
+
+    def apply(self, project: VideoProject) -> VideoProject:
+        return project.move_clip_to(self.index, self.target)
+
+
+@dataclass(frozen=True)
+class TrimBlock:
+    """Новые края блока в исходном времени (тянуть можно до границ файла)."""
+
+    index: int
+    start: float
+    end: float
+
+    def apply(self, project: VideoProject) -> VideoProject:
+        return project.trim_clip(self.index, self.start, self.end)
+
+
+CutOperation = SplitAt | RemoveRange | RemoveBlock | MoveBlock | TrimBlock
+
+
+def cut_summary(project: VideoProject) -> tuple[int, float]:
+    """Сколько фрагментов исходных файлов вырезано и на сколько секунд короче итог.
+
+    Считается по покрытию: для каждого файла то, что не вошло ни в один блок, разбивается на
+    промежутки; их число и общая длина и есть «вырезано».
+    """
+    by_path: dict[Path, tuple[float, list[Range]]] = {}
+    for clip in project.clips:
+        _duration, spans = by_path.setdefault(clip.path, (clip.info.duration, []))
+        spans.append((clip.start, clip.stop))
+    gaps, seconds = 0, 0.0
+    for duration, spans in by_path.values():
+        cursor = 0.0
+        for a, b in sorted(spans):
+            if a - cursor > EPS:
+                gaps += 1
+                seconds += a - cursor
+            cursor = max(cursor, b)
+        if duration - cursor > EPS:
+            gaps += 1
+            seconds += duration - cursor
+    return gaps, seconds

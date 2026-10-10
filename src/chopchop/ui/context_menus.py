@@ -68,6 +68,11 @@ class ContextMenus(QObject):
             return self.photo()
         if context == VIDEO:
             return self.video()
+        if context == VIDEO_EDITOR and self.w.video_editor is not None:
+            editor = self.w.video_editor
+            if editor.timeline.hasFocus():
+                return self.timeline(None)
+            return self.editor_preview()
         if context in (PHOTO_EDITOR, VIDEO_EDITOR):
             return self.editor_preview()
         return None
@@ -200,52 +205,53 @@ class ContextMenus(QObject):
         self._add(menu, "export" if w.registry.context == VIDEO_EDITOR else "save")
         return menu
 
-    def trim(self, seconds: float | None) -> ThemedMenu:
-        """Над полосой обрезки: разрез, вырез, сегмент или призрак под курсором, границы."""
+    def timeline(self, payload: tuple[int | None, float | None] | None) -> ThemedMenu:
+        """На полосе блоков: разрез, удаление, перестановка, возврат краёв, масштаб."""
         menu = self._menu()
         editor = self.w.video_editor
         if editor is None:
             return menu
-        ghost = editor.ghost_at(seconds) if seconds is not None else None
-        self._add(menu, "split")
-        self._add(menu, "cut_marks", enabled=editor.trim.marks is not None)
-        if ghost is not None:
-            start, stop = ghost
+        index, seconds = payload if payload is not None else (editor.selected_block, None)
+        count = editor.block_count()
+        menu.add_item(
+            self.tr("Разрезать здесь") + "	K",
+            lambda: editor.split_at(editor.playhead() if seconds is None else seconds),
+            icon="scissors",
+        )
+        if index is not None:
             menu.add_item(
-                self.tr("Вернуть"), lambda: editor.restore_range(start, stop), icon="undo"
+                self.tr("Удалить блок") + "	Del",
+                lambda: editor.delete_block(index),
+                icon="trash",
+                enabled=count > 1,
             )
-        else:
-            self._add(menu, "delete_segment", enabled=editor.can_delete_selected())
+            menu.addSeparator()
+            menu.add_item(
+                self.tr("Влево"), lambda: editor.move_block_by(index, -1), icon="chevron_left",
+                enabled=index > 0,
+            )  # fmt: skip
+            menu.add_item(
+                self.tr("Вправо"), lambda: editor.move_block_by(index, 1), icon="chevron_right",
+                enabled=index < count - 1,
+            )  # fmt: skip
+            menu.add_item(
+                self.tr("Вернуть блок целиком"),
+                lambda: editor.reset_block(index),
+                icon="reset_trim",
+                enabled=editor.block_is_trimmed(index),
+            )
         menu.addSeparator()
         self._add(menu, "mark_in")
         self._add(menu, "mark_out")
-        self._add(menu, "reset_trim")
+        self._add(menu, "add_clip")
+        if index is not None:
+            menu.addSeparator()
+            menu.add_item(
+                self.tr("Показать в папке"), lambda: editor.reveal_block(index), icon="folder"
+            )
         zoom = menu.submenu(self.tr("Масштаб полосы"), "zoom_in")
         for action_id in ("trim_zoom_in", "trim_zoom_out", "trim_fit"):
             self._add(zoom, action_id)
-        return menu
-
-    def clip(self, index: int) -> ThemedMenu:
-        """На чипе клипа: то же, что мини-панель при наведении, и «Показать в папке»."""
-        menu = self._menu()
-        editor = self.w.video_editor
-        if editor is None:
-            return menu
-        count = editor.clip_count()
-        menu.add_item(
-            self.tr("Влево"), lambda: editor.move_clip_by(index, -1), icon="chevron_left",
-            enabled=index > 0,
-        )  # fmt: skip
-        menu.add_item(
-            self.tr("Вправо"), lambda: editor.move_clip_by(index, 1), icon="chevron_right",
-            enabled=index < count - 1,
-        )  # fmt: skip
-        menu.add_item(
-            self.tr("Удалить клип"), lambda: editor.remove_clip_at(index), icon="trash",
-            enabled=count > 1,
-        )  # fmt: skip
-        menu.addSeparator()
-        menu.add_item(self.tr("Показать в папке"), lambda: editor.reveal_clip(index), icon="folder")
         return menu
 
     def effects(self, entries: list[tuple[EffectEntry, str]]) -> ThemedMenu:

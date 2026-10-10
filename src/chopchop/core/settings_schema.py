@@ -694,10 +694,10 @@ SPECS: tuple[Spec, ...] = (
     Spec(
         "state.trim_height",
         "int",
-        72,
-        QT_TRANSLATE_NOOP("Settings", "Высота полосы обрезки"),
-        low=56,
-        high=160,
+        112,
+        QT_TRANSLATE_NOOP("Settings", "Высота полосы блоков"),
+        low=88,
+        high=200,
         shown=False,
     ),
 )

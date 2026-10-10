@@ -1,16 +1,21 @@
-"""Страница редактора видео на общей оболочке: превью, рейка, транспорт, обрезка, клипы, экспорт.
+"""Страница редактора видео на общей оболочке: превью, рейка, транспорт, блоки, экспорт.
 
 Сверху вниз: верхняя панель, контекстная панель параметров (только при выбранном инструменте),
-рейка и превью, строка транспорта, полоса обрезки, полоса клипов, строка состояния. Никаких
-плавающих панелей плеера поверх кадра.
+рейка и превью, строка транспорта, полоса блоков, строка состояния. Никаких плавающих панелей
+плеера поверх кадра.
+
+Ролик это список блоков (`Clip`): непрерывные куски исходных файлов подряд. Плеер играет этот
+список целиком (EDL mpv), поэтому его время равно времени итога, и позиция, полоса блоков и время
+показа эффектов считаются в одной шкале.
 """
 
 import contextlib
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QImage, QResizeEvent, QShowEvent
+from PySide6.QtCore import QCoreApplication, QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QImage, QShowEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -23,22 +28,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from chopchop import i18n
 from chopchop.core.document import MediaInfo
 from chopchop.core.keyframes import junctions, precise_count
 from chopchop.core.operations import Adjust, FilterName
-from chopchop.core.timing import TimeNote, result_windows_to_source
+from chopchop.core.timing import TimeNote, map_position
 from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.core.video import (
     Clip,
     EffectEntry,
+    MoveBlock,
+    RemoveBlock,
     RemoveRange,
-    RestoreRange,
     SplitAt,
+    TrimBlock,
     VideoEffects,
+    VideoProject,
+    cut_summary,
     effect_entries,
     incompatibility,
 )
 from chopchop.editor.video_session import VideoSession
+from chopchop.engines.edl import edl_source
 from chopchop.engines.encoders import available_hw_encoders
 from chopchop.engines.fonts import find_font_path
 from chopchop.engines.keyframes import read_keyframes
@@ -56,14 +67,13 @@ from chopchop.services.reveal import reveal_in_folder
 from chopchop.services.temp_files import new_workspace, remove_workspace
 from chopchop.ui.actions import ActionRegistry
 from chopchop.ui.audio_panel import AudioPanel
-from chopchop.ui.clip_strip import ClipInfo, ClipStrip
 from chopchop.ui.editor_shell import EditorShell
 from chopchop.ui.effects_chip import EffectsChip
 from chopchop.ui.export_strip import ExportStrip
 from chopchop.ui.player_controls import format_time
 from chopchop.ui.theme import tokens
+from chopchop.ui.timeline import Timeline, TimelineBlock, range_label
 from chopchop.ui.toast import Toast
-from chopchop.ui.trim_bar import TrimBar, range_label
 from chopchop.ui.video_effects_panel import IDLE_HINT, RAIL_ITEMS, VideoEffectsPanel
 from chopchop.ui.video_export_dialog import VideoExportDialog
 from chopchop.ui.video_overlay import VideoOverlay
@@ -75,12 +85,11 @@ from chopchop.workers.thumbs_worker import ThumbnailLoader
 
 THUMBNAILS = 14
 VIDEO_FILTER = "*.mp4 *.mkv *.avi *.mov *.webm *.m4v *.mpg *.mpeg *.ts"
-SKIP_LEAD = 0.03  # прыгать чуть раньше конца оставленного куска
 TOOLS_DELAY_MS = 40
-COMPACT_HEIGHT = 700  # ниже этого окна полоса клипов сворачивается в одну строку
 SECOND_STEP = 1.0  # Shift + стрелки
 MIN_PREVIEW_HEIGHT = 160
 SAVE_TRIM_HEIGHT_MS = 300
+SEAM_EPS = 0.02  # ближе этого к шву разрезать нечего
 
 _REASONS = {
     "codec": QT_TRANSLATE_NOOP("VideoEditorPage", "видеокодек"),
@@ -89,6 +98,35 @@ _REASONS = {
     "pixel format": QT_TRANSLATE_NOOP("VideoEditorPage", "формат пикселей"),
     "audio": QT_TRANSLATE_NOOP("VideoEditorPage", "параметры звука"),
 }
+
+_FRAGMENT_FORMS = (
+    QT_TRANSLATE_NOOP("VideoEditorPage", "фрагмент"),
+    QT_TRANSLATE_NOOP("VideoEditorPage", "фрагмента"),
+    QT_TRANSLATE_NOOP("VideoEditorPage", "фрагментов"),
+)
+
+
+def plural_form(count: int, language: str) -> int:
+    """Номер формы слова: русский (1 фрагмент, 2 фрагмента, 5 фрагментов), иначе ед. и мн. число."""
+    if language == "ru":
+        if count % 10 == 1 and count % 100 != 11:
+            return 0
+        if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+            return 1
+        return 2
+    return 0 if count == 1 else 2
+
+
+def cut_text(
+    count: int, seconds: float, language: str, translate: Callable[[str], str] | None = None
+) -> str:
+    """«2 фрагмента, −0:12»; пустая строка, если ничего не вырезано."""
+    if count <= 0:
+        return ""
+    word = _FRAGMENT_FORMS[plural_form(count, language)]
+    if translate is not None:
+        word = translate(word)
+    return f"{count} {word}, −{format_time(round(seconds))}"
 
 
 class VideoEditorPage(QWidget):
@@ -114,23 +152,21 @@ class VideoEditorPage(QWidget):
         self._video_page = video_page
         self._ffmpeg = ffmpeg
         self._ffprobe = ffprobe
-        self._index = 0
-        self.loaded_path: Path | None = None
+        self._selected: int | None = None  # выбранный блок
+        self.loaded_path: Path | None = session.project.clips[0].path  # исходный файл
         self._export_dir: Path | None = None
         self._progress: ExportStrip | None = None  # полоса экспорта, пока он идёт
         self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
         self._preview_key: str | None = None
-        self._sized = False  # высота полосы обрезки из настроек применена
+        self._sized = False  # высота полосы блоков из настроек применена
         self._tools_ready = False  # панели эффектов и звука построены
         self._keyframes: dict[Path, tuple[float, ...]] = {}  # ключевые кадры открытых файлов
-        self._segment: tuple[float, float] | None = None  # выбранный сегмент (время файла)
-        self._skipping_to: float | None = None  # куда уже перепрыгнули в предпросмотре
-        self._strip_height = tokens.CLIP_STRIP_H
+        self._edl: str | None = None  # что сейчас загружено в плеер
+        self._seen: VideoProject = session.project  # проект при прошлом обновлении
+        self._position = 0.0  # позиция плеера во времени итога
+        self._loaders: dict[Path, ThumbnailLoader] = {}
+        self._asked: set[Path] = set()  # файлы, ключевые кадры которых уже запрошены
 
-        self._thumbs = ThumbnailLoader(
-            ffmpeg, self, limit_bytes=self._app.get_int("advanced.thumb_cache_mb") * 1024 * 1024
-        )
-        self._thumbs.thumbnail.connect(self._on_thumbnail)
         self._tasks = TaskRunner(self)
         self._worker = ExportWorker(self)
         self._worker.progress.connect(self._on_export_progress)
@@ -151,9 +187,10 @@ class VideoEditorPage(QWidget):
         player.fileLoaded.connect(self._on_file_loaded)
         session.changed.connect(self._on_session_changed)
         session.timeNotes.connect(self._on_time_notes)
-        self._load_current_clip()
+        self._load_sources()
+        self._reload_preview(initial=True)
         self._refresh()
-        self._on_paused(player.paused)
+        self._on_paused(True)
         QTimer.singleShot(TOOLS_DELAY_MS, self._ensure_tools)  # после первого кадра
 
     # --- интерфейс ---------------------------------------------------------------------------
@@ -203,28 +240,19 @@ class VideoEditorPage(QWidget):
         shell.rail.toolClicked.connect(self.select_tool)
         shell.rail.contextRequested.connect(self._on_rail_menu)
 
-        # транспорт, полоса обрезки, клипы
+        # транспорт и полоса блоков
         self.transport = self._build_transport()
-        self.trim = TrimBar()
-        self.trim.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
-        self.trim.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
-        self.trim.trimCommitted.connect(self._on_trim_committed)
-        self.trim.trimming.connect(lambda a, b: self._range.setText(range_label(a, b)))
-        self.trim.zoomChanged.connect(self._on_zoom_changed)
-        self.trim.ghostClicked.connect(self.restore_range)
-        self.trim.segmentPicked.connect(self._on_segment_picked)
-        self.trim.selectionCleared.connect(self._on_selection_cleared)
-        self.trim.rangeMarked.connect(self._on_range_marked)
-        self.trim.menuRequested.connect(
-            lambda pos, seconds: self.menuRequested.emit("trim", pos, seconds)
-        )
-        self.clip_strip = ClipStrip()
-        self.clip_strip.currentChanged.connect(self._on_row_changed)
-        self.clip_strip.moveRequested.connect(self._on_move_requested)
-        self.clip_strip.removeRequested.connect(self._remove_clip_at)
-        self.clip_strip.addRequested.connect(self.add_clip)
-        self.clip_strip.contextRequested.connect(
-            lambda index, pos: self.menuRequested.emit("clip", pos, index)
+        self.timeline = Timeline()
+        self.timeline.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
+        self.timeline.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
+        self.timeline.blockSelected.connect(self._on_block_selected)
+        self.timeline.selectionCleared.connect(self._on_selection_cleared)
+        self.timeline.trimming.connect(self._on_block_trimming)
+        self.timeline.trimCommitted.connect(self._on_block_trimmed)
+        self.timeline.moveRequested.connect(self.move_block)
+        self.timeline.zoomChanged.connect(self._on_zoom_changed)
+        self.timeline.menuRequested.connect(
+            lambda pos, data: self.menuRequested.emit("timeline", pos, data)
         )
 
         bottom = self._bottom = QWidget()
@@ -232,8 +260,7 @@ class VideoEditorPage(QWidget):
         column.setContentsMargins(tokens.SPACE_3, 0, tokens.SPACE_3, tokens.SPACE_2)
         column.setSpacing(tokens.SPACE_1)
         column.addWidget(self.transport)
-        column.addWidget(self.trim, 1)
-        column.addWidget(self.clip_strip)
+        column.addWidget(self.timeline, 1)
         preview = QWidget()
         holder = QVBoxLayout(preview)
         holder.setContentsMargins(0, 0, 0, 0)
@@ -247,7 +274,6 @@ class VideoEditorPage(QWidget):
         self.splitter.setStretchFactor(1, 0)
         self.splitter.splitterMoved.connect(lambda *_: self._height_timer.start())
         shell.set_content(self.splitter)
-        self.clip_strip.installEventFilter(self)
 
         # строка состояния
         self.effects_chip = EffectsChip()
@@ -274,31 +300,32 @@ class VideoEditorPage(QWidget):
             "step_forward", tip(self.tr("Кадр вперёд"), "→"), lambda: self.step_frame(1)
         )
         self._time = QLabel("0:00 / 0:00")
-        self._range = QLabel()  # границы фрагмента и его длина: «0:00.0 – 0:06.9 · 0:06.9»
+        self._range = QLabel()  # выбранный блок: «Блок 2 из 5 · 0:03.2 – 0:09.0 · 0:05.8»
         self._range.setProperty("muted", True)
-        self._range.setToolTip(self.tr("Начало, конец и длина фрагмента"))
+        self._range.setToolTip(self.tr("Начало, конец и длина выбранного блока в исходном файле"))
         self._time.setMinimumWidth(8 * tokens.SPACE_2)
         self._set_in = icon_button(
-            "mark_in", tip(self.tr("Начало фрагмента здесь"), "I"), self.set_in
+            "mark_in", tip(self.tr("Обрезать начало блока здесь"), "I"), self.set_in
         )
         self._set_out = icon_button(
-            "mark_out", tip(self.tr("Конец фрагмента здесь"), "O"), self.set_out
+            "mark_out", tip(self.tr("Обрезать конец блока здесь"), "O"), self.set_out
         )
-        self._reset = icon_button("reset_trim", self.tr("Сбросить обрезку"), self._reset_trim)
+        self._reset = icon_button("reset_trim", self.tr("Вернуть блок целиком"), self._reset_trim)
         self._split = icon_button("scissors", tip(self.tr("Разрезать здесь"), "K"), self.split_here)
         self._delete = icon_button(
-            "trash", tip(self.tr("Удалить выбранное"), "Delete"), self.delete_selected
+            "trash", tip(self.tr("Удалить выбранный блок"), "Delete"), self.delete_selected
         )
         self._delete.setEnabled(False)
+        self._add = icon_button("add_clip", self.tr("Добавить клип…"), self.add_clip)
         self._mode = icon_button("mode_fast", "", self.cycle_cut_mode, text=self.tr("Быстрая"))
         self._zoom_out = icon_button(
-            "zoom_out", self.tr("Уменьшить полосу"), lambda: self.trim.zoom_out()
+            "zoom_out", self.tr("Уменьшить полосу"), lambda: self.timeline.zoom_out()
         )
         self._zoom_in = icon_button(
-            "zoom_in", self.tr("Увеличить полосу"), lambda: self.trim.zoom_in()
+            "zoom_in", self.tr("Увеличить полосу"), lambda: self.timeline.zoom_in()
         )
         self._zoom_fit = icon_button(
-            "fit", self.tr("Вписать полосу целиком"), lambda: self.trim.fit()
+            "fit", self.tr("Вписать полосу целиком"), lambda: self.timeline.fit()
         )
         self._zoom_out.setEnabled(False)
         self._zoom_fit.setEnabled(False)
@@ -313,7 +340,7 @@ class VideoEditorPage(QWidget):
         for widget in (self._set_in, self._set_out, self._reset):
             row.addWidget(widget)
         row.addSpacing(tokens.SPACE_3)
-        for widget in (self._split, self._delete):
+        for widget in (self._split, self._delete, self._add):
             row.addWidget(widget)
         row.addSpacing(tokens.SPACE_3)
         row.addWidget(self._range)
@@ -340,6 +367,7 @@ class VideoEditorPage(QWidget):
             (self._reset, "reset_trim"),
             (self._split, "split"),
             (self._delete, "delete_segment"),
+            (self._add, "add_clip"),
             (self._zoom_in, "trim_zoom_in"),
             (self._zoom_out, "trim_zoom_out"),
             (self._zoom_fit, "trim_fit"),
@@ -384,28 +412,18 @@ class VideoEditorPage(QWidget):
     def session_can_redo(self) -> bool:
         return self.session.can_redo
 
-    def ghost_at(self, seconds: float) -> tuple[float, float] | None:
-        """Удалённый участок под указанной секундой (его можно вернуть)."""
-        return next((g for g in self.clip.ghosts() if g[0] <= seconds <= g[1]), None)
-
-    def restore_range(self, start: float, stop: float) -> None:
-        self.session.cut(RestoreRange(self._index, start, stop))
-
-    def can_delete_selected(self) -> bool:
-        return self._segment is not None or self.trim.marks is not None
-
-    def clip_count(self) -> int:
+    def block_count(self) -> int:
         return len(self.session.project.clips)
 
-    def move_clip_by(self, index: int, delta: int) -> None:
+    def block_is_trimmed(self, index: int) -> bool:
+        return self.session.project.clips[index].is_trimmed
+
+    def move_block_by(self, index: int, delta: int) -> None:
         target = index + delta
-        if 0 <= target < self.clip_count():
-            self._on_move_requested(index, target)
+        if 0 <= target < self.block_count():
+            self.move_block(index, target)
 
-    def remove_clip_at(self, index: int) -> None:
-        self._remove_clip_at(index)
-
-    def reveal_clip(self, index: int) -> None:
+    def reveal_block(self, index: int) -> None:
         reveal_in_folder(self.session.project.clips[index].path)
 
     def remove_effect(self, entry: EffectEntry) -> None:
@@ -477,12 +495,14 @@ class VideoEditorPage(QWidget):
         self._video_page.set_editor_mode(False)
         self._video_page.parentWidget().layout().removeWidget(self._video_page)  # type: ignore[union-attr]
         self._video_page.setParent(None)
+        if self.loaded_path is not None:
+            player.load(self.loaded_path)  # снова исходный файл, а не монтаж
         return self._video_page
 
     def refresh_theme(self) -> None:
         refresh_icons(self)
         self.shell.refresh_theme()
-        self.clip_strip.refresh_theme()
+        self.timeline.invalidate()
         self._overlay.update()
         self.update()
 
@@ -490,7 +510,9 @@ class VideoEditorPage(QWidget):
         """Остановить фоновые задачи перед закрытием окна."""
         self._worker.cancel()
         self._worker.wait()
-        self._thumbs.wait()
+        for loader in self._loaders.values():
+            loader.cancel()
+            loader.wait()
         self._tasks.wait()
         remove_workspace(self._workspace)
 
@@ -502,74 +524,52 @@ class VideoEditorPage(QWidget):
             self._sized = True
             QTimer.singleShot(0, self._apply_trim_height)
 
-    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        self.clip_strip.set_compact(self.height() < COMPACT_HEIGHT)
-
-    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
-        """Полоса клипов выросла или сжалась: высота полосы обрезки остаётся прежней."""
-        if watched is self.clip_strip and event.type() == QEvent.Type.Resize:
-            new = self.clip_strip.height()
-            delta, self._strip_height = new - self._strip_height, new
-            self._limit_bottom()
-            if delta and self._sized:
-                top, bottom = self.splitter.sizes()
-                self.splitter.setSizes([max(top - delta, MIN_PREVIEW_HEIGHT), bottom + delta])
-        return False
-
     def _bottom_extras(self) -> int:
-        """Высота нижней части без полосы обрезки: транспорт, клипы и отступы."""
+        """Высота нижней части без полосы блоков: транспорт и отступы."""
         margins = self.splitter.widget(1).layout().contentsMargins()  # type: ignore[union-attr]
         spacing = self.splitter.widget(1).layout().spacing()  # type: ignore[union-attr]
-        return (
-            tokens.TRANSPORT_H
-            + self.clip_strip.height()
-            + 2 * spacing
-            + margins.top()
-            + margins.bottom()
-        )
+        return tokens.TRANSPORT_H + spacing + margins.top() + margins.bottom()
 
     def _limit_bottom(self) -> None:
-        """Полоса обрезки не выше предела: нижняя часть не растёт дальше него."""
+        """Полоса блоков не выше предела: нижняя часть не растёт дальше него."""
         self._bottom.setMaximumHeight(tokens.TRIM_MAX_H + self._bottom_extras())
 
     def _apply_trim_height(self) -> None:
         self._limit_bottom()
         wanted = self._app.get_int("state.trim_height")
         wanted = min(max(wanted, tokens.TRIM_MIN_H), tokens.TRIM_MAX_H)
-        if self.height() < COMPACT_HEIGHT:
-            wanted = tokens.TRIM_MIN_H  # низкое окно: превью важнее высокой полосы
         total = sum(self.splitter.sizes())
         bottom = wanted + self._bottom_extras()
         self.splitter.setSizes([max(total - bottom, MIN_PREVIEW_HEIGHT), bottom])
 
     def _save_trim_height(self) -> None:
-        self._app.set("state.trim_height", self.trim.height())
+        self._app.set("state.trim_height", self.timeline.height())
 
-    # --- текущий клип ------------------------------------------------------------------------
+    # --- исходные файлы: миниатюры и ключевые кадры ------------------------------------------
 
-    @property
-    def clip(self) -> Clip:
-        return self.session.project.clips[self._index]
+    def _load_sources(self) -> None:
+        for clip in self.session.project.clips:
+            if clip.path not in self._loaders:
+                self._thumbs_for(clip)
+            self._load_keyframes(clip)
 
-    def _on_row_changed(self, row: int) -> None:
-        if row < 0 or row == self._index and self.loaded_path == self.clip.path:
-            return
-        self._index = row
-        self._load_current_clip()
-        self._refresh_trim()
+    def _thumbs_for(self, clip: Clip) -> None:
+        loader = ThumbnailLoader(
+            self._ffmpeg, self, limit_bytes=self._app.get_int("advanced.thumb_cache_mb") * 1024**2
+        )
+        loader.thumbnail.connect(self._on_thumbnail)
+        self._loaders[clip.path] = loader
+        thumbs = loader.request(clip.path, clip.info.duration, THUMBNAILS)
+        self.timeline.set_thumbs(clip.path, thumbs)
 
-    def _load_current_clip(self) -> None:
-        clip = self.clip
-        self.loaded_path = clip.path
-        self._video_page.player.load(clip.path)
-        self._thumbs_for(clip)
+    def _on_thumbnail(self, path: str, index: int, image: QImage) -> None:
+        self.timeline.set_thumbnail(Path(path), index, image)
 
     def _load_keyframes(self, clip: Clip) -> None:
         """Ключевые кадры файла в фоне: по ним показывается привязка быстрой резки."""
-        if clip.path in self._keyframes:
-            self._show_keyframes()
+        if clip.path in self._keyframes or clip.path in self._asked:
             return
+        self._asked.add(clip.path)
         path = clip.path
         self._tasks.run(
             lambda: read_keyframes(path, self._ffprobe),
@@ -579,161 +579,141 @@ class VideoEditorPage(QWidget):
 
     def _on_keyframes(self, path: Path, frames: tuple[float, ...]) -> None:
         self._keyframes[path] = frames
-        self._show_keyframes()
-
-    def _show_keyframes(self) -> None:
-        clip = self.clip
-        self.trim.set_keyframes(self._keyframes.get(clip.path, ()))
-        self._update_junctions()
+        self._refresh_blocks()
+        self._refresh_mode()
 
     def precise_junctions(self) -> int:
         """Сколько стыков итога начинается не на ключевом кадре (нужна точная резка)."""
         return precise_count(self.session.project, self._keyframes)
 
-    def _update_junctions(self) -> None:
-        project = self.session.project
-        found = junctions(project, self._keyframes)
-        flat = project.flat_ranges()
-        mine = [
-            (j.start, j.snapped, j.precise)
-            for j, item in zip(found, flat, strict=True)
-            if item.clip_index == self._index
-        ]
-        self.trim.set_junctions(tuple(mine))
-        self._refresh_mode()
+    # --- блоки: выбор и правки ---------------------------------------------------------------
 
-    def _thumbs_for(self, clip: Clip) -> None:
-        self._load_keyframes(clip)
-        thumbs = self._thumbs.request(clip.path, clip.info.duration, THUMBNAILS)
-        self.trim.set_clip(clip.info.duration, clip.start, clip.stop, thumbs)
+    @property
+    def selected_block(self) -> int | None:
+        return self._selected
 
-    def _on_thumbnail(self, path: str, index: int, image: QImage) -> None:
-        if path == str(self.clip.path):
-            self.trim.set_thumbnail(index, image)
+    def select_block(self, index: int | None) -> None:
+        count = self.block_count()
+        self._selected = None if index is None or not 0 <= index < count else index
+        self.timeline.set_selected(self._selected)
+        self._refresh_selection()
 
-    def _on_file_loaded(self) -> None:
-        """Файл открылся: ставим на паузу в точке начала и зацикливаем выбранный фрагмент."""
-        player = self._video_page.player
-        if not player.paused:
-            player.toggle_pause()
-        self._apply_loop()
-        player.seek_to(self.clip.start, exact=True)
-
-    def _apply_loop(self) -> None:
-        clip = self.clip
-        self._video_page.player.set_loop(clip.start, clip.stop)
-
-    # --- транспорт ---------------------------------------------------------------------------
-
-    def _toggle_pause(self) -> None:
-        self._video_page.player.toggle_pause()
-
-    def step_frame(self, direction: int) -> None:
-        """Стрелки: один кадр назад или вперёд."""
-        self._video_page.player.step_frame(direction)
-
-    def step_seconds(self, direction: int) -> None:
-        """Shift + стрелки: на секунду, точно."""
-        player = self._video_page.player
-        player.seek_to(max(player.position + direction * SECOND_STEP, 0.0), exact=True)
-
-    def _on_position(self, seconds: float) -> None:
-        self.trim.set_position(seconds)
-        self._skip_cuts(seconds)
-        total = self.clip.info.duration
-        self._time.setText(f"{format_time(round(seconds))} / {format_time(round(total))}")
-
-    def _on_paused(self, paused: bool) -> None:
-        set_icon(self._play, "play" if paused else "pause")
-        label = self.tr("Воспроизвести") if paused else self.tr("Пауза")
-        self._play.setToolTip(tip(label, "Space"))
-
-    def _on_zoom_changed(self, level: float) -> None:
-        zoomed = level > 1.0
-        self._zoom_out.setEnabled(zoomed)
-        self._zoom_fit.setEnabled(zoomed)
-
-    # --- обрезка -----------------------------------------------------------------------------
-
-    def _on_trim_committed(self, start: float, end: float) -> None:
-        self.session.set_trim(self._index, start, end)
-
-    def set_in(self) -> None:
-        self.session.set_trim(self._index, self._video_page.player.position, self.clip.stop)
-
-    def set_out(self) -> None:
-        self.session.set_trim(self._index, self.clip.start, self._video_page.player.position)
-
-    def _reset_trim(self) -> None:
-        self.session.reset_clip(self._index)
-
-    def _on_time_notes(self, notes: list[TimeNote]) -> None:
-        """После правки вырезов время показа пересчитано; что не вышло, говорим прямо."""
-        collapsed = [n.label for n in notes if n.kind == "collapsed"]
-        clamped = [n.label for n in notes if n.kind == "clamped"]
-        if collapsed:
-            self.message.emit(
-                self.tr("Время показа сжалось до нуля, эффект не виден: ") + ", ".join(collapsed)
-            )
-        elif clamped:
-            text = self.tr("Время показа обрезано по длине итога: ")
-            self.message.emit(text + ", ".join(clamped))
-
-    # --- разрезы и вырезы --------------------------------------------------------------------
-
-    def _skip_cuts(self, seconds: float) -> None:
-        """Предпросмотр играет только оставленное: дойдя до выреза, перепрыгивает через него.
-
-        Выбран перескок по наблюдателю позиции, а не EDL mpv: время в плеере остаётся временем
-        исходного файла, поэтому полоса обрезки, ручки и ключевые кадры не требуют пересчёта,
-        а правка вырезов не перезагружает файл. Цена — короткий скачок на стыке.
-        """
-        if not self.clip.has_cuts:
-            return
-        player = self._video_page.player
-        if player.paused:
-            return
-        for (_a, b), (c, _d) in zip(self.clip.ranges, self.clip.ranges[1:], strict=False):
-            if b - SKIP_LEAD <= seconds < c:
-                if self._skipping_to != c:  # один прыжок на один вырез
-                    self._skipping_to = c
-                    player.seek_to(c, exact=True)
-                return
-        self._skipping_to = None
-
-    def split_here(self) -> None:
-        """K: разрезать клип в позиции указателя (сегменты можно выбрать и удалить)."""
-        self.session.cut(SplitAt(self._index, self._video_page.player.position))
-
-    def delete_selected(self) -> None:
-        """Delete: вырезать выделенный диапазон или выбранный сегмент (остаток сдвигается)."""
-        target = self.trim.marks or self._segment
-        if target is None:
-            self.message.emit(self.tr("Выберите сегмент кликом или выделите диапазон с Shift"))
-            return
-        self._segment = None
-        self.trim.set_marks(None)
-        self.session.cut(RemoveRange(self._index, *target))
-
-    def cut_marks(self) -> None:
-        """Ctrl+X: вырезать выделенный диапазон между маркерами."""
-        if self.trim.marks is None:
-            self.message.emit(self.tr("Выделите диапазон на полосе с зажатым Shift"))
-            return
-        self.delete_selected()
-
-    def _on_segment_picked(self, start: float, stop: float) -> None:
-        self._segment = (start, stop)
-        self._delete.setEnabled(True)
+    def _on_block_selected(self, index: int) -> None:
+        self._selected = index
+        self._refresh_selection()
 
     def _on_selection_cleared(self) -> None:
-        self._segment = None
-        self._delete.setEnabled(self.trim.marks is not None)
+        self._selected = None
+        self._refresh_selection()
 
-    def _on_range_marked(self, _start: float, _stop: float) -> None:
-        self._segment = None
-        self.trim.set_segment(None)
-        self._delete.setEnabled(True)
+    def _refresh_selection(self) -> None:
+        project = self.session.project
+        index = self._selected
+        self._delete.setEnabled(index is not None and len(project.clips) > 1)
+        if index is None or index >= len(project.clips):
+            self._range.setText("")
+            return
+        clip = project.clips[index]
+        self._range.setText(
+            self.tr("Блок {0} из {1} · ").format(index + 1, len(project.clips))
+            + range_label(clip.start, clip.stop)
+        )
+
+    def _on_block_trimming(self, index: int, start: float, stop: float) -> None:
+        self._range.setText(
+            self.tr("Блок {0} из {1} · ").format(index + 1, self.block_count())
+            + range_label(start, stop)
+        )
+
+    def _on_block_trimmed(self, index: int, start: float, stop: float) -> None:
+        self._selected = index
+        self.session.cut(TrimBlock(index, start, stop))
+
+    def move_block(self, index: int, target: int) -> None:
+        """Блок на новое место; выбор следует за ним."""
+        if self._selected == index:
+            self._selected = target
+        elif self._selected is not None:
+            if index < self._selected <= target:
+                self._selected -= 1
+            elif target <= self._selected < index:
+                self._selected += 1
+        self.session.cut(MoveBlock(index, target))
+
+    def _hover_time(self) -> float | None:
+        """Время итога под указателем, если мышь над блоком полосы."""
+        timeline = self.timeline
+        if timeline.underMouse():
+            point = timeline.mapFromGlobal(timeline.cursor().pos())
+            if timeline.block_at(point.x()) is not None:
+                return timeline.time_at(point.x())
+        return None
+
+    def split_here(self) -> None:
+        """K: разрезать там, где указатель мыши над полосой, иначе в позиции воспроизведения."""
+        seconds = self._hover_time()
+        self.split_at(self._position if seconds is None else seconds)
+
+    def split_at(self, seconds: float) -> None:
+        project = self.session.project
+        index, _source = project.locate(seconds)
+        local = seconds - project.offsets()[index]
+        if local < SEAM_EPS or project.clips[index].length - local < SEAM_EPS:
+            self.message.emit(self.tr("Здесь уже шов между блоками"))
+            return
+        self.session.cut(SplitAt(seconds))
+
+    def delete_selected(self) -> None:
+        """Delete: удалить выбранный блок, остальные сдвигаются."""
+        if self._selected is None:
+            self.message.emit(self.tr("Выберите блок на полосе"))
+            return
+        self.delete_block(self._selected)
+
+    def delete_block(self, index: int) -> None:
+        if self.block_count() <= 1:
+            self.message.emit(self.tr("Последний блок удалить нельзя"))
+            return
+        if self._selected is not None and self._selected >= index:
+            self._selected = None if self._selected == index else self._selected - 1
+        self.session.cut(RemoveBlock(index))
+
+    def cut_range(self, start: float, stop: float) -> None:
+        self.session.cut(RemoveRange(start, stop))
+
+    def set_in(self) -> None:
+        """I: обрезать начало блока до позиции воспроизведения."""
+        index, source = self._block_under_position()
+        clip = self.session.project.clips[index]
+        self.session.cut(TrimBlock(index, source, clip.stop))
+
+    def set_out(self) -> None:
+        """O: обрезать конец блока до позиции воспроизведения."""
+        index, source = self._block_under_position()
+        clip = self.session.project.clips[index]
+        self.session.cut(TrimBlock(index, clip.start, source))
+
+    def _block_under_position(self) -> tuple[int, float]:
+        """Блок и момент его файла: выбранный блок важнее блока под позицией."""
+        project = self.session.project
+        index, source = project.locate(self._position)
+        if self._selected is not None and self._selected != index:
+            index = self._selected
+            clip = project.clips[index]
+            source = min(max(source, clip.start), clip.stop)
+        return index, source
+
+    def _reset_trim(self) -> None:
+        """Вернуть выбранный блок целым: границы исходного файла."""
+        index = self._selected if self._selected is not None else self._block_under_position()[0]
+        self.reset_block(index)
+
+    def reset_block(self, index: int) -> None:
+        self.session.reset_clip(index)
+
+    def playhead(self) -> float:
+        """Позиция воспроизведения во времени итога."""
+        return self._position
 
     # --- режим резки -------------------------------------------------------------------------
 
@@ -789,7 +769,7 @@ class VideoEditorPage(QWidget):
         name, _ = QFileDialog.getOpenFileName(
             self,
             self.tr("Добавить клип"),
-            str(self.clip.path.parent),
+            str(self.session.project.clips[-1].path.parent),
             self.tr("Видео (%1)").replace("%1", VIDEO_FILTER),
         )
         if not name:
@@ -805,8 +785,7 @@ class VideoEditorPage(QWidget):
     def _on_clip_probed(self, path: Path, info: MediaInfo) -> None:
         reason = incompatibility(self.session.project.clips[0].info, info)
         self.session.add_clip(Clip(path, info))
-        self.clip_strip.set_current(len(self.session.project.clips) - 1)
-        self._on_row_changed(self.clip_strip.current)
+        self.select_block(self.block_count() - 1)
         if reason is None:
             self.message.emit(self.tr("Клип добавлен: ") + path.name)
         else:
@@ -815,31 +794,6 @@ class VideoEditorPage(QWidget):
                     "Клип добавлен. Отличается: {0}, при экспорте видео будет перекодировано"
                 ).format(self.tr(_REASONS.get(reason, reason)))
             )
-
-    def _remove_clip(self) -> None:
-        self._remove_clip_at(self._index)
-
-    def _remove_clip_at(self, index: int) -> None:
-        if len(self.session.project.clips) <= 1:
-            self.message.emit(self.tr("Последний клип удалить нельзя"))
-            return
-        if index < self._index:
-            self._index -= 1  # выбранный клип остаётся тем же
-        self.session.remove_clip(index)
-
-    def _move_clip(self, delta: int) -> None:
-        target = self._index + delta
-        if 0 <= target < len(self.session.project.clips):
-            self._on_move_requested(self._index, target)
-
-    def _on_move_requested(self, source: int, target: int) -> None:
-        if source == self._index:
-            self._index = target  # выбор следует за клипом
-        elif source < self._index <= target:
-            self._index -= 1
-        elif target <= self._index < source:
-            self._index += 1
-        self.session.move_clip_to(source, target)
 
     # --- звук --------------------------------------------------------------------------------
 
@@ -857,38 +811,98 @@ class VideoEditorPage(QWidget):
     def _remove_effect(self, entry: EffectEntry) -> None:
         self.session.remove_effect(entry)
 
+    # --- транспорт ---------------------------------------------------------------------------
+
+    def _toggle_pause(self) -> None:
+        self._video_page.player.toggle_pause()
+
+    def step_frame(self, direction: int) -> None:
+        """Стрелки: один кадр назад или вперёд."""
+        self._video_page.player.step_frame(direction)
+
+    def step_seconds(self, direction: int) -> None:
+        """Shift + стрелки: на секунду, точно."""
+        player = self._video_page.player
+        player.seek_to(max(self._position + direction * SECOND_STEP, 0.0), exact=True)
+
+    def _on_position(self, seconds: float) -> None:
+        self._position = seconds
+        self.timeline.set_position(seconds)
+        total = self.session.project.duration
+        self._time.setText(f"{format_time(round(seconds))} / {format_time(round(total))}")
+
+    def _on_paused(self, paused: bool) -> None:
+        set_icon(self._play, "play" if paused else "pause")
+        label = self.tr("Воспроизвести") if paused else self.tr("Пауза")
+        self._play.setToolTip(tip(label, "Space"))
+
+    def _on_zoom_changed(self, level: float) -> None:
+        zoomed = level > 1.0
+        self._zoom_out.setEnabled(zoomed)
+        self._zoom_fit.setEnabled(zoomed)
+
+    def _on_time_notes(self, notes: list[TimeNote]) -> None:
+        """После правки блоков время показа пересчитано; что не вышло, говорим прямо."""
+        collapsed = [n.label for n in notes if n.kind == "collapsed"]
+        clamped = [n.label for n in notes if n.kind == "clamped"]
+        if collapsed:
+            self.message.emit(
+                self.tr("Время показа сжалось до нуля, эффект не виден: ") + ", ".join(collapsed)
+            )
+        elif clamped:
+            text = self.tr("Время показа обрезано по длине итога: ")
+            self.message.emit(text + ", ".join(clamped))
+
+    # --- предпросмотр: EDL ------------------------------------------------------------------
+
+    def _reload_preview(self, initial: bool = False) -> None:
+        """Плеер играет ролик из блоков; перезагрузка только если сам монтаж изменился."""
+        project = self.session.project
+        source = edl_source(project)
+        if source == self._edl:
+            return
+        player = self._video_page.player
+        position = 0.0
+        paused = True
+        if not initial:
+            position = map_position(self._seen, project, self._position)
+            paused = player.paused
+        self._edl = source
+        player.load_source(source, project.clips[0].path, position=position, paused=paused)
+        self._position = position
+
+    def _on_file_loaded(self) -> None:
+        """Монтаж загружен: эффекты предпросмотра поверх него и позиция на месте."""
+        self._preview_key = None
+        self._apply_preview()
+        self.timeline.set_position(self._position)
+
     # --- обновление --------------------------------------------------------------------------
 
     def _on_session_changed(self) -> None:
-        clips = self.session.project.clips
-        self._index = min(self._index, len(clips) - 1)
-        if self.clip.path != self.loaded_path:
-            self._load_current_clip()
+        self._load_sources()
+        count = self.block_count()
+        if self._selected is not None and self._selected >= count:
+            self._selected = count - 1
+        self._reload_preview()
+        self._seen = self.session.project
         self._refresh()
 
     def _refresh(self) -> None:
         project = self.session.project
         clips = project.clips
-        infos = [
-            ClipInfo(
-                clip.path.name,
-                format_time(round(clip.length)),
-                str(clip.path),
-            )
-            for clip in clips
-        ]
-        self.clip_strip.set_clips(infos, self._index)
-
         self._undo_button.setEnabled(self.session.can_undo)
         self._redo_button.setEnabled(self.session.can_redo)
         marker = " *" if self.session.modified else ""
         width, height = output_frame_size(project.effects, project.frame_size)
-        self.shell.status.set_summary(
-            self.tr("Итог {0} · {1}×{2} · клипов {3}").format(
-                format_time(project.duration), width, height, len(clips)
-            )
-            + marker
+        count, seconds = cut_summary(project)
+        cut = cut_text(count, seconds, i18n.current_language(), self.tr)
+        summary = self.tr("Итог {0} · {1}×{2} · блоков {3}").format(
+            format_time(project.duration), width, height, len(clips)
         )
+        if cut:
+            summary += " · " + self.tr("Вырезано: ") + cut
+        self.shell.status.set_summary(summary + marker)
         self.shell.status.summary_label.setToolTip(
             self.tr("Звёздочка: есть несохранённые изменения") if marker else ""
         )
@@ -897,11 +911,11 @@ class VideoEditorPage(QWidget):
 
         if self._tools_ready:
             self._audio.refresh()
-        self._refresh_trim()
-        self._apply_loop()
+        self._refresh_blocks()
         if self._tools_ready:
             self._effects_panel.refresh()
         self._apply_preview()
+        self._refresh_mode()
 
     def _refresh_marks(self, effects: VideoEffects) -> None:
         marked = {entry.tool for entry in effect_entries(effects)}
@@ -911,41 +925,39 @@ class VideoEditorPage(QWidget):
             on = key in marked or (key == "audio" and customised)
             self.shell.rail.set_marked(key, on)
 
-    def _refresh_trim(self) -> None:
-        clip = self.clip
-        self.trim.set_range(clip.start, clip.stop)
-        self.trim.set_cuts(clip.ghosts(), clip.splits, clip.segments())
-        if self._segment is not None and self._segment not in clip.segments():
-            self._segment = None  # выбранного сегмента больше нет (удалён или разрезан)
-            self._delete.setEnabled(self.trim.marks is not None)
-        self.trim.set_segment(self._segment)
-        self._range.setText(range_label(clip.start, clip.stop))
-        self._update_junctions()
+    def _refresh_blocks(self) -> None:
+        project = self.session.project
+        found = junctions(project, self._keyframes)
+        blocks = [
+            TimelineBlock(
+                clip.path,
+                clip.info.duration,
+                clip.start,
+                clip.stop,
+                precise=junction.precise,
+                shift=junction.shift,
+            )
+            for clip, junction in zip(project.clips, found, strict=True)
+        ]
+        self.timeline.set_blocks(blocks, self._selected)
+        self._refresh_selection()
 
     # --- предпросмотр эффектов в mpv ---------------------------------------------------------
 
     def _preview_graph(self, effects: VideoEffects) -> str | None:
-        """Тот же граф, что и при экспорте, но без кадра и поворота (их показывает слой)."""
+        """Тот же граф, что и при экспорте, но без кадра и поворота (их показывает слой).
+
+        Плеер играет итог, а окна показа хранятся во времени итога: пересчёт не нужен.
+        """
         files = write_text_files(effects.texts, self._workspace)
-        project = self.session.project
-        index = self._index
-
-        def enable_for(show_from: float, show_to: float) -> str | None:
-            """Окно показа — во времени итога, а плеер идёт по времени файла: переводим."""
-            windows = result_windows_to_source(project, index, show_from, show_to)
-            if not windows:
-                return "0"  # в этом клипе эффект не показывается
-            return "+".join(f"between(t,{a:.3f},{b:.3f})" for a, b in windows)
-
         graph = build_effects_graph(
             effects,
-            project.frame_size,
+            self.session.project.frame_size,
             files,
             find_font_path(),
             geometry=False,
             in_label="vid1",
             out_label="vo",
-            enable_for=enable_for,
         )
         return None if graph == "[vid1]null[vo]" else graph
 

@@ -224,11 +224,9 @@ class MainWindow(QMainWindow):
     def _on_video_editor_menu(self, kind: str, pos: QPoint, payload: object) -> None:
         if kind == "preview":
             self._popup(self.menus.editor_preview(), pos)
-        elif kind == "trim":
-            seconds = payload if isinstance(payload, float) else None
-            self._popup(self.menus.trim(seconds), pos)
-        elif kind == "clip" and isinstance(payload, int):
-            self._popup(self.menus.clip(payload), pos)
+        elif kind == "timeline":
+            data = payload if isinstance(payload, tuple) else None
+            self._popup(self.menus.timeline(data), pos)
         elif kind == "effects" and isinstance(payload, list) and payload:
             self._popup(self.menus.effects(payload), pos)
 
@@ -750,7 +748,6 @@ class MainWindow(QMainWindow):
             return
         editor.shutdown()
         page = editor.release_video_page()
-        page.player.set_loop(None, None)
         self.video_editor = None
         self.statusBar().show()
         self._stack.removeWidget(editor)
