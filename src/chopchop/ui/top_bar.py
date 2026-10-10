@@ -16,7 +16,7 @@ class TopBar(FloatingPanel):
         super().__init__(parent)
         self._full_name = ""
         self._name = QLabel()
-        self._name.setFont(fonts.pixel_font(2))
+        self._name.setFont(fonts.ui_font(fonts.BODY))
         self._name.setMinimumWidth(0)
         row = self.horizontal(0)
         row.setContentsMargins(
@@ -29,7 +29,8 @@ class TopBar(FloatingPanel):
         self.setFixedHeight(tokens.PLAYER_TOP_H)
 
     def refresh_theme(self) -> None:
-        """Название рисуется цветом темы сам; значков на панели больше нет."""
+        """Шрифт и цвета обновляются вместе с темой; значков на панели больше нет."""
+        self._name.setFont(fonts.ui_font(fonts.BODY))
         self.update()
 
     def set_name(self, name: str) -> None:

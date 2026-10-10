@@ -68,6 +68,7 @@ def run(initial: Path | None = None) -> int:
     logs.setup(settings.get_str("advanced.log_level"))
     logs.install_excepthook()
     fonts.load_fonts()
+    fonts.apply(app, settings.get_str("appearance.font"))
     i18n.install_language(app, settings.get_str("general.language"))
     folder = settings.get_str("advanced.temp_dir")
     temp_files.set_root(Path(folder) if folder else None)

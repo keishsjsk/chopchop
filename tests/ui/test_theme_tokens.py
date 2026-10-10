@@ -93,6 +93,24 @@ def test_unknown_accent_falls_back_to_default() -> None:
 
 
 def test_accent_changes_only_accent_colors() -> None:
-    orange, violet = make_palette("dark", "orange"), make_palette("dark", "violet")
-    assert orange.accent != violet.accent
-    assert (orange.bg, orange.text, orange.surface) == (violet.bg, violet.text, violet.surface)
+    ember, meadow = make_palette("dark", "ember"), make_palette("dark", "meadow")
+    assert ember.accent != meadow.accent and ember.secondary != meadow.secondary
+    assert (ember.bg, ember.text, ember.surface) == (meadow.bg, meadow.text, meadow.surface)
+
+
+def test_old_accent_names_still_work() -> None:
+    assert make_palette("light", "orange") == make_palette("light", "ember")
+    assert make_palette("dark", "violet") == make_palette("dark", "meadow")
+
+
+def test_four_families_have_no_purple_anywhere() -> None:
+    assert set(ACCENTS) == {"ember", "meadow", "sunset", "rose"}
+    for theme in THEMES:
+        for accent in ACCENTS:
+            palette = make_palette(theme, accent)
+            for field, value in vars(palette).items():
+                if field in ("name", "scrim"):
+                    continue
+                red, green, blue = (int(value[i : i + 2], 16) for i in (1, 3, 5))
+                purple = blue > red and blue > green + 15  # синий перевешивает: холодный сиреневый
+                assert not purple, f"{theme}/{accent}: {field} {value} похож на фиолетовый"

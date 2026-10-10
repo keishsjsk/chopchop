@@ -28,7 +28,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from chopchop.core.video import MIN_CLIP_SECONDS
 from chopchop.ui.context_gate import menu_allowed
-from chopchop.ui.theme import current, tokens
+from chopchop.ui.theme import current, fonts, tokens
 
 GAP = 2  # шов между блоками, px
 SIDE = 8.0  # поле слева и справа
@@ -43,7 +43,7 @@ KEY_TICK = 4
 SCROLL_EDGE = 28.0  # у края окна при переносе включается прокрутка
 SCROLL_SPEED = 0.03  # доля видимой ширины за один шаг прокрутки
 TICK_STEPS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600)
-MIN_TICK_PX = 56  # подписи на линейке не чаще
+MIN_TICK_PX = 64  # подписи на линейке не чаще
 
 
 def format_precise(seconds: float) -> str:
@@ -380,6 +380,7 @@ class Timeline(QWidget):
         per_second = track.width() / span
         step = next((s for s in TICK_STEPS if s * per_second >= MIN_TICK_PX), TICK_STEPS[-1])
         painter.setPen(QPen(QColor(p.text_muted), 1))
+        painter.setFont(fonts.ui_font(fonts.SMALL))
         metrics = QFontMetrics(painter.font())
         first = int(self._view_start // step)
         tick = first * step
@@ -459,6 +460,7 @@ class Timeline(QWidget):
         self, painter: QPainter, block: TimelineBlock, rect: QRectF, start: float, stop: float
     ) -> None:
         """Длительность блока в углу; на узких блоках подписи нет."""
+        painter.setFont(fonts.ui_font(fonts.SMALL))
         metrics = QFontMetrics(painter.font())
         text = format_precise(stop - start)
         width = metrics.horizontalAdvance(text) + 2 * LABEL_PAD
@@ -534,6 +536,7 @@ class Timeline(QWidget):
         """Время края блока в исходном файле рядом с ручкой."""
         start, stop = self._shown(index)
         text = format_precise(start if side == "start" else stop)
+        painter.setFont(fonts.ui_font(fonts.SMALL))
         metrics = QFontMetrics(painter.font())
         width = metrics.horizontalAdvance(text) + 2 * LABEL_PAD
         height = metrics.height() + LABEL_PAD

@@ -490,6 +490,7 @@ def main() -> int:
         app.setEffectEnabled(Qt.UIEffect.UI_FadeTooltip, False)
         app.setEffectEnabled(Qt.UIEffect.UI_AnimateTooltip, False)
     fonts.load_fonts()
+    fonts.apply(app, "monocraft")
     i18n.install_language(app, "ru")
     work = Path(tempfile.mkdtemp(prefix="chopchop-rt-"))
     os.environ["CHOPCHOP_CACHE_DIR"] = str(work / "cache")  # холодный кэш на каждый прогон

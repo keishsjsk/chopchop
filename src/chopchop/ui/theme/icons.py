@@ -205,7 +205,7 @@ def qicon(
     *,
     logical: int = 16,
     role: str = "text",
-    checked_role: str = "on_accent",
+    checked_role: str = "text",  # выбранная кнопка: тонировка акцентом, значок обычного цвета
     size: int = 16,
 ) -> QIcon:
     """QIcon для кнопок: обычная, выключенная (приглушённая), нажатая (цвет на акцентной плашке).

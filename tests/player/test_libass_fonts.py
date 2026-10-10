@@ -24,7 +24,7 @@ CANDIDATES = ("Arial", "Segoe UI", "DejaVu Sans", "Liberation Sans", "Noto Sans"
 SRT = "1\n00:00:00,000 --> 00:00:03,000\nСъешь ещё этих мягких французских булок\n"
 
 
-def _fontselect(font: str, video: Path, srt: Path) -> str | None:
+def _fontselect(font: str, video: Path, srt: Path, fonts_dir: str = "") -> str | None:
     lines: list[str] = []
 
     def handler(_level: str, _prefix: str, text: str) -> None:
@@ -42,6 +42,7 @@ def _fontselect(font: str, video: Path, srt: Path) -> str | None:
         loglevel="v",
         sub_font=font,
         sub_ass_override="force",
+        **({"sub_fonts_dir": fonts_dir} if fonts_dir else {}),
     )
     try:
         mpv.loadfile(str(video), sub_files=str(srt), pause=True)
@@ -69,3 +70,28 @@ def test_libass_resolves_a_font_by_its_qt_family_name(qtbot: QtBot, tmp_path: Pa
     assert family.lower().replace(" ", "")[:6] in resolved, line
     unknown = _fontselect("NoSuchFontXYZ", video, srt)
     assert unknown is not None and "nosuchfontxyz" not in unknown.split("->", 1)[1].lower()
+
+
+def test_libass_draws_subtitles_with_monocraft_from_the_programs_fonts_folder(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    """Папка со шрифтом передана в `sub-fonts-dir`: libass рисует Monocraft с кириллицей."""
+    from chopchop.player.libmpv import _fonts_dir
+    from chopchop.ui.theme import fonts
+
+    fonts.load_fonts()
+    folder = _fonts_dir()
+    assert folder and (Path(folder) / "Monocraft.ttf").is_file()
+    video = make_video(tmp_path / "v.mp4", seconds=3, size=(320, 180))
+    srt = tmp_path / "s.srt"
+    srt.write_text(SRT, encoding="utf-8")
+    line = _fontselect(fonts.family(), video, srt, folder)
+    if line is None:
+        pytest.skip("libass не пишет подбор шрифта в журнал")
+    resolved = line.split("->", 1)[1].lower()
+    assert "monocraft" in resolved, line
+    # без папки со шрифтом Monocraft libass не знает (если он не установлен в систему)
+    without = _fontselect(fonts.family(), video, srt)
+    assert without is not None
+    if "monocraft" in without.split("->", 1)[1].lower():
+        pytest.skip("Monocraft установлен в системе")

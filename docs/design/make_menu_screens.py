@@ -173,6 +173,7 @@ def main() -> int:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "design"
     app = QApplication([])
     fonts.load_fonts()
+    fonts.apply(app, "monocraft")
     i18n.install_language(app, "ru")
     work = Path(tempfile.mkdtemp(prefix="chopchop-menus-"))
     photo = make_photo(work / "пейзаж.jpg")

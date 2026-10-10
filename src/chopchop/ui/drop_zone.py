@@ -87,7 +87,7 @@ class DropZone(QWidget):
         self._art = Illustration()
         self._hint = QLabel(self.tr("Перетащите фото или видео"))
         self._hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._hint.setFont(fonts.pixel_font(4 if fonts.load_fonts() else 3))
+        self._hint.setFont(fonts.ui_font(fonts.TITLE))
         self._formats = QLabel(FORMATS)
         self._formats.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._formats.setProperty("muted", True)
@@ -98,7 +98,7 @@ class DropZone(QWidget):
         self._open_button.clicked.connect(self.openRequested)
 
         self._recent_label = QLabel(self.tr("Последние файлы"))
-        self._recent_label.setFont(fonts.pixel_font(2))
+        self._recent_label.setFont(fonts.ui_font(fonts.BODY))
         self._recent = QListWidget()
         self._recent.setMaximumHeight(176)
         self._recent.setMaximumWidth(460)
@@ -164,7 +164,8 @@ class DropZone(QWidget):
             y += DASH + GAP
 
     def refresh_theme(self) -> None:
-        self._hint.setFont(fonts.pixel_font(4 if fonts.load_fonts() else 3))
+        self._hint.setFont(fonts.ui_font(fonts.TITLE))
+        self._recent_label.setFont(fonts.ui_font(fonts.BODY))
         self.update()
 
     # --- перетаскивание ----------------------------------------------------------------------

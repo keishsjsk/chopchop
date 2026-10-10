@@ -139,6 +139,7 @@ def main() -> None:
 
     app = QApplication([])
     fonts.load_fonts()
+    fonts.apply(app, "monocraft")
     i18n.install_language(app, "ru")
     settings = AppSettings(None)
     settings.set("appearance.theme", "light")

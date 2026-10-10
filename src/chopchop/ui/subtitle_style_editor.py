@@ -42,14 +42,13 @@ from chopchop.services.settings import save_subtitle_style, subtitle_style
 from chopchop.services.sub_presets import PresetStore
 from chopchop.ui.click_slider import ClickSlider
 from chopchop.ui.color_button import ColorButton, color_to_hex, hex_to_color
-from chopchop.ui.theme import current, fonts, tokens
+from chopchop.ui.theme import current, tokens
 from chopchop.ui.widgets import PixelToggle, Segmented, button
 
 SAMPLE_TEXT = "Съешь ещё этих мягких французских булок"
 SAMPLE_SECOND = "The quick brown fox jumps over the lazy dog"
 PREVIEW_HEIGHT = 150
 CUSTOM = "\0custom"  # служебный пункт списка пресетов: оформление изменено вручную
-PRIVATE_FAMILIES = {fonts.PIXEL_FAMILY}  # шрифты самой программы libass не видит
 
 
 def _tr(text: str) -> str:
@@ -61,10 +60,8 @@ def _mix(a: tuple[int, int, int], b: tuple[int, int, int], amount: float) -> QCo
 
 
 def system_families() -> list[str]:
-    """Шрифты, которые найдёт и libass: системные, без шрифтов интерфейса программы."""
-    return [
-        f for f in QFontDatabase.families() if f not in PRIVATE_FAMILIES and not f.startswith("@")
-    ]
+    """Шрифты, которые найдёт и libass: системные и Monocraft (папка со шрифтом передана плееру)."""
+    return [f for f in QFontDatabase.families() if not f.startswith("@")]
 
 
 def covers_cyrillic(family: str) -> bool:
@@ -284,7 +281,7 @@ class SubtitleStyleEditor(QWidget):
         self._size = QSpinBox()
         self._size.setRange(*ss.SIZE_RANGE)
         self._size.setToolTip(
-            self.tr("Относительно высоты видео: 55 ≈ 7,6 % высоты кадра, растёт вместе с окном")
+            self.tr("Относительно высоты видео: 55 = 7,6 % высоты кадра, растёт вместе с окном")
         )
         self._size.valueChanged.connect(lambda v: self._set("subtitles.font_size", v))
         self._bold = PixelToggle(self.tr("Жирный"))

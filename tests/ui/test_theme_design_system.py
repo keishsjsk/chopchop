@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QRectF, QSize
-from PySide6.QtGui import QColor, QIcon, QImage, QPainter
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter
 from PySide6.QtWidgets import QApplication, QPushButton
 from pytestqt.qtbot import QtBot
 
@@ -125,7 +125,7 @@ def test_qicon_has_states(qtbot: QtBot) -> None:
     checked = icon.pixmap(size, 1.0, QIcon.Mode.Normal, QIcon.State.On).toImage()
     assert normal.pixelColor(3, 2).name() == palette.text.lower()
     assert disabled.pixelColor(3, 2).name() == palette.text_muted.lower()
-    assert checked.pixelColor(3, 2).name() == palette.on_accent.lower()
+    assert checked.pixelColor(3, 2).name() == palette.text.lower()  # выбранная кнопка: тонировка
 
 
 # --- шрифт -------------------------------------------------------------------------------------
@@ -133,35 +133,65 @@ def test_qicon_has_states(qtbot: QtBot) -> None:
 
 def test_pixel_font_ships_with_license() -> None:
     folder = resource_dir() / "fonts"
-    assert (folder / "Tiny5.ttf").is_file()
-    assert "SIL OPEN FONT LICENSE" in (folder / "OFL-Tiny5.txt").read_text(encoding="utf-8")
+    assert (folder / "Monocraft.ttf").is_file()
+    licence = (folder / "Monocraft-LICENSE.txt").read_text(encoding="utf-8")
+    assert "SIL OPEN FONT LICENSE" in licence and "Idrees Hassan" in licence
+    assert not (folder / "Tiny5.ttf").exists()  # прежний шрифт заголовков убран
+    assert (root_docs() / "licenses" / "Monocraft-OFL-1.1.txt").is_file()
 
 
-def test_pixel_font_loads_and_covers_cyrillic(qtbot: QtBot) -> None:
+def root_docs() -> Path:
+    return resource_dir().parent / "docs"
+
+
+def test_pixel_font_loads_with_its_family_from_the_file(qtbot: QtBot) -> None:
     assert fonts.load_fonts()
-    font = fonts.pixel_font(2, 1.0)
-    assert font.family() == fonts.PIXEL_FAMILY
-    assert font.pixelSize() == 16
-    assert fonts.pixel_font(3, 1.0).pixelSize() == 24
+    assert fonts.family() == "Monocraft"  # название берётся из метаданных файла
+    body = fonts.pixel_font(fonts.BODY, 1.0)
+    assert body.family() == "Monocraft" and body.pixelSize() == 18
+    assert fonts.pixel_font(fonts.TITLE, 1.0).pixelSize() == 27
+    assert fonts.pixel_font(fonts.SMALL, 1.0).pixelSize() == 9
+    assert body.styleStrategy() & QFont.StyleStrategy.NoAntialias  # без сглаживания
+    assert body.hintingPreference() == QFont.HintingPreference.PreferNoHinting
     text = "Привет, мир! Настройки · Воспроизведение · Редактор · Сохранить как… ЁёЙйЪъЫыЭэЮюЯя"
-    assert fonts.covers(font, text)
+    assert fonts.covers(body, text)
 
 
-def test_pixel_sizes_stay_multiples_of_eight_device_pixels() -> None:
-    for scale in (2, 3, 4):
+def test_pixel_sizes_stay_multiples_of_nine_device_pixels() -> None:
+    for size in (fonts.SMALL, fonts.BODY, fonts.TITLE):
         for ratio in (1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0):
-            device = fonts.snapped_pixel_size(scale, ratio) * ratio
-            assert device % 8 == pytest.approx(0, abs=1e-6)
-            assert device >= 8
+            device = fonts.snapped_pixel_size(size, ratio) * ratio
+            assert device % 9 == pytest.approx(0, abs=1e-6)
+            assert device >= 9
+    assert fonts.snapped_pixel_size(18, 1.0) == 18 and fonts.snapped_pixel_size(18, 1.5) == 18
+    assert fonts.snapped_pixel_size(27, 2.0) == 27 and fonts.snapped_pixel_size(9, 1.5) == 12
+
+
+def test_application_font_follows_the_choice(qtbot: QtBot) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+    previous = app.font()
+    try:
+        fonts.apply(app, "monocraft")
+        assert app.font().family() == "Monocraft" and fonts.choice() == "monocraft"
+        fonts.apply(app, "system")
+        assert app.font().family() != "Monocraft" and fonts.choice() == "system"
+        assert fonts.ui_font(fonts.TITLE).family() != "Monocraft"
+    finally:
+        fonts.apply(app, "monocraft")
+        app.setFont(previous)
 
 
 def test_font_coverage_with_fonttools() -> None:
     ttlib = pytest.importorskip("fontTools.ttLib")
-    font = ttlib.TTFont(resource_dir() / "fonts" / "Tiny5.ttf")
+    font = ttlib.TTFont(resource_dir() / "fonts" / "Monocraft.ttf")
     cmap = font.getBestCmap()
     cyrillic = [chr(code) for code in [*range(0x410, 0x450), 0x401, 0x451]]
     assert [char for char in cyrillic if ord(char) not in cmap] == []
-    assert all(ord(char) in cmap for char in "0123456789%:()[]/×.,!?-—…·")
+    assert all(ord(char) in cmap for char in "0123456789%:()[]/×.,!?-—…·«»°")
+    assert font["head"].unitsPerEm % fonts.GRID == 0  # сетка 9: 1080 единиц = 9 клеток по 120
 
 
 # --- ступенчатые рамки -------------------------------------------------------------------------
@@ -228,7 +258,7 @@ def test_pixel_frame_widget_follows_theme(qtbot: QtBot) -> None:
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
 def test_stylesheet_uses_only_token_colours(tmp_path: Path, theme: str, qtbot: QtBot) -> None:
-    palette = make_palette(theme, "violet")
+    palette = make_palette(theme, "meadow")
     sheet = qss.build(palette, qss.write_assets(palette, tmp_path))
     allowed = {
         value.lower()
@@ -280,7 +310,7 @@ def test_theme_switches_on_the_fly(qtbot: QtBot) -> None:
     try:
         changes: list[str] = []
         manager.changed.connect(lambda palette: changes.append(palette.name))
-        manager.set_theme("light", "orange")
+        manager.set_theme("light", "ember")
         light_sheet = app.styleSheet()
         manager.set_theme("dark")
         dark_sheet = app.styleSheet()

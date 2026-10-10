@@ -116,91 +116,146 @@ class Palette:
             accent_hover=accent.hover,
             accent_pressed=accent.pressed,
             on_accent=accent.on_accent,
+            secondary=accent.secondary,
+            on_secondary=accent.on_secondary,
             accent_tint="",  # пересчитывается под новый акцент
         )
 
 
 @dataclass(frozen=True)
 class AccentSet:
+    """Акцент одной темы: цвет, его состояния, текст на нём и вторичный цвет семейства."""
+
     accent: Color
     hover: Color
     pressed: Color
     on_accent: Color
+    secondary: Color
+    on_secondary: Color
+    swatch: Color = ""  # образец в настройках: «лицо» семейства, не обязательно сам акцент
+
+    def sample(self) -> Color:
+        return self.swatch or self.accent
 
 
-LIGHT = Palette(
+def _family(
+    accent: Color,
+    on_accent: Color,
+    secondary: Color,
+    on_secondary: Color,
+    *,
+    light: bool,
+    swatch: Color = "",
+) -> AccentSet:
+    """Состояния акцента считаются от него самого: в светлой теме темнее (текст на нём светлый),
+    в тёмной наведение светлее, нажатие чуть темнее, чтобы текст на акценте оставался читаемым."""
+    if light:
+        hover, pressed = blend("#000000", accent, 0.08), blend("#000000", accent, 0.16)
+    else:
+        hover, pressed = blend("#FFFFFF", accent, 0.10), blend("#000000", accent, 0.06)
+    return AccentSet(accent, hover, pressed, on_accent, secondary, on_secondary, swatch)
+
+
+ON_ACCENT_LIGHT = "#FFF8F0"
+ON_ACCENT_DARK = "#2B0F1A"
+
+# Четыре семейства (палитры-источники: Ember Meadow, Cloud Ruby Harbor, Warm Sunset 6, Cool Coral
+# Tide и другие). Светлые акценты затемнены до контраста 4,5:1 с текстом на них, пастельные цвета
+# источников стоят у тёмной темы и в образцах. Вторичные цвета — тоже с контрастом 4,5:1 к фону.
+ACCENTS: dict[str, dict[str, AccentSet]] = {
+    "ember": {  # терракота и шалфей
+        "light": _family(
+            "#B04F33", ON_ACCENT_LIGHT, "#516D4D", ON_ACCENT_LIGHT, light=True, swatch="#CC704B"
+        ),
+        "dark": _family(
+            "#E8804A", ON_ACCENT_DARK, "#9FC088", ON_ACCENT_DARK, light=False, swatch="#CC704B"
+        ),
+    },
+    "meadow": {  # шалфей и серо-зелёный, вторичный глина
+        "light": _family(
+            "#5E6F64", ON_ACCENT_LIGHT, "#8A5A4C", ON_ACCENT_LIGHT, light=True, swatch="#9FC088"
+        ),
+        "dark": _family(
+            "#9FC088", ON_ACCENT_DARK, "#C18676", ON_ACCENT_DARK, light=False, swatch="#9FC088"
+        ),
+    },
+    "sunset": {  # красно-оранжевый заката, вторичный золотой
+        "light": _family(
+            "#B8453F", ON_ACCENT_LIGHT, "#7A612E", ON_ACCENT_LIGHT, light=True, swatch="#C24B4B"
+        ),
+        "dark": _family(
+            "#E4694F", ON_ACCENT_DARK, "#F4C25B", ON_ACCENT_DARK, light=False, swatch="#E8804A"
+        ),
+    },
+    "rose": {  # коралл и розовый, вторичный мятно-бирюзовый; на пастельных заливках текст тёмный
+        "light": _family(
+            "#B84E55", ON_ACCENT_LIGHT, "#576967", ON_ACCENT_LIGHT, light=True, swatch="#FFA4A4"
+        ),
+        "dark": _family(
+            "#FFA4A4", ON_ACCENT_DARK, "#BADFDB", ON_ACCENT_DARK, light=False, swatch="#FFBDBD"
+        ),
+    },
+}
+DEFAULT_ACCENT = "ember"
+# прежние названия акцентов из файла настроек
+ACCENT_ALIASES = {"orange": "ember", "violet": "meadow", "coral": "rose", "burgundy": "sunset"}
+
+
+LIGHT = Palette(  # «Ember Cream»: тёплый крем и терракота
     name="light",
-    bg="#F6EDDF",
-    surface="#FFFBF2",
-    surface_raised="#FFFFFF",
-    border="#D9C7AE",
-    border_strong="#98827A",
-    text="#3E2230",
-    text_muted="#6F5B65",
-    accent="#CE6C2A",
-    accent_hover="#DA7A38",
-    accent_pressed="#C96932",
-    on_accent="#2A1020",
-    secondary="#7F52A0",
-    on_secondary="#FFFFFF",
-    danger="#AE4C46",
-    on_danger="#FFFFFF",
-    success="#2E7A47",
-    scrim=(42, 16, 32, 150),
-    focus_ring="#5B3A8C",
-    shadow="#C9B496",
+    bg="#F8EDE3",
+    surface="#FFF8F0",
+    surface_raised="#EFE2D2",
+    border="#DFD3C3",
+    border_strong="#907F74",
+    text="#4B2A21",
+    text_muted="#766155",
+    accent="#B04F33",
+    accent_hover="#A2492F",
+    accent_pressed="#94422B",
+    on_accent="#FFF8F0",
+    secondary="#516D4D",
+    on_secondary="#FFF8F0",
+    danger="#AF413E",
+    on_danger="#FFF8F0",
+    success="#516D4D",
+    scrim=(43, 15, 26, 150),
+    focus_ring="#5E6F64",
+    shadow="#D0B8A8",
+    accent_tint="#F4D9C8",
 )
 
-DARK = Palette(
+DARK = Palette(  # «Ember Night»: тёплая ночь, терракота и шалфей
     name="dark",
-    bg="#1E1820",
-    surface="#2A2230",
-    surface_raised="#352B3C",
-    border="#4A3D52",
-    border_strong="#8E8188",
-    text="#F3E8D8",
-    text_muted="#B8A9B5",
-    accent="#F09050",
-    accent_hover="#F8A468",
-    accent_pressed="#D97A3A",
-    on_accent="#1E1820",
-    secondary="#B58AD6",
-    on_secondary="#1E1820",
-    danger="#F2857C",
-    on_danger="#1E1820",
-    success="#7BC38E",
-    scrim=(10, 6, 12, 170),
-    focus_ring="#E8C9FF",
-    shadow="#120D14",
+    bg="#241713",
+    surface="#2E1F19",
+    surface_raised="#3A2A22",
+    border="#4A372D",
+    border_strong="#83746A",
+    text="#F6E6CB",
+    text_muted="#BFA993",
+    accent="#E8804A",
+    accent_hover="#EA8D5C",
+    accent_pressed="#DB7746",
+    on_accent="#2B0F1A",
+    secondary="#9FC088",
+    on_secondary="#2B0F1A",
+    danger="#E5806F",
+    on_danger="#2B0F1A",
+    success="#9FC088",
+    scrim=(10, 5, 3, 170),
+    focus_ring="#F4C25B",
+    shadow="#150D0A",
+    accent_tint="#4A2E22",
 )
 
 PALETTES = {"light": LIGHT, "dark": DARK}
-
-# Акценты: у каждой темы свой вариант, чтобы цвет читался на её фоне
-ACCENTS: dict[str, dict[str, AccentSet]] = {
-    "orange": {
-        "light": AccentSet("#CE6C2A", "#DA7A38", "#C96932", "#2A1020"),
-        "dark": AccentSet("#F09050", "#F8A468", "#D97A3A", "#1E1820"),
-    },
-    "violet": {
-        "light": AccentSet("#7F52A0", "#6F4590", "#603A80", "#FFFFFF"),
-        "dark": AccentSet("#B58AD6", "#C49BE2", "#A276C6", "#1E1820"),
-    },
-    "coral": {
-        "light": AccentSet("#C34A44", "#B4413B", "#A23A35", "#FFFFFF"),
-        "dark": AccentSet("#F2857C", "#F9968E", "#DF6F66", "#1E1820"),
-    },
-    "burgundy": {
-        "light": AccentSet("#8E2F4A", "#7C2640", "#6B1F37", "#FFFFFF"),
-        "dark": AccentSet("#E07A98", "#EA8DA9", "#CB6684", "#1E1820"),
-    },
-}
-DEFAULT_ACCENT = "orange"
 
 
 def make_palette(theme: str, accent: str = DEFAULT_ACCENT) -> Palette:
     """Палитра темы («light» или «dark») с выбранным акцентом."""
     base = PALETTES[theme]
+    accent = ACCENT_ALIASES.get(accent, accent)
     family = ACCENTS.get(accent, ACCENTS[DEFAULT_ACCENT])
     return base.with_accent(family[theme])
 

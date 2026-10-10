@@ -62,7 +62,7 @@
 libass (`fontselect`): Arial, Segoe UI, Times New Roman, Comic Sans MS, Impact, Consolas, Tahoma
 находятся по имени, русский текст показан этими шрифтами. Шрифт без кириллицы (Wingdings) и
 несуществующий заменяются на Arial, поэтому в списке для шрифтов без кириллицы показано
-предупреждение, а шрифт самой программы (Tiny5), которого libass не видит, из списка убран.
+предупреждение, а Monocraft доступен в списке: папка со шрифтом передана плееру через `sub-fonts-dir`.
 Тест `tests/player/test_libass_fonts.py` повторяет проверку на любой системе, где есть libmpv
 и знакомый шрифт. На Linux (fontconfig) вручную не проверялось: проверку выполнит CI на Ubuntu
 с `fonts-dejavu-core`.

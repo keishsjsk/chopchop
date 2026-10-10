@@ -70,12 +70,14 @@ def test_font_search_and_cyrillic_warning(qtbot: QtBot) -> None:
     assert settings.get_str("subtitles.font") == "" and editor._font_note.isHidden()
 
 
-def test_private_interface_font_is_not_offered(qtbot: QtBot) -> None:
+def test_monocraft_is_offered_for_subtitles_but_not_the_default(qtbot: QtBot) -> None:
     from chopchop.ui.theme import fonts
 
-    editor, _ = _editor(qtbot)
+    fonts.load_fonts()
+    editor, settings = _editor(qtbot)
     names = [editor._font.itemText(i) for i in range(editor._font.count())]
-    assert fonts.PIXEL_FAMILY not in names  # шрифт самой программы libass не видит
+    assert fonts.family() in names  # libass видит его через sub-fonts-dir
+    assert settings.get_str("subtitles.font") == ""  # значение по умолчанию не менялось
 
 
 def test_presets_apply_save_delete(qtbot: QtBot, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -177,9 +179,9 @@ def test_settings_dialog_has_the_subtitles_page(qtbot: QtBot) -> None:
     settings = AppSettings(None)
     dialog = SettingsDialog(settings, None, PresetStore(None))
     qtbot.addWidget(dialog)
-    titles = [dialog._sections.item(i).text() for i in range(dialog._sections.count())]
+    titles = [item.text() for item in dialog.nav.items]
     assert "Субтитры" in titles
     dialog.open_section("subtitles")
-    assert dialog._sections.currentItem().text() == "Субтитры"
+    assert dialog.current_section() == "subtitles"
     dialog.subtitle_editor._size.setValue(77)
     assert settings.get_int("subtitles.font_size") == 77

@@ -208,7 +208,7 @@ def test_every_bundled_font_is_described_with_its_license() -> None:
     bundled = {path.name for path in fonts.iterdir() if path.suffix in {".ttf", ".otf"}}
     assert bundled == set(font_components.FONT_INFO), "шрифт без записи для SBOM (или наоборот)"
     components = font_components.font_components()
-    assert {item["name"] for item in components} == {"Tiny5"}
+    assert {item["name"] for item in components} == {"Monocraft"}
     licence = components[0]["licenses"][0]["license"]
     assert licence["id"] == "OFL-1.1"
     assert licence["text"]["content"]
@@ -240,6 +240,6 @@ def test_download_refuses_plain_http_and_wrong_checksum(tmp_path: Path) -> None:
 def test_bundled_pixel_font_covers_cyrillic() -> None:
     from fontTools.ttLib import TTFont  # type: ignore[import-untyped]
 
-    cmap = TTFont(ROOT / "resources" / "fonts" / "Tiny5.ttf").getBestCmap()
+    cmap = TTFont(ROOT / "resources" / "fonts" / "Monocraft.ttf").getBestCmap()
     letters = [*range(0x410, 0x450), 0x401, 0x451]
     assert [hex(code) for code in letters if code not in cmap] == []

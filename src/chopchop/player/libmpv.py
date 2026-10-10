@@ -57,6 +57,14 @@ def load_mpv_module() -> ModuleType:
     return module
 
 
+def _fonts_dir() -> str:
+    """Папка с шрифтами программы для libass: в ней Monocraft, которого нет в системе."""
+    from chopchop.services.paths import resource_dir
+
+    folder = resource_dir() / "fonts"
+    return str(folder) if folder.is_dir() else ""
+
+
 def create_mpv(module: ModuleType, prefs: PlayerPrefs) -> Any:
     """Изолированный mpv: без пользовательских конфигов, скриптов, сети и своего интерфейса."""
     options: dict[str, Any] = {
@@ -74,6 +82,7 @@ def create_mpv(module: ModuleType, prefs: PlayerPrefs) -> Any:
         "keep_open": True,
         "sub_auto": "fuzzy",
         "volume_max": 130,
+        "sub_fonts_dir": _fonts_dir(),  # libass видит Monocraft из папки программы
         # полупрозрачная чёрная обводка, чтобы текст читался и на белом фоне
         "sub_border_size": 4,
         "sub_border_color": "#B8000000",

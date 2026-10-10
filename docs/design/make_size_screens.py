@@ -37,6 +37,7 @@ def child(scale: int, out: Path, theme: str) -> None:
 
     app = QApplication([])
     fonts.load_fonts()
+    fonts.apply(app, "monocraft")
     i18n.install_language(app, "ru")
     work = Path(tempfile.mkdtemp(prefix="chopchop-sizes-"))
     video = make_video(work / "demo.mp4", seconds=8, size=(1280, 720))

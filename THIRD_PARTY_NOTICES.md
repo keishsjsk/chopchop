@@ -13,7 +13,7 @@ CHOPCHOP распространяется под лицензией GNU GPL ве
 | pillow-heif, libheif | BSD 3-Clause, LGPL 3 | https://github.com/bigcat88/pillow_heif |
 | x265 (в составе pillow-heif) | GPL 2 | https://www.videolan.org/developers/x265.html |
 | Python | PSF | https://www.python.org/ |
-| Tiny5, пиксельный шрифт заголовков (The Tiny5 Project Authors) | SIL OFL 1.1 (`resources/fonts/OFL-Tiny5.txt`) | https://github.com/Gissio/font_tiny5 |
+| Monocraft, пиксельный шрифт интерфейса (© 2022 Idrees Hassan) | SIL OFL 1.1 (`resources/fonts/Monocraft-LICENSE.txt`, `docs/licenses/`) | https://github.com/IdreesInc/Monocraft |
 | PyInstaller (загрузчик) | GPL 2 с исключением для собираемых программ | https://pyinstaller.org/ |
 
 Версии и контрольные суммы загружаемых при сборке бинарников зафиксированы в `packaging/fetch_binaries.py`.

@@ -45,7 +45,7 @@ from chopchop.ui.drop_zone import DropZone
 from chopchop.ui.file_commands import FileCommands
 from chopchop.ui.main_actions import build_registry
 from chopchop.ui.settings_dialog import SettingsDialog
-from chopchop.ui.theme import current
+from chopchop.ui.theme import current, fonts
 from chopchop.ui.theme.manager import ThemeManager
 from chopchop.ui.themed_menu import ThemedMenu
 from chopchop.ui.toast import Toast
@@ -93,6 +93,7 @@ class MainWindow(QMainWindow):
         self.video_page: VideoPage | None = None
         self.editor: EditorPage | None = None
         self.video_editor: VideoEditorPage | None = None
+        self._font_choice: str | None = None  # какой шрифт интерфейса уже применён
         self._tasks = TaskRunner(self)
         self._session: EditSession | None = None
         self._cache = ImageCache(parent=self)
@@ -530,7 +531,7 @@ class MainWindow(QMainWindow):
         """Тема, акцент, плотность, анимации и пиксельные заголовки из настроек, на лету."""
         app = self._app
         anim.set_enabled(app.get_bool("appearance.animations"))
-        current.set_pixel_titles(app.get_bool("appearance.pixel_titles"))
+        self._apply_font(app.get_str("appearance.font"))
         if self._theme is not None:
             self._theme.set_theme(
                 app.get_str("appearance.theme"),
@@ -539,6 +540,18 @@ class MainWindow(QMainWindow):
             )
         else:
             self._on_theme_changed(current.palette())
+
+    def _apply_font(self, choice: str) -> None:
+        """Шрифт интерфейса на лету: Monocraft или системный; особые шрифты виджетов обновляются."""
+        if choice == self._font_choice:
+            return
+        self._font_choice = choice
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            fonts.apply(app, choice)
+        self._drop_zone.refresh_theme()
+        if self.video_page is not None:
+            self.video_page.refresh_theme()
 
     def _on_theme_changed(self, _palette: object) -> None:
         self._drop_zone.refresh_theme()

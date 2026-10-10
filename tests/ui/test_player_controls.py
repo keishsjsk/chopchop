@@ -10,7 +10,7 @@ from pytestqt.qtbot import QtBot
 from chopchop.player.player import Player
 from chopchop.ui import anim
 from chopchop.ui.player_controls import LINE_THICK, LINE_THIN, PlayerControls, format_time
-from chopchop.ui.theme import current, tokens
+from chopchop.ui.theme import current, fonts, tokens
 from chopchop.ui.tracks_panel import TracksPanel
 from fakes import FakeMpv
 
@@ -77,7 +77,7 @@ def test_panel_sizes_normal_and_compact(qtbot: QtBot) -> None:
     assert controls.max_width == 560
     controls.set_compact(False)
     assert controls.height() == 40
-    assert controls._time.font().pixelSize() == tokens.UI_FONT_PX  # время 12 px
+    assert controls._time.font().pixelSize() == fonts.ui_font(fonts.BODY).pixelSize()
 
 
 def test_tracks_panel_lists_tracks_by_section(qtbot: QtBot) -> None:

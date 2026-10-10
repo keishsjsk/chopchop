@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 
-from chopchop.ui.theme import tokens
+from chopchop.ui.theme import fonts, tokens
 from chopchop.ui.theme.tokens import Palette
 
 # рисунки внутри флажка (8×8) и переключателя (10×10): «#» — цвет значка
@@ -169,6 +169,7 @@ def build(palette: Palette, assets: dict[str, Path], compact: bool = False) -> s
     rail = t.MIN_HIT if compact else t.RAIL_BUTTON
     b = t.BORDER_WIDTH
     s1, s2, s3, s4 = t.SPACE_1, t.SPACE_2, t.SPACE_3, t.SPACE_4
+    small = round(fonts.snapped_pixel_size(fonts.SMALL, fonts.device_ratio()))  # 9 px по сетке
     ring = t.BORDER_WIDTH
     return f"""
 QWidget {{
@@ -185,14 +186,16 @@ QToolTip {{
 }}
 QLabel {{ background: transparent; }}
 QLabel:disabled {{ color: {p.text_muted}; }}
-QLabel[muted="true"] {{ color: {p.text_muted}; }}
+QLabel[muted="true"] {{ color: {p.text_muted}; font-size: {small}px; }}
+QLineEdit[textsize="small"] {{ font-size: {small}px; }}
+QPushButton[textsize="small"] {{ font-size: {small}px; padding: 0 {s3}px; }}
 QLabel[error="true"] {{ color: {p.danger}; }}
 QLabel[heading="true"] {{ color: {p.text}; }}
 
 /* кнопки: обычная, главная (акцентная), опасная, плоская */
 QPushButton {{
     min-height: {button_h - 2 * b}px;
-    padding: 0 {s4}px;
+    padding: 0 {s3}px;
     background: {p.surface};
     color: {p.text};
     border: {b}px solid {p.border_strong};
@@ -230,6 +233,48 @@ QPushButton[variant="segment"]:checked:hover, QPushButton[variant="chip"]:checke
 QPushButton[variant="segment"]:checked:disabled, QPushButton[variant="chip"]:checked:disabled {{ background: {p.bg}; color: {p.text_muted}; border-color: {p.border}; }}
 QPushButton[variant="segment"]:focus, QPushButton[variant="chip"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
 
+/* окно настроек: выпадающий список, кнопки шага числа, ярлыки и заголовки */
+QPushButton[variant="select"] {{
+    min-height: {t.CONTEXT_CONTROL_H - 2 * b}px; padding: 0 {s3}px; text-align: left;
+    background: {p.surface_raised}; border: {b}px solid {p.border_strong}; border-radius: 0;
+}}
+QPushButton[variant="select"]:hover {{ border-color: {p.text}; }}
+QPushButton[variant="select"]:pressed {{ background: {p.border}; }}
+QPushButton[variant="select"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
+QPushButton[variant="select"]:disabled {{ background: {p.bg}; border-color: {p.border}; color: {p.text_muted}; }}
+QPushButton[variant="step"] {{
+    min-width: {t.CONTEXT_CONTROL_H - 2 * b}px; max-width: {t.CONTEXT_CONTROL_H - 2 * b}px;
+    min-height: {t.CONTEXT_CONTROL_H - 2 * b}px; max-height: {t.CONTEXT_CONTROL_H - 2 * b}px;
+    padding: 0; background: {p.surface_raised}; border: {b}px solid {p.border_strong}; border-radius: 0;
+}}
+QPushButton[variant="step"]:hover {{ border-color: {p.text}; }}
+QPushButton[variant="step"]:pressed {{ background: {p.border}; }}
+QPushButton[variant="step"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
+QPushButton[variant="step"]:disabled {{ background: {p.bg}; border-color: {p.border}; color: {p.text_muted}; }}
+QLabel[chip="true"] {{
+    background: {p.accent_tint}; border: 1px solid {p.accent}; color: {p.text}; padding: 0 {s2}px;
+    font-size: {small}px;
+}}
+QLabel[chip="muted"] {{
+    background: {p.bg}; border: 1px solid {p.border_strong}; color: {p.text_muted}; padding: 0 {s2}px;
+    font-size: {small}px;
+}}
+QLabel[chip="danger"] {{
+    background: {p.bg}; border: 1px solid {p.danger}; color: {p.danger}; padding: 0 {s2}px;
+    font-size: {small}px;
+}}
+#settingsnav {{ background: {p.surface}; }}
+QLabel[pagetitle="true"] {{ color: {p.text}; }}
+QLabel[rowtitle="true"] {{ color: {p.text}; }}
+QLabel[cardtitle="true"] {{ color: {p.text_muted}; padding-left: {s1}px; }}
+QPushButton[variant="danger-soft"] {{
+    background: {p.surface}; color: {p.danger}; border: {b}px solid {p.danger}; border-radius: 0;
+    min-height: {t.CONTEXT_CONTROL_H - 2 * b}px; padding: 0 {s3}px;
+}}
+QPushButton[variant="danger-soft"]:hover {{ background: {p.surface_raised}; }}
+QPushButton[variant="danger-soft"]:pressed {{ background: {p.border}; }}
+QPushButton[variant="danger-soft"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
+
 /* кнопки панелей: рейка инструментов и значки */
 QToolButton {{
     min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px;
@@ -240,7 +285,7 @@ QToolButton {{
 }}
 QToolButton:hover {{ background: {p.surface_raised}; border-color: {p.border}; }}
 QToolButton:pressed {{ background: {p.border}; }}
-QToolButton:checked {{ background: {p.accent}; color: {p.on_accent}; border-color: {p.accent}; }}
+QToolButton:checked {{ background: {p.accent_tint}; color: {p.text}; border-color: {p.accent}; }}
 QToolButton:disabled {{ color: {p.text_muted}; }}
 QToolButton:focus {{ border: {ring}px solid {p.focus_ring}; }}
 QToolButton[rail="true"] {{

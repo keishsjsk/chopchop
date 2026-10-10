@@ -66,9 +66,7 @@ class RailButton(QToolButton):
         painter.fillRect(
             QRectF(x - 1, y - 1, MARK + 2, MARK + 2), QColor(p.surface_raised)
         )  # ободок, чтобы точка читалась на любой плашке
-        painter.fillRect(
-            QRectF(x, y, MARK, MARK), QColor(p.on_accent if self.isChecked() else p.secondary)
-        )
+        painter.fillRect(QRectF(x, y, MARK, MARK), QColor(p.secondary))
 
 
 class ToolRail(QWidget):

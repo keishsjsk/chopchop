@@ -83,8 +83,8 @@ def _check_libmpv() -> dict[str, Any]:
 
 
 REQUIRED_RESOURCES = (
-    "fonts/Tiny5.ttf",
-    "fonts/OFL-Tiny5.txt",
+    "fonts/Monocraft.ttf",
+    "fonts/Monocraft-LICENSE.txt",
     "i18n/chopchop_en.ts",
     "icons/chopchop.png",
 )

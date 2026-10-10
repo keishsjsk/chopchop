@@ -78,6 +78,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     app = ProfiledApplication([])
     app.recording = True
     fonts.load_fonts()
+    fonts.apply(app, "monocraft")
     i18n.install_language(app, "ru")
     work = Path(tempfile.mkdtemp(prefix="chopchop-blocks-"))
     settings = AppSettings(None)

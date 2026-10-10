@@ -18,7 +18,7 @@ from chopchop.ui import anim
 from chopchop.ui.canvas import Canvas
 from chopchop.ui.editor_page import EditorPage
 from chopchop.ui.main_window import MainWindow
-from chopchop.ui.theme import current, tokens
+from chopchop.ui.theme import current, fonts, tokens
 from chopchop.ui.theme.manager import ThemeManager
 from chopchop.ui.tools.crop_tool import CropTool
 from chopchop.ui.tools.draw_tool import DrawTool
@@ -383,18 +383,19 @@ def test_appearance_settings_switch_theme_motion_and_density_live(
         assert current.palette().name == "dark"
         settings.set("appearance.theme", "light")
         assert current.palette().name == "light"
-        settings.set("appearance.accent", "violet")
-        assert current.palette().accent == tokens.make_palette("light", "violet").accent
+        settings.set("appearance.accent", "meadow")
+        assert current.palette().accent == tokens.make_palette("light", "meadow").accent
         settings.set("appearance.animations", False)
         assert not anim.enabled()
         settings.set("appearance.compact", True)
         assert f"min-height: {tokens.MIN_HIT - 2 * tokens.BORDER_WIDTH}px" in app.styleSheet()
         settings.set("appearance.compact", False)
         assert f"min-height: {tokens.BUTTON_HEIGHT - 2 * tokens.BORDER_WIDTH}px" in app.styleSheet()
-        settings.set("appearance.pixel_titles", False)
-        assert not current.pixel_titles()
+        settings.set("appearance.font", "system")
+        assert fonts.choice() == "system" and app.font().family() != "Monocraft"
+        settings.set("appearance.font", "monocraft")
+        assert fonts.choice() == "monocraft" and app.font().family() == "Monocraft"
     finally:
-        current.set_pixel_titles(True)
         manager.shutdown()
         app.setStyleSheet(previous_sheet)
         settings.set("appearance.theme", "light")
@@ -409,14 +410,14 @@ def test_appearance_section_is_visible_in_the_settings_dialog(qtbot: QtBot) -> N
         "appearance.theme",
         "appearance.accent",
         "appearance.ui_scale",
-        "appearance.pixel_titles",
+        "appearance.font",
         "appearance.animations",
         "appearance.compact",
         "playback.hide_delay",
         "playback.fs_panel",
         "playback.fs_progress_line",
     ):
-        assert key in dialog._rows
+        assert key in dialog.rows
 
 
 def test_stray_mouse_events_do_not_crash_without_tool(qtbot: QtBot) -> None:

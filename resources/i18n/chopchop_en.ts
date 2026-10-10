@@ -274,20 +274,20 @@
         <translation>Aspect ratio</translation>
     </message>
     <message>
-        <source>⟲ Влево на 90°</source>
-        <translation>⟲ Left 90°</translation>
+        <source>Влево на 90°</source>
+        <translation>Left 90°</translation>
     </message>
     <message>
-        <source>⟳ Вправо на 90°</source>
-        <translation>⟳ Right 90°</translation>
+        <source>Вправо на 90°</source>
+        <translation>Right 90°</translation>
     </message>
     <message>
-        <source>↔ Отразить по горизонтали</source>
-        <translation>↔ Flip horizontally</translation>
+        <source>Отразить по горизонтали</source>
+        <translation>Flip horizontally</translation>
     </message>
     <message>
-        <source>↕ Отразить по вертикали</source>
-        <translation>↕ Flip vertically</translation>
+        <source>Отразить по вертикали</source>
+        <translation>Flip vertically</translation>
     </message>
     <message>
         <source>Заливка (надёжно)</source>
@@ -1335,8 +1335,40 @@
         <translation>Subtitle font size</translation>
     </message>
     <message>
-        <source>Относительно высоты видео: 55 ≈ 7,6 % высоты кадра</source>
-        <translation>Relative to the video height: 55 is about 7.6 % of the frame height</translation>
+        <source>Относительно высоты видео: 55 = 7,6 % высоты кадра</source>
+        <translation>Relative to the video height: 55 = 7.6 % of the frame height</translation>
+    </message>
+    <message>
+        <source>Палитра акцента: терракота, шалфей, закат или роза</source>
+        <translation>Accent palette: terracotta, sage, sunset or rose</translation>
+    </message>
+    <message>
+        <source>терракота</source>
+        <translation>terracotta</translation>
+    </message>
+    <message>
+        <source>шалфей</source>
+        <translation>sage</translation>
+    </message>
+    <message>
+        <source>закат</source>
+        <translation>sunset</translation>
+    </message>
+    <message>
+        <source>роза</source>
+        <translation>rose</translation>
+    </message>
+    <message>
+        <source>Шрифт интерфейса</source>
+        <translation>Interface font</translation>
+    </message>
+    <message>
+        <source>Monocraft (пиксельный, размеры кратны 9) или шрифт системы</source>
+        <translation>Monocraft (pixel font, sizes are multiples of 9) or the system font</translation>
+    </message>
+    <message>
+        <source>системный</source>
+        <translation>system</translation>
     </message>
     <message>
         <source>Жирный</source>
@@ -1539,28 +1571,8 @@
         <translation>Accent color</translation>
     </message>
     <message>
-        <source>оранжевый</source>
-        <translation>orange</translation>
-    </message>
-    <message>
-        <source>фиолетовый</source>
-        <translation>violet</translation>
-    </message>
-    <message>
-        <source>коралловый</source>
-        <translation>coral</translation>
-    </message>
-    <message>
-        <source>бордовый</source>
-        <translation>burgundy</translation>
-    </message>
-    <message>
         <source>Масштаб интерфейса, %</source>
         <translation>Interface scale, %</translation>
-    </message>
-    <message>
-        <source>Пиксельный шрифт в заголовках</source>
-        <translation>Pixel font in headings</translation>
     </message>
     <message>
         <source>Анимации</source>
@@ -1711,8 +1723,92 @@
         <translation>Window position</translation>
     </message>
     <message>
+        <source>Размер окна настроек</source>
+        <translation>Settings window size</translation>
+    </message>
+    <message>
         <source>Высота полосы блоков</source>
         <translation>Block bar height</translation>
+    </message>
+    <message>
+        <source>Язык и окно</source>
+        <translation>Language and window</translation>
+    </message>
+    <message>
+        <source>Открытие файлов</source>
+        <translation>Opening files</translation>
+    </message>
+    <message>
+        <source>Файлы</source>
+        <translation>Files</translation>
+    </message>
+    <message>
+        <source>Громкость и перемотка</source>
+        <translation>Volume and seeking</translation>
+    </message>
+    <message>
+        <source>Поведение</source>
+        <translation>Behaviour</translation>
+    </message>
+    <message>
+        <source>Языки дорожек</source>
+        <translation>Track languages</translation>
+    </message>
+    <message>
+        <source>Декодирование</source>
+        <translation>Decoding</translation>
+    </message>
+    <message>
+        <source>Панели</source>
+        <translation>Panels</translation>
+    </message>
+    <message>
+        <source>Просмотр</source>
+        <translation>Viewing</translation>
+    </message>
+    <message>
+        <source>Вид</source>
+        <translation>Look</translation>
+    </message>
+    <message>
+        <source>Скорость</source>
+        <translation>Speed</translation>
+    </message>
+    <message>
+        <source>Размер</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <source>Шрифт и движение</source>
+        <translation>Font and motion</translation>
+    </message>
+    <message>
+        <source>Сохранение результата</source>
+        <translation>Saving the result</translation>
+    </message>
+    <message>
+        <source>Видео</source>
+        <translation>Video</translation>
+    </message>
+    <message>
+        <source>Инструменты фото</source>
+        <translation>Photo tools</translation>
+    </message>
+    <message>
+        <source>Файлы и кэш</source>
+        <translation>Files and cache</translation>
+    </message>
+    <message>
+        <source>Производительность</source>
+        <translation>Performance</translation>
+    </message>
+    <message>
+        <source>Журнал</source>
+        <translation>Log</translation>
+    </message>
+    <message>
+        <source>Прочее</source>
+        <translation>Other</translation>
     </message>
 </context>
 <context>
@@ -1742,18 +1838,6 @@
         <translation>Close</translation>
     </message>
     <message>
-        <source>(после перезапуска)</source>
-        <translation>(after restart)</translation>
-    </message>
-    <message>
-        <source>Показать дополнительные настройки</source>
-        <translation>Show advanced settings</translation>
-    </message>
-    <message>
-        <source>Дополнительно</source>
-        <translation>Advanced</translation>
-    </message>
-    <message>
         <source>Сбросить раздел</source>
         <translation>Reset section</translation>
     </message>
@@ -1770,8 +1854,60 @@
         <translation>Open settings folder</translation>
     </message>
     <message>
+        <source>Найти настройку</source>
+        <translation>Find a setting</translation>
+    </message>
+    <message>
+        <source>Осторожно</source>
+        <translation>Careful</translation>
+    </message>
+    <message>
+        <source>Кэш миниатюр</source>
+        <translation>Thumbnail cache</translation>
+    </message>
+    <message>
+        <source>Все готовые миниатюры удалятся и будут созданы заново при открытии видео</source>
+        <translation>All ready thumbnails are deleted and will be made again when a video is opened</translation>
+    </message>
+    <message>
+        <source>Сбросить все настройки…</source>
+        <translation>Reset all settings…</translation>
+    </message>
+    <message>
+        <source>Все настройки</source>
+        <translation>All settings</translation>
+    </message>
+    <message>
+        <source>Вернуть значения по умолчанию во всех разделах</source>
+        <translation>Restore the defaults in every section</translation>
+    </message>
+    <message>
+        <source>Журнал работы</source>
+        <translation>Activity log</translation>
+    </message>
+    <message>
+        <source>Файлы журнала нужны, если программа работает неправильно</source>
+        <translation>The log files help when the program misbehaves</translation>
+    </message>
+    <message>
         <source>Обзор…</source>
         <translation>Browse…</translation>
+    </message>
+    <message>
+        <source>после перезапуска</source>
+        <translation>after restart</translation>
+    </message>
+    <message>
+        <source>Результаты поиска</source>
+        <translation>Search results</translation>
+    </message>
+    <message>
+        <source>Ничего не найдено</source>
+        <translation>Nothing found</translation>
+    </message>
+    <message>
+        <source>Открыть раздел</source>
+        <translation>Open the section</translation>
     </message>
     <message>
         <source>Недопустимое значение: </source>
@@ -1956,10 +2092,6 @@
         <translation>Font</translation>
     </message>
     <message>
-        <source>Относительно высоты видео: 55 ≈ 7,6 % высоты кадра, растёт вместе с окном</source>
-        <translation>Relative to the video height: 55 is about 7.6 % of the frame height, grows with the window</translation>
-    </message>
-    <message>
         <source>Жирный</source>
         <translation>Bold</translation>
     </message>
@@ -1990,6 +2122,10 @@
     <message>
         <source>Непрозрачность подложки</source>
         <translation>Box opacity</translation>
+    </message>
+    <message>
+        <source>Относительно высоты видео: 55 = 7,6 % высоты кадра, растёт вместе с окном</source>
+        <translation>Relative to the video height: 55 = 7.6 % of the frame height, grows with the window</translation>
     </message>
     <message>
         <source>Включить</source>

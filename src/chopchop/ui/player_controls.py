@@ -16,7 +16,7 @@ from chopchop.player.throttle import Throttle
 from chopchop.ui import anim
 from chopchop.ui.click_slider import ClickSlider
 from chopchop.ui.floating import FloatingPanel
-from chopchop.ui.theme import current, icons, tokens
+from chopchop.ui.theme import current, fonts, icons, tokens
 
 SEEK_RESOLUTION = 1000
 SUBTITLE_FILTER = "*.srt *.ass *.ssa *.vtt *.sub"
@@ -268,9 +268,7 @@ class PlayerControls(FloatingPanel):
         self._play = self._make_button("play")
         self._play.clicked.connect(player.toggle_pause)
         self._time = QLabel("0:00 / 0:00")
-        font = self._time.font()
-        font.setPixelSize(tokens.UI_FONT_PX)  # время 12 px: панель низкая
-        self._time.setFont(font)
+        self._time.setFont(fonts.ui_font(fonts.BODY))  # время обычным текстом, 18 px
         self._time.setMinimumWidth(96)
         self._seek = ProgressLine()
         self._seek.seekRequested.connect(self._on_seek_moved)

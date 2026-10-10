@@ -54,6 +54,7 @@ from chopchop.ui.tools.crop_tool import CropTool, ratio_from_setting
 from chopchop.ui.tools.draw_tool import DrawShape, DrawTool
 from chopchop.ui.tools.redact_tool import RedactTool
 from chopchop.ui.tools.text_tool import TextTool
+from chopchop.ui.widgets import set_icon
 
 REFRESH_MS = 15
 
@@ -272,13 +273,14 @@ class EditorPage(QWidget):
 
     def _panel_rotate(self) -> QWidget:
         buttons: list[QWidget] = []
-        for text, op in (
-            (self.tr("⟲ Влево на 90°"), Rotate(270)),
-            (self.tr("⟳ Вправо на 90°"), Rotate(90)),
-            (self.tr("↔ Отразить по горизонтали"), Flip(True)),
-            (self.tr("↕ Отразить по вертикали"), Flip(False)),
+        for text, icon, op in (
+            (self.tr("Влево на 90°"), "rotate", Rotate(270)),
+            (self.tr("Вправо на 90°"), "rotate", Rotate(90)),
+            (self.tr("Отразить по горизонтали"), "flip", Flip(True)),
+            (self.tr("Отразить по вертикали"), "flip", Flip(False)),
         ):
             button = QPushButton(text)
+            set_icon(button, icon)  # стрелок-символов в Monocraft нет: значок из набора
             button.clicked.connect(lambda _checked=False, o=op: self.session.add_full(o))
             buttons.append(button)
         return self._panel(*buttons)

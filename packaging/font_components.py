@@ -17,13 +17,13 @@ FONTS = ROOT / "resources" / "fonts"
 
 # файл → описание; новый шрифт добавляется сюда вместе с текстом лицензии рядом
 FONT_INFO: dict[str, dict[str, str]] = {
-    "Tiny5.ttf": {
-        "name": "Tiny5",
-        "version": "1.0",
+    "Monocraft.ttf": {
+        "name": "Monocraft",
+        "version": "4.0",
         "license": "OFL-1.1",
-        "license_file": "OFL-Tiny5.txt",
-        "author": "The Tiny5 Project Authors",
-        "url": "https://github.com/Gissio/font_tiny5",
+        "license_file": "Monocraft-LICENSE.txt",
+        "author": "Idrees Hassan",
+        "url": "https://github.com/IdreesInc/Monocraft",
     }
 }
 
@@ -43,7 +43,7 @@ def font_components(fonts_dir: Path = FONTS) -> list[dict[str, object]]:
                 "name": info["name"],
                 "version": info["version"],
                 "author": info["author"],
-                "description": "Пиксельный шрифт заголовков (resources/fonts/" + name + ")",
+                "description": "Пиксельный шрифт интерфейса (resources/fonts/" + name + ")",
                 "hashes": [
                     {"alg": "SHA-256", "content": hashlib.sha256(font.read_bytes()).hexdigest()}
                 ],

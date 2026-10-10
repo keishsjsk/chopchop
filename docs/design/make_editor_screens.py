@@ -92,13 +92,14 @@ def main() -> int:
 
     app = QApplication([])
     fonts.load_fonts()
+    fonts.apply(app, "monocraft")
     i18n.install_language(app, "ru")
     work = Path(tempfile.mkdtemp(prefix="chopchop-shots-"))
     video = make_video(work / "demo.mp4", seconds=12, size=(1280, 720))
     second = make_video(work / "second.mp4", seconds=6, size=(1280, 720), frequency=660)
     theme = ThemeManager(app)
     for name in ("light", "dark"):
-        theme.set_theme(name, "orange")
+        theme.set_theme(name, "ember")
         for number, (w, h) in enumerate(wanted):
             settings = AppSettings(None)
             settings.set("appearance.theme", name)

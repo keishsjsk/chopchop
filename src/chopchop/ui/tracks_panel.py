@@ -49,7 +49,7 @@ class TracksPanel(FloatingPanel):
         self.setFixedWidth(PANEL_WIDTH)
 
         title = QLabel(self.tr("Дорожки и субтитры"))
-        title.setFont(fonts.pixel_font(2))
+        title.setFont(fonts.ui_font(fonts.BODY))
         self._close = QPushButton("×")
         self._close.setProperty("variant", "flat")
         self._close.setFixedWidth(tokens.MIN_HIT)
@@ -118,7 +118,7 @@ class TracksPanel(FloatingPanel):
         apply: Callable[[int | None], None],
     ) -> None:
         heading = QLabel(title)
-        heading.setFont(fonts.pixel_font(2))
+        heading.setFont(fonts.ui_font(fonts.BODY))
         heading.setContentsMargins(0, tokens.SPACE_2, 0, 0)
         self._body.addWidget(heading)
         group = QButtonGroup(self)

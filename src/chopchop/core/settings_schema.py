@@ -254,7 +254,7 @@ SPECS: tuple[Spec, ...] = (
         "int",
         55,
         QT_TRANSLATE_NOOP("Settings", "Размер шрифта субтитров"),
-        hint=QT_TRANSLATE_NOOP("Settings", "Относительно высоты видео: 55 ≈ 7,6 % высоты кадра"),
+        hint=QT_TRANSLATE_NOOP("Settings", "Относительно высоты видео: 55 = 7,6 % высоты кадра"),
         low=10,
         high=150,
         shown=False,
@@ -501,13 +501,14 @@ SPECS: tuple[Spec, ...] = (
     Spec(
         "appearance.accent",
         "choice",
-        "orange",
+        "ember",
         QT_TRANSLATE_NOOP("Settings", "Акцентный цвет"),
+        QT_TRANSLATE_NOOP("Settings", "Палитра акцента: терракота, шалфей, закат или роза"),
         choices=(
-            ("orange", QT_TRANSLATE_NOOP("Settings", "оранжевый")),
-            ("violet", QT_TRANSLATE_NOOP("Settings", "фиолетовый")),
-            ("coral", QT_TRANSLATE_NOOP("Settings", "коралловый")),
-            ("burgundy", QT_TRANSLATE_NOOP("Settings", "бордовый")),
+            ("ember", QT_TRANSLATE_NOOP("Settings", "терракота")),
+            ("meadow", QT_TRANSLATE_NOOP("Settings", "шалфей")),
+            ("sunset", QT_TRANSLATE_NOOP("Settings", "закат")),
+            ("rose", QT_TRANSLATE_NOOP("Settings", "роза")),
         ),
     ),
     Spec(
@@ -521,10 +522,15 @@ SPECS: tuple[Spec, ...] = (
         apply="restart",
     ),
     Spec(
-        "appearance.pixel_titles",
-        "bool",
-        True,
-        QT_TRANSLATE_NOOP("Settings", "Пиксельный шрифт в заголовках"),
+        "appearance.font",
+        "choice",
+        "monocraft",
+        QT_TRANSLATE_NOOP("Settings", "Шрифт интерфейса"),
+        QT_TRANSLATE_NOOP("Settings", "Monocraft (пиксельный, размеры кратны 9) или шрифт системы"),
+        choices=(
+            ("monocraft", "Monocraft"),
+            ("system", QT_TRANSLATE_NOOP("Settings", "системный")),
+        ),
     ),
     Spec(
         "appearance.animations",
@@ -692,6 +698,13 @@ SPECS: tuple[Spec, ...] = (
     # --- Служебное: не показывается в окне, но хранится в файле
     Spec("state.window", "str", "", QT_TRANSLATE_NOOP("Settings", "Положение окна"), shown=False),
     Spec(
+        "state.settings_size",
+        "str",
+        "860x600",
+        QT_TRANSLATE_NOOP("Settings", "Размер окна настроек"),
+        shown=False,
+    ),
+    Spec(
         "state.trim_height",
         "int",
         112,
@@ -713,6 +726,17 @@ def defaults() -> dict[str, object]:
     return {spec.key: spec.default for spec in SPECS}
 
 
+# значения, которые в старых файлах назывались иначе (акценты 0.1 до смены палитры)
+LEGACY_CHOICES: dict[str, dict[str, str]] = {
+    "appearance.accent": {
+        "orange": "ember",
+        "violet": "meadow",
+        "coral": "rose",
+        "burgundy": "sunset",
+    }
+}
+
+
 def coerce(spec: Spec, raw: object) -> object:
     """Приводит значение из файла к типу настройки; ValueError, если оно не подходит.
 
@@ -729,6 +753,7 @@ def coerce(spec: Spec, raw: object) -> object:
             if isinstance(raw, int | float) and not isinstance(raw, bool):
                 return _clamp(spec, float(raw))
         case "choice":
+            raw = LEGACY_CHOICES.get(spec.key, {}).get(str(raw), raw)  # прежние названия
             if isinstance(raw, str) and raw in {value for value, _ in spec.choices}:
                 return raw
         case "color":
