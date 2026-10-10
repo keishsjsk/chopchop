@@ -73,6 +73,15 @@ user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
 
 
+def require_real_mouse_permission() -> None:
+    """Настоящий курсор и клики: только если владелец сам запустил `manual_realmouse.py`."""
+    if os.environ.get("CHOPCHOP_REAL_MOUSE_OK") != "1":
+        raise SystemExit(
+            "Этот бенчмарк двигает настоящий курсор и нажимает кнопку мыши. Его запускает только "
+            "владелец компьютера: bench/manual_realmouse.py. Замеры без мыши: bench_render.py."
+        )
+
+
 def make_video(size: str, seconds: int = 40) -> Path:
     """Ролик с ключевыми кадрами раз в 2 секунды (как у обычной камеры) и звуком."""
     ffmpeg = find_ffmpeg()
@@ -154,6 +163,7 @@ class Rig:
 
     def move_to(self, point: QPoint) -> None:
         """Передвигает настоящий курсор в глобальную точку (логические пиксели Qt)."""
+        require_real_mouse_permission()
         self.probe.pending_moves.append((point, time.perf_counter()))
         user32.SetCursorPos(round(point.x() * self.dpr), round(point.y() * self.dpr))
         QTest.qWait(MOVE_PAUSE_MS)
@@ -167,11 +177,13 @@ class Rig:
                 )
 
     def press(self) -> None:
+        require_real_mouse_permission()
         self.probe.pending_press = time.perf_counter()
         user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
         QTest.qWait(30)
 
     def release(self) -> None:
+        require_real_mouse_permission()
         user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
         QTest.qWait(30)
 

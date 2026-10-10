@@ -27,7 +27,7 @@ def test_load_without_resume_starts_from_beginning() -> None:
     player, fake = _player()
     fake.pause = True
     player.load(Path("movie.mkv"))
-    assert fake.loaded == [("movie.mkv", {})]
+    assert fake.loaded == [("movie.mkv", {"pause": "no"})]
     assert fake.pause is False
 
 
@@ -45,6 +45,7 @@ def test_load_applies_resume_state() -> None:
     player.load(Path("movie.mkv"), state)
     _, options = fake.loaded[0]
     assert options == {
+        "pause": "no",
         "start": "12.500",
         "aid": 2,
         "sid": "no",

@@ -1,0 +1,34 @@
+{
+  "move_block": {
+    "gui_blocked_ms_median": 63.2,
+    "gui_blocked_ms_max": 63.2,
+    "longest_pause_ms_median": 92.8,
+    "longest_pause_ms_max": 92.8,
+    "ready_ms_median": 255.6,
+    "ready_ms_max": 255.6
+  },
+  "delete_block": {
+    "gui_blocked_ms_median": 1.4,
+    "gui_blocked_ms_max": 1.4,
+    "longest_pause_ms_median": 30.4,
+    "longest_pause_ms_max": 30.4,
+    "ready_ms_median": 396.1,
+    "ready_ms_max": 396.1
+  },
+  "undo": {
+    "gui_blocked_ms_median": 1.1,
+    "gui_blocked_ms_max": 1.1,
+    "longest_pause_ms_median": 0.0,
+    "longest_pause_ms_max": 0.0,
+    "ready_ms_median": 1.2,
+    "ready_ms_max": 1.2
+  },
+  "stretch_edge": {
+    "gui_blocked_ms_median": 2.2,
+    "gui_blocked_ms_max": 2.2,
+    "longest_pause_ms_median": 34.9,
+    "longest_pause_ms_max": 34.9,
+    "ready_ms_median": 404.8,
+    "ready_ms_max": 404.8
+  }
+}

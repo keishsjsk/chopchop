@@ -4,7 +4,7 @@ import ctypes
 from types import ModuleType
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QMouseEvent, QOpenGLContext, QPainter, QPaintEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
@@ -124,6 +124,10 @@ class SoftwareMpvWidget(QWidget):
     Нужен там, где нет аппаратного OpenGL или он тормозит (виртуальные машины, старые драйверы,
     гибридные ноутбуки): окно не проходит через GL и не копируется между видеокартами.
     Интерфейс тот же, что у `MpvWidget`.
+
+    В программном режиме mpv не зовёт обратный вызов на каждый кадр, пока его не опрашивают, поэтому
+    таймер каждые 8 мс спрашивает «есть ли новый кадр» (это дешёвый вызов); без нового кадра прежняя
+    картинка остаётся на месте, и при перезагрузке монтажа она не мигает чёрным.
     """
 
     clicked = Signal()
@@ -131,6 +135,7 @@ class SoftwareMpvWidget(QWidget):
     mouseMoved = Signal()
     _updateRequested = Signal()
     renderContextRecreated = Signal()  # здесь контекст не пересоздаётся; сигнал для совместимости
+    POLL_MS = 8
 
     def __init__(self, module: ModuleType, mpv: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -139,11 +144,23 @@ class SoftwareMpvWidget(QWidget):
         self._mpv = mpv
         self._ctx: Any = module.MpvRenderContext(mpv, "sw")
         self._frame = QImage()
-        self._updateRequested.connect(self.update)
-        self._ctx.update_cb = self._updateRequested.emit  # зовётся из потока mpv
+        self._has_frame = False
+        self._fresh = False
+        self._updateRequested.connect(self._poll)
+        self._ctx.update_cb = lambda: self._updateRequested.emit()  # зовётся из потока mpv
+        self._timer = QTimer(self)
+        self._timer.setInterval(self.POLL_MS)
+        self._timer.timeout.connect(self._poll)
+        self._timer.start()
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+
+    def _poll(self) -> None:
+        """Новый кадр от mpv готов: просим перерисовку (сам кадр рисуется в `paintEvent`)."""
+        if self._ctx is not None and self._ctx.update():
+            self._fresh = True
+            self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
@@ -152,26 +169,30 @@ class SoftwareMpvWidget(QWidget):
             return
         ratio = self.devicePixelRatioF()
         width, height = max(int(self.width() * ratio), 1), max(int(self.height() * ratio), 1)
-        if self._frame.width() != width or self._frame.height() != height:
+        resized = self._frame.width() != width or self._frame.height() != height
+        if resized:
             self._frame = QImage(width, height, QImage.Format.Format_RGB32)
             self._frame.fill(Qt.GlobalColor.black)
             self._frame.setDevicePixelRatio(ratio)
-        self._ctx.update()
-        bits = self._frame.bits()
-        address = ctypes.addressof(ctypes.c_char.from_buffer(bits))
-        self._ctx.render(
-            sw_size={"w": width, "h": height},
-            sw_format="bgr0",  # байты B, G, R, пусто: это `Format_RGB32` в памяти
-            sw_stride={"value": self._frame.bytesPerLine()},
-            sw_pointer=address,
-            block_for_target_time=False,
-        )
+        if self._fresh or (resized and self._has_frame):
+            self._fresh = False
+            self._has_frame = True
+            bits = self._frame.bits()
+            address = ctypes.addressof(ctypes.c_char.from_buffer(bits))
+            self._ctx.render(
+                sw_size={"w": width, "h": height},
+                sw_format="bgr0",  # байты B, G, R, пусто: это `Format_RGB32` в памяти
+                sw_stride={"value": self._frame.bytesPerLine()},
+                sw_pointer=address,
+                block_for_target_time=False,
+            )
         painter.drawImage(0, 0, self._frame)
 
     def release(self) -> None:
         """Освободить контекст рендера; вызывать до остановки mpv."""
         if self._ctx is None:
             return
+        self._timer.stop()
         self._ctx.update_cb = None
         self._ctx.free()
         self._ctx = None

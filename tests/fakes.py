@@ -75,6 +75,8 @@ class FakeMpv:
 
     def loadfile(self, path: str, **options: object) -> None:
         self.loaded.append((path, options))
+        if "pause" in options:  # пауза передаётся параметром загрузки
+            self.pause = options["pause"] == "yes"
 
     def seek(self, *args: object) -> None:
         self.seeks.append(args)

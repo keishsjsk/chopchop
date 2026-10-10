@@ -81,7 +81,10 @@ def test_every_change_of_the_montage_reloads_the_player_at_the_same_picture(
     page.session.cut(RemoveBlock(0))  # вырезали первые 2 секунды
     source, options = fake.mpv.loaded[-1]
     assert source.startswith("edl://") and ",2.000000,4.000000" in source
-    assert options == {"start": "2.000"}  # тот же кадр (4 с файла) теперь на 2 с итога
+    assert options == {
+        "pause": "yes",
+        "start": "2.000",
+    }  # тот же кадр (4 с файла) теперь на 2 с итога
     assert fake.mpv.pause is True  # состояние паузы сохранено
     fake.mpv.pause = False
     fake.mpv.fire("pause", False)

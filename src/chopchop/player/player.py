@@ -109,8 +109,7 @@ class Player(QObject):
 
     def load(self, path: Path, resume: ResumeState | None = None) -> None:
         self._current = path
-        options: dict[str, object] = {}
-        self._mpv.pause = False
+        options: dict[str, object] = {"pause": "no"}
         if resume is not None:
             if resume.position > 0:
                 options["start"] = f"{resume.position:.3f}"
@@ -128,7 +127,7 @@ class Player(QObject):
             self.set_volume(resume.volume)
         else:
             self.set_volume(self._default_volume)
-        self._mpv.loadfile(str(path), **options)
+        self._loadfile(str(path), options)
 
     def load_source(
         self, source: str, current: Path, position: float = 0.0, paused: bool = False
@@ -139,11 +138,28 @@ class Player(QObject):
         перезагрузками, когда блоки поменялись.
         """
         self._current = current
-        options: dict[str, object] = {}
+        options: dict[str, object] = {"pause": "yes" if paused else "no"}
         if position > 0:
             options["start"] = f"{position:.3f}"
-        self._mpv.pause = paused
-        self._mpv.loadfile(source, **options)
+        self._loadfile(source, options)
+
+    def _loadfile(self, target: str, options: dict[str, object]) -> None:
+        """Загрузка без ожидания ядра mpv.
+
+        Обычный `loadfile` ждёт ответа ядра, а оно может быть занято разбором прошлой загрузки или
+        перемоткой: интерфейс при этом стоит. Асинхронная команда уходит сразу, а о готовности
+        сообщает событие загрузки файла. Пауза передаётся параметром загрузки, а не отдельной
+        записью свойства (она тоже ждала бы ядро).
+        """
+        mpv = self._mpv
+        if not hasattr(mpv, "command_async") or not hasattr(mpv, "mpv_version_tuple"):
+            mpv.loadfile(target, **options)
+            return
+        args: list[object] = [target, "replace"]
+        if mpv.mpv_version_tuple >= (0, 38, 0):
+            args.append(-1)
+        args.append(",".join(f"{key}={value}" for key, value in options.items()))
+        mpv.command_async("loadfile", *args)
 
     def stop(self) -> None:
         if not self._closed:
@@ -320,8 +336,11 @@ class Player(QObject):
 
     def _reload(self, position: float, paused: bool) -> None:
         assert self._current is not None
-        options = {"start": f"{position:.3f}", "pause": "yes" if paused else "no"}
-        self._mpv.loadfile(str(self._current), **options)
+        options: dict[str, object] = {
+            "start": f"{position:.3f}",
+            "pause": "yes" if paused else "no",
+        }
+        self._loadfile(str(self._current), options)
 
     def set_video_filter(self, graph: str | None) -> bool:
         """Показывать видео через граф фильтров ffmpeg (метки vid1 и vo); None снимает фильтр."""
