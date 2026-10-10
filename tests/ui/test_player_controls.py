@@ -64,16 +64,20 @@ def test_format_time() -> None:
 
 def test_panel_sizes_normal_and_compact(qtbot: QtBot) -> None:
     controls, _player, _fake = _controls(qtbot)
-    assert controls.height() == 64  # обычная: 64 px, кнопки 40, значки 32
-    assert controls._play.iconSize().width() == 32
-    assert controls.max_width > 720
+    from chopchop.ui.theme import icons
+
+    assert controls.height() == 40  # обычная: 40 px, кнопки 28
+    assert controls._play.iconSize().width() == icons.ui_icon_size()
+    assert 16 <= controls._play.iconSize().width() <= 21  # значки видны размером 16-20 px
+    assert controls._play.width() == controls._play.height() == tokens.PLAYER_BUTTON == 28
+    assert controls.max_width == 560
     controls.set_compact(True)
-    assert controls.height() == 44  # компактная: около 44 px, значки 16
-    assert controls._play.iconSize().width() == 16
-    assert controls._play.width() >= tokens.MIN_HIT
-    assert controls.max_width == 720
+    assert controls.height() == 36  # в полном экране 36 px
+    assert controls._play.width() == 28
+    assert controls.max_width == 560
     controls.set_compact(False)
-    assert controls.height() == 64
+    assert controls.height() == 40
+    assert controls._time.font().pixelSize() == tokens.UI_FONT_PX  # время 12 px
 
 
 def test_tracks_panel_lists_tracks_by_section(qtbot: QtBot) -> None:
@@ -194,3 +198,15 @@ def test_progress_line_uses_theme_colours(qtbot: QtBot) -> None:
     ratio = image.devicePixelRatio()
     middle = image.pixelColor(round(center.x() * ratio), round(center.y() * ratio))
     assert middle.name() == QColor(current.palette().accent).name()
+
+
+@pytest.mark.parametrize("ratio", [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0])
+def test_ui_icons_are_16_to_21_px_with_a_whole_grid_scale(ratio: float) -> None:
+    from chopchop.ui.theme import icons
+
+    size = icons.ui_icon_size(ratio)
+    assert 12 <= size <= 21
+    scale = icons.integer_scale(size, ratio)
+    assert abs(size * ratio - 16 * scale) <= 1.0  # сетка ложится на пиксели без дробей
+    if ratio in (1.0, 2.0, 3.0):
+        assert 16 <= size <= 20 or ratio == 3.0

@@ -68,7 +68,6 @@ def test_dragging_makes_selection_in_frame_coordinates(qtbot: QtBot) -> None:
 def test_paints_crop_and_selection_without_errors(qtbot: QtBot) -> None:
     overlay, host = _overlay(qtbot)
     overlay.set_crop(Rect(100, 50, 300, 200))
-    overlay.set_rotation_note("Поворот")
     tool = CropTool()
     tool.set_bounds(640, 360)
     tool.selection.rect = Rect(10, 10, 100, 100)

@@ -131,10 +131,11 @@ class ToolRail(QWidget):
 
 
 class TopRow(QWidget):
-    """Верхняя панель 48 px: слева навигация и отмена, справа главное действие."""
+    """Верхняя панель 40 px: слева навигация и отмена, справа главное действие."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("toprow")
         self.setFixedHeight(tokens.TOP_BAR_H)
         self.left = QHBoxLayout()
         self.left.setSpacing(tokens.SPACE_1)
@@ -164,6 +165,7 @@ class ContextBar(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("contextbar")
         self._stack = QStackedWidget(self)
         self._empty = QWidget()
         self._stack.addWidget(self._empty)
@@ -185,7 +187,7 @@ class ContextBar(QWidget):
         return self._current is not None
 
     def add_panel(self, key: str, widget: QWidget) -> None:
-        """Строка параметров: отступы по краям, высота панели 48."""
+        """Строка параметров: отступы по краям, высота панели 36."""
         holder = QWidget()
         row = QHBoxLayout(holder)
         row.setContentsMargins(tokens.SPACE_3, 0, tokens.SPACE_3, 0)

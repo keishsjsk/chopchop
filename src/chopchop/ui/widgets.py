@@ -33,8 +33,15 @@ def tip(name: str, key: str = "") -> str:
     return f"{name} ({key})" if key else name
 
 
-def set_icon(button: QAbstractButton, name: str, logical: int = 32, role: str = "text") -> None:
-    """Значок кнопки в цветах темы; запоминается, чтобы перекраситься при смене темы."""
+def set_icon(
+    button: QAbstractButton, name: str, logical: int | None = None, role: str = "text"
+) -> None:
+    """Значок кнопки в цветах темы; запоминается, чтобы перекраситься при смене темы.
+
+    Размер по умолчанию подбирается по `devicePixelRatio` (около 18 px, масштаб сетки целый).
+    """
+    if logical is None:
+        logical = icons.ui_icon_size()
     button.setProperty(ICON_NAME, name)
     button.setProperty(ICON_SIZE, logical)
     button.setProperty(ICON_ROLE, role)
@@ -50,7 +57,7 @@ def refresh_icons(root: QWidget) -> None:
             set_icon(
                 button,
                 name,
-                int(button.property(ICON_SIZE) or 32),
+                int(button.property(ICON_SIZE) or icons.ui_icon_size()),
                 str(button.property(ICON_ROLE) or "text"),
             )
 
@@ -68,7 +75,7 @@ def button(
     if variant:
         result.setProperty("variant", variant)
     if icon:
-        set_icon(result, icon, 32, "on_accent" if variant == "primary" else "text")
+        set_icon(result, icon, None, "on_accent" if variant == "primary" else "text")
     if tooltip:
         result.setToolTip(tooltip)
     if slot is not None:
@@ -83,11 +90,14 @@ def icon_button(
     *,
     text: str = "",
     checkable: bool = False,
-    logical: int = 32,
+    logical: int | None = None,
+    small: bool = False,
 ) -> QToolButton:
     """Призрачная кнопка со значком (и необязательной подписью рядом)."""
     result = QToolButton()
     result.setProperty("variant", "ghost")
+    if small:
+        result.setProperty("small", True)  # 28 px: стрелки и корзина в списках
     result.setToolTip(tooltip)
     result.setAccessibleName(text or tooltip)
     result.setCheckable(checkable)
@@ -97,6 +107,11 @@ def icon_button(
         result.setProperty("labelled", True)
         result.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
     set_icon(result, icon, logical)
+    side = tokens.SMALL_BUTTON if small else tokens.ICON_BUTTON
+    if text:
+        result.setFixedHeight(side)
+    else:
+        result.setFixedSize(side, side)
     if slot is not None:
         result.clicked.connect(lambda _checked=False: slot())
     return result
@@ -134,7 +149,7 @@ class Segmented(QWidget):
         item.setProperty("variant", self._variant)
         item.setCheckable(not momentary)
         if icon:
-            set_icon(item, icon, 32, "text")
+            set_icon(item, icon, None, "text")
         if tooltip:
             item.setToolTip(tooltip)
         if momentary:
@@ -187,7 +202,7 @@ class PixelToggle(QAbstractButton):
     def sizeHint(self) -> QSize:  # noqa: N802
         label = QFontMetrics(self.font()).horizontalAdvance(self.text()) if self.text() else 0
         gap = tokens.SPACE_2 if label else 0
-        return QSize(tokens.TOGGLE_W + gap + label + 2 * tokens.FOCUS_GAP, tokens.MIN_HIT)
+        return QSize(tokens.TOGGLE_W + gap + label + 2 * tokens.FOCUS_GAP, tokens.CONTEXT_CONTROL_H)
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802
         return self.sizeHint()

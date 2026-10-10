@@ -19,7 +19,6 @@ class VideoOverlay(QWidget):
         self._host = host
         self._frame = frame_size
         self._crop: Rect | None = None
-        self._rotation_note = ""
         self.tool: Tool | None = None
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
@@ -47,10 +46,6 @@ class VideoOverlay(QWidget):
 
     def set_crop(self, rect: Rect | None) -> None:
         self._crop = rect
-        self.update()
-
-    def set_rotation_note(self, text: str) -> None:
-        self._rotation_note = text
         self.update()
 
     def set_tool(self, tool: Tool | None) -> None:
@@ -102,13 +97,6 @@ class VideoOverlay(QWidget):
             painter.setClipRect(frame)
             self.tool.paint(painter, self)
             painter.setClipping(False)
-        if self._rotation_note:
-            painter.setPen(QColor(current.palette().accent))
-            painter.drawText(
-                QRectF(frame.left() + 8, frame.top() + 6, frame.width(), 20),
-                Qt.AlignmentFlag.AlignLeft,
-                self._rotation_note,
-            )
 
     def _paint_crop(self, painter: QPainter, frame: QRectF) -> None:
         """Затемнить то, что останется за кадром результата."""

@@ -388,7 +388,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, self.tr("Плеер недоступен"), f"{hint}\n\n{error}")
             return None
         page = VideoPage(module, mpv, settings=self._app, presets=self._presets)
-        page.editRequested.connect(self.toggle_editor)
         page.contextMenuRequested.connect(self._on_video_menu)
         page.subtitleSettingsRequested.connect(lambda: self.show_settings("subtitles"))
         page.fullscreenRequested.connect(self.toggle_fullscreen)

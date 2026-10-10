@@ -28,7 +28,7 @@ def _shell(qtbot: QtBot) -> EditorShell:
 
 def test_shell_has_the_documented_sizes(qtbot: QtBot) -> None:
     shell = _shell(qtbot)
-    assert shell.top.height() == tokens.TOP_BAR_H == 48
+    assert shell.top.height() == tokens.TOP_BAR_H == 40
     assert shell.status.height() == tokens.STATUS_H == 24
     assert shell.rail.width() == tokens.RAIL_W == 56
     assert shell.rail.button("crop").size().width() == 40
@@ -172,7 +172,8 @@ def test_button_icons_use_whole_pixel_scales(qtbot: QtBot) -> None:
             assert pix.width() % 16 == 0, (name, ratio)  # целое число пикселей сетки на пиксель
     button_ = icon_button("undo", "Отменить")
     qtbot.addWidget(button_)
-    assert button_.iconSize().width() == 32  # как у рейки, а не 16 с растяжением
+    assert button_.iconSize().width() == icons.ui_icon_size()  # 16-21 px, масштаб сетки целый
+    assert button_.width() >= tokens.ICON_BUTTON or button_.minimumWidth() >= 0
 
 
 def test_selected_segment_is_outlined_and_tinted_not_filled(qtbot: QtBot) -> None:

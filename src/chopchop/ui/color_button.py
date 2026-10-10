@@ -22,7 +22,7 @@ class ColorButton(QPushButton):
     def __init__(self, color: Color, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._color = color
-        self.setFixedHeight(tokens.MIN_HIT)
+        self.setFixedHeight(tokens.CONTEXT_CONTROL_H)
         self.clicked.connect(self._choose)
         self._refresh()
 

@@ -2148,13 +2148,6 @@
     </message>
 </context>
 <context>
-    <name>TopBar</name>
-    <message>
-        <source>Редактировать  Ctrl+E</source>
-        <translation>Edit  Ctrl+E</translation>
-    </message>
-</context>
-<context>
     <name>TracksPanel</name>
     <message>
         <source>Дорожки и субтитры</source>

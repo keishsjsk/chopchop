@@ -1,0 +1,200 @@
+[
+  {
+    "scale": 100,
+    "dpr": 1.0,
+    "player_bar": [
+      560,
+      40
+    ],
+    "player_button": [
+      28,
+      28
+    ],
+    "player_icon": 16,
+    "player_time_font_px": 12,
+    "player_top": [
+      1068,
+      32
+    ],
+    "player_bar_fullscreen": [
+      560,
+      36
+    ],
+    "editor_top": 40,
+    "editor_context": 36,
+    "editor_transport": 36,
+    "editor_icon_button": [
+      32,
+      32
+    ],
+    "editor_icon": 16,
+    "ui_icon": 16,
+    "context_buttons_max_height": 28,
+    "theme": "light"
+  },
+  {
+    "scale": 150,
+    "dpr": 1.5,
+    "player_bar": [
+      560,
+      40
+    ],
+    "player_button": [
+      28,
+      28
+    ],
+    "player_icon": 21,
+    "player_time_font_px": 12,
+    "player_top": [
+      1068,
+      32
+    ],
+    "player_bar_fullscreen": [
+      560,
+      36
+    ],
+    "editor_top": 40,
+    "editor_context": 36,
+    "editor_transport": 36,
+    "editor_icon_button": [
+      32,
+      32
+    ],
+    "editor_icon": 21,
+    "ui_icon": 21,
+    "context_buttons_max_height": 28,
+    "theme": "light"
+  },
+  {
+    "scale": 200,
+    "dpr": 1.9999995000000002,
+    "player_bar": [
+      560,
+      40
+    ],
+    "player_button": [
+      28,
+      28
+    ],
+    "player_icon": 16,
+    "player_time_font_px": 12,
+    "player_top": [
+      1068,
+      32
+    ],
+    "player_bar_fullscreen": [
+      560,
+      36
+    ],
+    "editor_top": 40,
+    "editor_context": 36,
+    "editor_transport": 36,
+    "editor_icon_button": [
+      32,
+      32
+    ],
+    "editor_icon": 16,
+    "ui_icon": 16,
+    "context_buttons_max_height": 28,
+    "theme": "light"
+  },
+  {
+    "scale": 100,
+    "dpr": 1.0,
+    "player_bar": [
+      560,
+      40
+    ],
+    "player_button": [
+      28,
+      28
+    ],
+    "player_icon": 16,
+    "player_time_font_px": 12,
+    "player_top": [
+      1068,
+      32
+    ],
+    "player_bar_fullscreen": [
+      560,
+      36
+    ],
+    "editor_top": 40,
+    "editor_context": 36,
+    "editor_transport": 36,
+    "editor_icon_button": [
+      32,
+      32
+    ],
+    "editor_icon": 16,
+    "ui_icon": 16,
+    "context_buttons_max_height": 28,
+    "theme": "dark"
+  },
+  {
+    "scale": 150,
+    "dpr": 1.5,
+    "player_bar": [
+      560,
+      40
+    ],
+    "player_button": [
+      28,
+      28
+    ],
+    "player_icon": 21,
+    "player_time_font_px": 12,
+    "player_top": [
+      1068,
+      32
+    ],
+    "player_bar_fullscreen": [
+      560,
+      36
+    ],
+    "editor_top": 40,
+    "editor_context": 36,
+    "editor_transport": 36,
+    "editor_icon_button": [
+      32,
+      32
+    ],
+    "editor_icon": 21,
+    "ui_icon": 21,
+    "context_buttons_max_height": 28,
+    "theme": "dark"
+  },
+  {
+    "scale": 200,
+    "dpr": 1.9999995000000002,
+    "player_bar": [
+      560,
+      40
+    ],
+    "player_button": [
+      28,
+      28
+    ],
+    "player_icon": 16,
+    "player_time_font_px": 12,
+    "player_top": [
+      1068,
+      32
+    ],
+    "player_bar_fullscreen": [
+      560,
+      36
+    ],
+    "editor_top": 40,
+    "editor_context": 36,
+    "editor_transport": 36,
+    "editor_icon_button": [
+      32,
+      32
+    ],
+    "editor_icon": 16,
+    "ui_icon": 16,
+    "context_buttons_max_height": 28,
+    "theme": "dark"
+  }
+]

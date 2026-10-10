@@ -29,7 +29,6 @@ THUMB_COUNT = 40
 GAP = tokens.SPACE_4
 FULLSCREEN_GAP = tokens.SPACE_6  # отступ плавающей панели от нижнего края в полном экране
 MINI_LINE = 3
-MAX_PANEL_WIDTH = 1200
 
 
 class MiniProgress(QWidget):
@@ -58,7 +57,6 @@ class MiniProgress(QWidget):
 
 class VideoPage(QWidget):
     fullscreenRequested = Signal()
-    editRequested = Signal()
     subtitleSettingsRequested = Signal()
     contextMenuRequested = Signal(QPoint)  # ПКМ над видео или его панелями
 
@@ -106,7 +104,6 @@ class VideoPage(QWidget):
         self.controls.fullscreenRequested.connect(self.fullscreenRequested)
         self.controls.tracksRequested.connect(self.toggle_tracks)
         self.tracks.closed.connect(self.toggle_tracks)
-        self.top.editRequested.connect(self.editRequested)
         self.tracks.openAllRequested.connect(self.subtitleSettingsRequested)
         self.controls._seek.hovered.connect(self._on_progress_hover)
         self.controls._seek.left.connect(self.bubble.hide)
@@ -166,7 +163,7 @@ class VideoPage(QWidget):
         width, height = self.width(), self.height()
         self.video.setGeometry(self.rect())
         gap = FULLSCREEN_GAP if self._fullscreen else GAP
-        panel_width = min(width - 2 * GAP, min(self.controls.max_width, MAX_PANEL_WIDTH))
+        panel_width = min(width - 2 * GAP, self.controls.max_width)
         panel_width = max(panel_width, 0)
         bottom = self.controls.height()
         self.controls.setGeometry(

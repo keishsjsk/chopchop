@@ -77,6 +77,9 @@ class VideoEffectsPanel(QObject):
         text.draw_preview = True
         self.tools: dict[str, Tool] = {"crop": crop, "redact": redact, "text": text}
         self._active: str | None = None
+        self._rotation_note = (
+            False  # поворот или отражение применены: сказать об этом в строке состояния
+        )
         self.panels: dict[str, QWidget] = {}
         self._build()
         for tool in self.tools.values():
@@ -236,7 +239,10 @@ class VideoEffectsPanel(QObject):
         return self.tools.get(self._active) if self._active else None
 
     def hint(self) -> str:
-        return self.tr(HINTS[self._active]) if self._active in HINTS else self.tr(IDLE_HINT)
+        text = self.tr(HINTS[self._active]) if self._active in HINTS else self.tr(IDLE_HINT)
+        if self._rotation_note and self._active != "rotate":
+            text += " · " + self.tr("Поворот и отражение применятся при экспорте")
+        return text
 
     def select_tool(self, name: str) -> None:
         """Выбрать пункт рейки; повторный выбор того же снимает его."""
@@ -328,10 +334,9 @@ class VideoEffectsPanel(QObject):
             tool.set_bounds(float(size[0]), float(size[1]))
         self.overlay.set_frame_size(size)
         self.overlay.set_crop(effects.crop)
-        note = ""
-        if effects.rotation or effects.flip_h or effects.flip_v:
-            note = self.tr("Поворот и отражение применятся при экспорте")
-        self.overlay.set_rotation_note(note)
+        # заметка про поворот живёт в строке состояния: поверх видео ей не место
+        self._rotation_note = bool(effects.rotation or effects.flip_h or effects.flip_v)
+        self.hintChanged.emit(self.hint())
         self.color.set_values(effects.adjust, effects.filter)
         self.text_time.set_duration(project.duration)
         self.redact_time.set_duration(project.duration)

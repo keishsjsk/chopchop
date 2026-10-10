@@ -246,10 +246,33 @@ QToolButton:focus {{ border: {ring}px solid {p.focus_ring}; }}
 QToolButton[rail="true"] {{
     min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px; padding: 0;
 }}
+/* значковые кнопки: ровно по токенам (min и max равны, иначе Qt добавляет к минимуму лишнее) */
 QToolButton[variant="ghost"] {{
-    min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px; padding: 0;
+    min-width: {t.ICON_BUTTON - 2 * b}px; max-width: {t.ICON_BUTTON - 2 * b}px;
+    min-height: {t.ICON_BUTTON - 2 * b}px; max-height: {t.ICON_BUTTON - 2 * b}px; padding: 0;
 }}
-QToolButton[variant="ghost"][labelled="true"] {{ padding: 0 {s3}px; }}
+QToolButton[variant="ghost"][small="true"] {{
+    min-width: {t.SMALL_BUTTON - 2 * b}px; max-width: {t.SMALL_BUTTON - 2 * b}px;
+    min-height: {t.SMALL_BUTTON - 2 * b}px; max-height: {t.SMALL_BUTTON - 2 * b}px;
+}}
+QToolButton[player="true"] {{
+    min-width: {t.PLAYER_BUTTON - 2 * b}px; max-width: {t.PLAYER_BUTTON - 2 * b}px;
+    min-height: {t.PLAYER_BUTTON - 2 * b}px; max-height: {t.PLAYER_BUTTON - 2 * b}px; padding: 0;
+}}
+/* панель параметров инструмента (36 px) и верхний ряд редактора: элементы ниже обычных */
+#contextbar QPushButton, #contextbar QPushButton[variant="segment"],
+#contextbar QPushButton[variant="chip"] {{
+    min-height: {t.CONTEXT_CONTROL_H - 2 * b}px;
+}}
+#contextbar QLineEdit, #contextbar QSpinBox, #contextbar QDoubleSpinBox, #contextbar QComboBox {{
+    min-height: {t.CONTEXT_CONTROL_H - 2 * b}px;
+}}
+#toprow QPushButton, #toprow QToolButton[variant="ghost"] {{
+    min-height: {t.CONTEXT_CONTROL_H - 2 * b}px;
+}}
+QToolButton[variant="ghost"][labelled="true"] {{
+    min-width: 0; max-width: 16777215px; padding: 0 {s3}px;
+}}
 QToolButton[variant="ghost"][warn="true"] {{ color: {p.danger}; }}
 QToolButton::menu-indicator {{ image: none; width: 0; }}
 

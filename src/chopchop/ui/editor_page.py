@@ -119,14 +119,17 @@ class EditorPage(QWidget):
     # --- построение интерфейса ---------------------------------------------------------------
 
     def _icon_button(
-        self, name: str, tip: str, slot: Callable[[], object] | None = None
+        self, name: str, tip: str, slot: Callable[[], object] | None = None, rail: bool = False
     ) -> QToolButton:
+        """Кнопка рейки (40 px, значок 32) или верхнего ряда (32 px, значок около 18)."""
         button = QToolButton()
         button.setToolTip(tip)
-        button.setFixedSize(tokens.RAIL_BUTTON, tokens.RAIL_BUTTON)
-        button.setIconSize(QSize(32, 32))
+        side = tokens.RAIL_BUTTON if rail else tokens.ICON_BUTTON
+        logical = 32 if rail else icons.ui_icon_size()
+        button.setFixedSize(side, side)
+        button.setIconSize(QSize(logical, logical))
         self._icon_buttons.append((button, name))
-        button.setIcon(icons.qicon(name, current.palette(), logical=32))
+        button.setIcon(icons.qicon(name, current.palette(), logical=logical))
         if slot is not None:
             button.clicked.connect(lambda _checked=False: slot())
         return button
@@ -134,7 +137,7 @@ class EditorPage(QWidget):
     def refresh_theme(self) -> None:
         """Тема сменилась: значки перекрашиваются."""
         for button, name in self._icon_buttons:
-            size = 16 if name == "save" else 32
+            size = button.iconSize().width()
             role = "on_accent" if name == "save" else "text"
             button.setIcon(icons.qicon(name, current.palette(), logical=size, role=role))
         self.update()
@@ -145,9 +148,10 @@ class EditorPage(QWidget):
         back.setText(self.tr("К просмотру"))
         back.setToolTip(self.tr("Вернуться к просмотру  Esc"))
         back.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        back.setIconSize(QSize(32, 32))
-        back.setMinimumHeight(tokens.RAIL_BUTTON)
-        back.setIcon(icons.qicon("back_to_view", current.palette(), logical=32))
+        side = icons.ui_icon_size()
+        back.setIconSize(QSize(side, side))
+        back.setMinimumHeight(tokens.ICON_BUTTON)
+        back.setIcon(icons.qicon("back_to_view", current.palette(), logical=side))
         self._icon_buttons.append((back, "back_to_view"))
         back.clicked.connect(self.request_exit)
         self._undo_button = self._icon_button("undo", self.tr("Отменить  Ctrl+Z"), self.undo)
@@ -200,7 +204,7 @@ class EditorPage(QWidget):
         self._panel_index: dict[str, int] = {}
         for key, icon_name, label, letter, panel in entries:
             tip = f"{label}  {letter}" if letter else label
-            button = self._icon_button(icon_name, tip)
+            button = self._icon_button(icon_name, tip, rail=True)
             button.setCheckable(True)
             button.clicked.connect(lambda _checked=False, k=key: self.select_tool(k))
             group.addButton(button)

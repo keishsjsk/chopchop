@@ -48,7 +48,7 @@ class EffectsPopup(FloatingPanel):
                     e, lab.mapToGlobal(point)
                 )
             )
-            remove = icon_button("trash", self.tr("Убрать эффект"))
+            remove = icon_button("trash", self.tr("Убрать эффект"), small=True)
             remove.clicked.connect(lambda _c=False, e=entry: self._remove(e))
             row = QHBoxLayout()
             row.addWidget(label, 1)

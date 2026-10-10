@@ -60,6 +60,14 @@ def format_clock(seconds: float) -> str:
     return f"{hours}:{minutes:02}:{secs:02}" if hours else f"{minutes}:{secs:02}"
 
 
+def format_tick(seconds: float, step: float) -> str:
+    """Подпись метки линейки: с десятыми, пока шаг короче секунды (иначе метки повторялись бы)."""
+    if step >= 1:
+        return format_clock(seconds)
+    tenths = round(seconds * 10)
+    return f"{format_clock(tenths // 10)}.{tenths % 10}"
+
+
 def range_label(start: float, end: float) -> str:
     """«0:00.0 – 0:06.9 · 0:06.9»: границы фрагмента и его длина."""
     return f"{format_precise(start)} – {format_precise(end)} · {format_precise(end - start)}"
@@ -379,7 +387,7 @@ class Timeline(QWidget):
             x = self.x_of(tick)
             if track.left() - 1 <= x <= track.right() + 1:
                 painter.drawLine(int(x), RULER_H - 6, int(x), RULER_H)
-                painter.drawText(int(x) + 3, RULER_H - 6, format_clock(tick))
+                painter.drawText(int(x) + 3, RULER_H - 6, format_tick(tick, step))
             tick += step
         _ = metrics
 

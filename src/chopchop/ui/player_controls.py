@@ -24,9 +24,6 @@ LINE_THIN = 4  # толщина линии прогресса в покое
 LINE_THICK = 8  # при наведении
 LINE_HEIGHT = 24  # высота области нажатия
 VOLUME_WIDTH = 96
-COMPACT_MAX_WIDTH = 720
-NORMAL_ICON = 32
-COMPACT_ICON = 16
 BUBBLE_THUMB_WIDTH = 160
 
 
@@ -271,7 +268,10 @@ class PlayerControls(FloatingPanel):
         self._play = self._make_button("play")
         self._play.clicked.connect(player.toggle_pause)
         self._time = QLabel("0:00 / 0:00")
-        self._time.setMinimumWidth(110)
+        font = self._time.font()
+        font.setPixelSize(tokens.UI_FONT_PX)  # время 12 px: панель низкая
+        self._time.setFont(font)
+        self._time.setMinimumWidth(96)
         self._seek = ProgressLine()
         self._seek.seekRequested.connect(self._on_seek_moved)
         self._seek.seekFinished.connect(self._on_seek_released)
@@ -302,6 +302,7 @@ class PlayerControls(FloatingPanel):
 
     def _make_button(self, icon_name: str) -> QToolButton:
         button = QToolButton()
+        button.setProperty("player", True)  # 28 px, размер задаёт код, а не таблица стилей
         button.setCheckable(False)
         button.setFocusPolicy(
             Qt.FocusPolicy.TabFocus
@@ -312,19 +313,19 @@ class PlayerControls(FloatingPanel):
 
     def _set_button_icon(self, button: QToolButton, name: str) -> None:
         self._buttons[button] = name
-        size = COMPACT_ICON if self._compact else NORMAL_ICON
+        size = icons.ui_icon_size()
         button.setIcon(icons.qicon(name, current.palette(), logical=size))
         button.setIconSize(QSize(size, size))
 
     def apply_size(self) -> None:
-        """Обычная панель 64 px и значки 32, компактная (полный экран) — 44 px и значки 16."""
-        size = COMPACT_ICON if self._compact else NORMAL_ICON
-        side = tokens.MIN_HIT if self._compact else tokens.RAIL_BUTTON
+        """Панель 40 px (в полном экране 36), кнопки 28, значки около 18 по масштабу экрана."""
+        size = icons.ui_icon_size()
+        side = tokens.PLAYER_BUTTON
         for button, name in self._buttons.items():
             button.setIcon(icons.qicon(name, current.palette(), logical=size))
             button.setIconSize(QSize(size, size))
             button.setFixedSize(side, side)
-        padding = tokens.SPACE_1 // 2 if self._compact else tokens.SPACE_2
+        padding = 0 if self._compact else tokens.SPACE_1 // 2  # 28 + 2·(2 + 2) + тень 4 = 40
         edge = tokens.BORDER_WIDTH + padding
         self._row.setContentsMargins(edge, edge, edge + self.reserve, edge + self.reserve)
         self.setFixedHeight(side + 2 * edge + self.reserve)
@@ -354,7 +355,7 @@ class PlayerControls(FloatingPanel):
 
     @property
     def max_width(self) -> int:
-        return COMPACT_MAX_WIDTH if self._compact else 16777215
+        return tokens.PLAYER_BAR_MAX_W
 
     # --- обновление от плеера ----------------------------------------------------------------
 

@@ -7,8 +7,9 @@
 """
 
 from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QIconEngine, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QIconEngine, QImage, QPainter, QPixmap
 
+from chopchop.ui.theme import tokens
 from chopchop.ui.theme.icon_data import ICONS_16, ICONS_24
 from chopchop.ui.theme.tokens import Palette
 
@@ -98,6 +99,21 @@ def render(
     )
     _cache[key] = image
     return image
+
+
+def ui_icon_size(ratio: float | None = None) -> int:
+    """Логический размер значков интерфейса: около 18 px, но так, чтобы масштаб сетки был целым.
+
+    Сетка значка 16×16, на экране с `devicePixelRatio` r каждая клетка занимает k пикселей
+    устройства (k целое), поэтому значок получается 16·k/r логических px: 16 при r=1, 21 при r=1,5,
+    16 при r=2. Берётся k, при котором размер ближе всего к целевому (`tokens.UI_ICON`).
+    """
+    if ratio is None:
+        screen = QGuiApplication.primaryScreen()
+        ratio = screen.devicePixelRatio() if screen is not None else 1.0
+    ratio = max(ratio, 1.0)
+    k = min(range(1, 6), key=lambda n: abs(16 * n / ratio - tokens.UI_ICON))
+    return max(round(16 * k / ratio), 12)
 
 
 def integer_scale(logical: int, ratio: float, grid: int = 16) -> int:

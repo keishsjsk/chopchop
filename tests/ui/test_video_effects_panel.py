@@ -136,14 +136,14 @@ def test_rotate_segments_and_rotation_note(qtbot: QtBot) -> None:
     buttons = {b.text(): b for b in panel.rotate_segments.buttons()}
     buttons["90° вправо"].click()
     assert session.project.effects.rotation == 90
-    assert panel.overlay._rotation_note
+    assert "применятся при экспорте" in panel.hint()  # заметка в строке состояния, не на видео
     buttons["90° влево"].click()
     assert session.project.effects.rotation == 0
     buttons["Отразить по горизонтали"].click()
     buttons["Отразить по вертикали"].click()
     assert session.project.effects.flip_h and session.project.effects.flip_v
     session.clear_effects()
-    assert not panel.overlay._rotation_note
+    assert "применятся при экспорте" not in panel.hint()
 
 
 def test_selection_and_hint_signals(qtbot: QtBot) -> None:

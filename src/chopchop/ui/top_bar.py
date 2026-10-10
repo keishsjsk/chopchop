@@ -1,38 +1,36 @@
-"""Верхняя плавающая панель плеера: название файла и кнопка редактирования."""
+"""Верхняя плавающая панель плеера: название файла (одна строка высотой 32 px).
 
-from PySide6.QtCore import QSize, Qt, Signal
+Переименование и редактирование доступны из контекстного меню и по Ctrl+E, отдельной кнопки нет.
+"""
+
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontMetrics, QResizeEvent
-from PySide6.QtWidgets import QLabel, QToolButton, QWidget
+from PySide6.QtWidgets import QLabel, QWidget
 
 from chopchop.ui.floating import FloatingPanel
-from chopchop.ui.theme import current, fonts, icons, tokens
+from chopchop.ui.theme import fonts, tokens
 
 
 class TopBar(FloatingPanel):
-    editRequested = Signal()
-
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._full_name = ""
         self._name = QLabel()
         self._name.setFont(fonts.pixel_font(2))
         self._name.setMinimumWidth(0)
-        self._edit = QToolButton()
-        self._edit.setFocusPolicy(Qt.FocusPolicy.TabFocus)
-        self._edit.setToolTip(self.tr("Редактировать  Ctrl+E"))
-        self._edit.setFixedSize(tokens.RAIL_BUTTON, tokens.RAIL_BUTTON)
-        self._edit.clicked.connect(self.editRequested)
-        self.refresh_theme()
-        row = self.horizontal(tokens.SPACE_2)
-        row.addWidget(self._name, 1)
-        row.addWidget(self._edit)
-        self.setFixedHeight(
-            tokens.RAIL_BUTTON + 2 * (tokens.BORDER_WIDTH + tokens.SPACE_2) + self.reserve
+        row = self.horizontal(0)
+        row.setContentsMargins(
+            tokens.BORDER_WIDTH + tokens.SPACE_2,
+            0,
+            tokens.BORDER_WIDTH + tokens.SPACE_2 + self.reserve,
+            self.reserve,
         )
+        row.addWidget(self._name, 1)
+        self.setFixedHeight(tokens.PLAYER_TOP_H)
 
     def refresh_theme(self) -> None:
-        self._edit.setIcon(icons.qicon("edit", current.palette(), logical=32))
-        self._edit.setIconSize(QSize(32, 32))
+        """Название рисуется цветом темы сам; значков на панели больше нет."""
+        self.update()
 
     def set_name(self, name: str) -> None:
         self._full_name = name

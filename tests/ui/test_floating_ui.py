@@ -196,11 +196,13 @@ def test_panels_fill_the_window_and_sit_at_the_edges(
     qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     page, _mpv = _page(qtbot, monkeypatch)
-    assert page.controls.height() == 64
+    assert page.controls.height() == tokens.PLAYER_BAR_H == 40
     visual_bottom = page.controls.geometry().bottom() + 1 - page.controls.reserve
     assert page.height() - visual_bottom == tokens.SPACE_4  # отступ от нижнего края окна 16 px
     assert page.top.geometry().top() == tokens.SPACE_4
-    assert page.controls.width() == page.width() - 2 * tokens.SPACE_4
+    assert (
+        page.controls.width() == tokens.PLAYER_BAR_MAX_W
+    )  # узкая панель по центру, а не во всё окно
     assert page.video.geometry() == page.rect()
 
 
@@ -211,13 +213,13 @@ def test_fullscreen_panel_is_compact_pill_with_bigger_bottom_gap(
     page.resize(1600, 900)
     page.set_fullscreen(True)
     controls = page.controls
-    assert controls.compact and controls.height() == 44
-    assert controls.width() == 720
+    assert controls.compact and controls.height() == tokens.PLAYER_BAR_FS_H == 36
+    assert controls.width() == tokens.PLAYER_BAR_MAX_W == 560
     assert abs(controls.geometry().center().x() - page.width() // 2) <= 1
     gap = page.height() - (controls.geometry().bottom() + 1 - controls.reserve)
     assert abs(gap - tokens.SPACE_6) <= 1  # отступ снизу 24 px
     page.set_fullscreen(False)
-    assert not controls.compact and controls.height() == 64
+    assert not controls.compact and controls.height() == 40
 
 
 def test_fullscreen_panel_size_follows_the_setting(
@@ -225,7 +227,7 @@ def test_fullscreen_panel_size_follows_the_setting(
 ) -> None:
     page, _mpv = _page(qtbot, monkeypatch, playback__fs_panel="normal")
     page.set_fullscreen(True)
-    assert not page.controls.compact and page.controls.height() == 64
+    assert not page.controls.compact and page.controls.height() == 40
 
 
 def test_panels_hide_when_the_mouse_is_still_and_return_on_move(
@@ -307,16 +309,16 @@ def test_title_and_editor_mode(qtbot: QtBot, monkeypatch: pytest.MonkeyPatch) ->
     assert not page.top.isVisible()  # в редакторе верхней панели нет
 
 
-def test_edit_button_and_fullscreen_button_emit_signals(
+def test_top_panel_is_a_single_thin_line_without_the_pencil(
     qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     page, _mpv = _page(qtbot, monkeypatch)
+    assert page.top.height() == tokens.PLAYER_TOP_H == 32
+    assert not hasattr(page.top, "_edit") and not hasattr(page, "editRequested")
     asked: list[str] = []
-    page.editRequested.connect(lambda: asked.append("edit"))
     page.fullscreenRequested.connect(lambda: asked.append("full"))
-    page.top._edit.click()
     page.controls._full.click()
-    assert asked == ["edit", "full"]
+    assert asked == ["full"]
 
 
 def test_theme_switch_recolours_panels(qtbot: QtBot, monkeypatch: pytest.MonkeyPatch) -> None:

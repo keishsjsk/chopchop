@@ -275,3 +275,11 @@ def test_shift_drag_marks_a_range_and_a_click_clears_it(qtbot: QtBot) -> None:
     _send(bar, QEvent.Type.MouseButtonPress, bar.block_rect(1).center().x())  # обычный щелчок
     _send(bar, QEvent.Type.MouseButtonRelease, bar.block_rect(1).center().x())
     assert bar.marks is None
+
+
+def test_ruler_labels_are_unique_below_one_second_steps() -> None:
+    from chopchop.ui.timeline import format_tick
+
+    labels = [format_tick(i * 0.5, 0.5) for i in range(6)]
+    assert len(set(labels)) == len(labels) and labels[1] == "0:00.5"
+    assert format_tick(65, 5) == "1:05"
