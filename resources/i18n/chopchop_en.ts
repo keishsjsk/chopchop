@@ -38,18 +38,6 @@
         <source>Добавить клип…</source>
         <translation>Add clip…</translation>
     </message>
-    <message>
-        <source>Сдвинуть раньше</source>
-        <translation>Move earlier</translation>
-    </message>
-    <message>
-        <source>Сдвинуть позже</source>
-        <translation>Move later</translation>
-    </message>
-    <message>
-        <source>Удалить клип</source>
-        <translation>Remove clip</translation>
-    </message>
 </context>
 <context>
     <name>ColorButton</name>
@@ -87,6 +75,93 @@
     <message>
         <source>Вернуть всё как было</source>
         <translation>Put everything back</translation>
+    </message>
+</context>
+<context>
+    <name>ContextMenus</name>
+    <message>
+        <source>Масштаб</source>
+        <translation>Zoom</translation>
+    </message>
+    <message>
+        <source>Скорость</source>
+        <translation>Speed</translation>
+    </message>
+    <message>
+        <source>Снимок кадра</source>
+        <translation>Frame snapshot</translation>
+    </message>
+    <message>
+        <source>Аудиодорожка</source>
+        <translation>Audio track</translation>
+    </message>
+    <message>
+        <source>Нет дорожек</source>
+        <translation>No tracks</translation>
+    </message>
+    <message>
+        <source>Субтитры 2</source>
+        <translation>Subtitles 2</translation>
+    </message>
+    <message>
+        <source>Субтитры 1</source>
+        <translation>Subtitles 1</translation>
+    </message>
+    <message>
+        <source>Выключить</source>
+        <translation>Off</translation>
+    </message>
+    <message>
+        <source>Загрузить из файла…</source>
+        <translation>Load from file…</translation>
+    </message>
+    <message>
+        <source>Субтитры</source>
+        <translation>Subtitles</translation>
+    </message>
+    <message>
+        <source>Субтитры (%1)</source>
+        <translation>Subtitles (%1)</translation>
+    </message>
+    <message>
+        <source>Отмена	Esc</source>
+        <translation>Cancel	Esc</translation>
+    </message>
+    <message>
+        <source>Сбросить выделение</source>
+        <translation>Clear selection</translation>
+    </message>
+    <message>
+        <source>Вернуть</source>
+        <translation>Restore</translation>
+    </message>
+    <message>
+        <source>Масштаб полосы</source>
+        <translation>Bar zoom</translation>
+    </message>
+    <message>
+        <source>Влево</source>
+        <translation>Move left</translation>
+    </message>
+    <message>
+        <source>Вправо</source>
+        <translation>Move right</translation>
+    </message>
+    <message>
+        <source>Удалить клип</source>
+        <translation>Remove clip</translation>
+    </message>
+    <message>
+        <source>Показать в папке</source>
+        <translation>Show in folder</translation>
+    </message>
+    <message>
+        <source>Удалить эффект</source>
+        <translation>Remove effect</translation>
+    </message>
+    <message>
+        <source>Удалить: {0}</source>
+        <translation>Remove: {0}</translation>
     </message>
 </context>
 <context>
@@ -483,6 +558,137 @@
     </message>
 </context>
 <context>
+    <name>FileCommands</name>
+    <message>
+        <source>Путь скопирован</source>
+        <translation>Path copied</translation>
+    </message>
+    <message>
+        <source>Файл скопирован в буфер</source>
+        <translation>File copied to the clipboard</translation>
+    </message>
+    <message>
+        <source>Изображение ещё не загружено</source>
+        <translation>The image has not loaded yet</translation>
+    </message>
+    <message>
+        <source>Изображение скопировано</source>
+        <translation>Image copied</translation>
+    </message>
+    <message>
+        <source>Сохраняю копию без метаданных…</source>
+        <translation>Saving a copy without metadata…</translation>
+    </message>
+    <message>
+        <source>Сохранено: </source>
+        <translation>Saved: </translation>
+    </message>
+    <message>
+        <source>Показать в папке</source>
+        <translation>Show in folder</translation>
+    </message>
+    <message>
+        <source>Не удалось сохранить копию: </source>
+        <translation>Could not save the copy: </translation>
+    </message>
+    <message>
+        <source>Удалить</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Переместить в корзину файл «{0}»?</source>
+        <translation>Move the file “{0}” to the trash?</translation>
+    </message>
+    <message>
+        <source>Не удалось переместить в корзину, файл не тронут: {0}</source>
+        <translation>Could not move to the trash, the file is untouched: {0}</translation>
+    </message>
+    <message>
+        <source>Переименовать</source>
+        <translation>Rename</translation>
+    </message>
+    <message>
+        <source>Не удалось переименовать: {0}</source>
+        <translation>Could not rename: {0}</translation>
+    </message>
+    <message>
+        <source>Переименовано: </source>
+        <translation>Renamed: </translation>
+    </message>
+    <message>
+        <source>Имя</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>Путь</source>
+        <translation>Path</translation>
+    </message>
+    <message>
+        <source>Размер</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <source>Изменён</source>
+        <translation>Modified</translation>
+    </message>
+    <message>
+        <source>Разрешение</source>
+        <translation>Resolution</translation>
+    </message>
+    <message>
+        <source>Длительность</source>
+        <translation>Duration</translation>
+    </message>
+    <message>
+        <source>Видеокодек</source>
+        <translation>Video codec</translation>
+    </message>
+    <message>
+        <source>Частота кадров</source>
+        <translation>Frame rate</translation>
+    </message>
+    <message>
+        <source>Аудиодорожки</source>
+        <translation>Audio tracks</translation>
+    </message>
+    <message>
+        <source>нет</source>
+        <translation>none</translation>
+    </message>
+    <message>
+        <source>Субтитры</source>
+        <translation>Subtitles</translation>
+    </message>
+    <message>
+        <source>Метаданных (EXIF, GPS) в файле нет</source>
+        <translation>The file has no metadata (EXIF, GPS)</translation>
+    </message>
+    <message>
+        <source>GPS (место съёмки)</source>
+        <translation>GPS (shooting location)</translation>
+    </message>
+    <message>
+        <source>В файле есть метаданные: </source>
+        <translation>The file has metadata: </translation>
+    </message>
+    <message>
+        <source>Не удалось получить кадр</source>
+        <translation>Could not get the frame</translation>
+    </message>
+    <message>
+        <source>Кадр скопирован</source>
+        <translation>Frame copied</translation>
+    </message>
+    <message>
+        <source>Кадр сохранён: </source>
+        <translation>Frame saved: </translation>
+    </message>
+    <message>
+        <source>Не удалось сохранить кадр</source>
+        <translation>Could not save the frame</translation>
+    </message>
+</context>
+<context>
     <name>MainWindow</name>
     <message>
         <source>Файл</source>
@@ -505,8 +711,12 @@
         <translation>Edit</translation>
     </message>
     <message>
-        <source>Редактировать / назад к просмотру</source>
-        <translation>Edit / back to viewer</translation>
+        <source>Редактировать</source>
+        <translation>Edit</translation>
+    </message>
+    <message>
+        <source>К просмотру</source>
+        <translation>Back to viewer</translation>
     </message>
     <message>
         <source>Вставить картинку из буфера</source>
@@ -529,8 +739,32 @@
         <translation>Save</translation>
     </message>
     <message>
+        <source>Экспорт…</source>
+        <translation>Export…</translation>
+    </message>
+    <message>
         <source>Сохранить как…</source>
         <translation>Save as…</translation>
+    </message>
+    <message>
+        <source>Кадрировать</source>
+        <translation>Crop</translation>
+    </message>
+    <message>
+        <source>Повернуть</source>
+        <translation>Rotate</translation>
+    </message>
+    <message>
+        <source>Скрыть область</source>
+        <translation>Hide area</translation>
+    </message>
+    <message>
+        <source>Рисовать</source>
+        <translation>Draw</translation>
+    </message>
+    <message>
+        <source>Текст</source>
+        <translation>Text</translation>
     </message>
     <message>
         <source>Следующее</source>
@@ -569,12 +803,68 @@
         <translation>Normal speed</translation>
     </message>
     <message>
-        <source>Пауза</source>
-        <translation>Pause</translation>
+        <source>Удалить сегмент</source>
+        <translation>Delete segment</translation>
     </message>
     <message>
-        <source>Аудиодорожка</source>
-        <translation>Audio track</translation>
+        <source>Вырезать выделение</source>
+        <translation>Cut out the selection</translation>
+    </message>
+    <message>
+        <source>Сбросить обрезку</source>
+        <translation>Reset trim</translation>
+    </message>
+    <message>
+        <source>Увеличить полосу</source>
+        <translation>Zoom the bar in</translation>
+    </message>
+    <message>
+        <source>Уменьшить полосу</source>
+        <translation>Zoom the bar out</translation>
+    </message>
+    <message>
+        <source>Вписать полосу целиком</source>
+        <translation>Fit the whole bar</translation>
+    </message>
+    <message>
+        <source>Копировать изображение</source>
+        <translation>Copy image</translation>
+    </message>
+    <message>
+        <source>Копировать как файл</source>
+        <translation>Copy as file</translation>
+    </message>
+    <message>
+        <source>Сохранить копию без метаданных</source>
+        <translation>Save a copy without metadata</translation>
+    </message>
+    <message>
+        <source>Показать в папке</source>
+        <translation>Show in folder</translation>
+    </message>
+    <message>
+        <source>Копировать путь</source>
+        <translation>Copy path</translation>
+    </message>
+    <message>
+        <source>Переименовать…</source>
+        <translation>Rename…</translation>
+    </message>
+    <message>
+        <source>Удалить</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Свойства</source>
+        <translation>Properties</translation>
+    </message>
+    <message>
+        <source>Копировать кадр</source>
+        <translation>Copy frame</translation>
+    </message>
+    <message>
+        <source>Сохранить кадр в файл</source>
+        <translation>Save frame to file</translation>
     </message>
     <message>
         <source>Субтитры 1</source>
@@ -601,12 +891,20 @@
         <translation>Subtitles 2 later</translation>
     </message>
     <message>
+        <source>Повтор</source>
+        <translation>Repeat</translation>
+    </message>
+    <message>
         <source>Полный экран</source>
         <translation>Full screen</translation>
     </message>
     <message>
         <source>Выйти из полного экрана</source>
         <translation>Exit full screen</translation>
+    </message>
+    <message>
+        <source>Заполнить окно</source>
+        <translation>Fill the window</translation>
     </message>
     <message>
         <source>Начало здесь</source>
@@ -621,16 +919,16 @@
         <translation>Split here</translation>
     </message>
     <message>
-        <source>Удалить выбранное</source>
-        <translation>Delete selected</translation>
-    </message>
-    <message>
-        <source>Вырезать выделенное</source>
-        <translation>Cut out selection</translation>
-    </message>
-    <message>
         <source>Применить</source>
         <translation>Apply</translation>
+    </message>
+    <message>
+        <source>Пауза и воспроизведение</source>
+        <translation>Pause and play</translation>
+    </message>
+    <message>
+        <source>Следующая аудиодорожка</source>
+        <translation>Next audio track</translation>
     </message>
     <message>
         <source>Вписать в окно</source>
@@ -639,6 +937,10 @@
     <message>
         <source>Масштаб 100%</source>
         <translation>Actual size (100%)</translation>
+    </message>
+    <message>
+        <source>Контекстное меню</source>
+        <translation>Context menu</translation>
     </message>
     <message>
         <source>найден</source>
@@ -756,10 +1058,64 @@
     </message>
 </context>
 <context>
+    <name>PropertiesDialog</name>
+    <message>
+        <source>Свойства</source>
+        <translation>Properties</translation>
+    </message>
+    <message>
+        <source>Очистить и сохранить копию</source>
+        <translation>Clean and save a copy</translation>
+    </message>
+    <message>
+        <source>Закрыть</source>
+        <translation>Close</translation>
+    </message>
+</context>
+<context>
     <name>RatioChips</name>
     <message>
         <source>Повернуть пропорции: 16:9 ↔ 9:16</source>
         <translation>Swap orientation: 16:9 ↔ 9:16</translation>
+    </message>
+</context>
+<context>
+    <name>RenameDialog</name>
+    <message>
+        <source>Имя не может быть пустым</source>
+        <translation>The name cannot be empty</translation>
+    </message>
+    <message>
+        <source>В имени нельзя использовать символы &lt; &gt; : / | ? *, кавычки и обратную косую черту</source>
+        <translation>A name cannot contain &amp;lt; &amp;gt; : / | ? *, quotes or a backslash</translation>
+    </message>
+    <message>
+        <source>Это имя зарезервировано системой</source>
+        <translation>This name is reserved by the system</translation>
+    </message>
+    <message>
+        <source>Имя слишком длинное</source>
+        <translation>The name is too long</translation>
+    </message>
+    <message>
+        <source>Файл с таким именем уже есть</source>
+        <translation>A file with this name already exists</translation>
+    </message>
+    <message>
+        <source>Имя не изменилось</source>
+        <translation>The name has not changed</translation>
+    </message>
+    <message>
+        <source>Переименовать</source>
+        <translation>Rename</translation>
+    </message>
+    <message>
+        <source>Новое имя</source>
+        <translation>New name</translation>
+    </message>
+    <message>
+        <source>Новое имя файла</source>
+        <translation>New file name</translation>
     </message>
 </context>
 <context>
@@ -851,6 +1207,22 @@
     <message>
         <source>в новом окне</source>
         <translation>in a new window</translation>
+    </message>
+    <message>
+        <source>Подтверждать удаление</source>
+        <translation>Confirm deletion</translation>
+    </message>
+    <message>
+        <source>Файл всегда уходит в корзину, а не удаляется навсегда</source>
+        <translation>The file always goes to the trash, never deleted for good</translation>
+    </message>
+    <message>
+        <source>Снимок кадра с субтитрами</source>
+        <translation>Frame snapshot with subtitles</translation>
+    </message>
+    <message>
+        <source>По умолчанию субтитры в снимок кадра не попадают</source>
+        <translation>Subtitles are left out of the snapshot by default</translation>
     </message>
     <message>
         <source>Громкость по умолчанию, %</source>

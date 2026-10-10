@@ -105,6 +105,20 @@ SPECS: tuple[Spec, ...] = (
             ("new", QT_TRANSLATE_NOOP("Settings", "в новом окне")),
         ),
     ),
+    Spec(
+        "general.confirm_delete",
+        "bool",
+        True,
+        QT_TRANSLATE_NOOP("Settings", "Подтверждать удаление"),
+        QT_TRANSLATE_NOOP("Settings", "Файл всегда уходит в корзину, а не удаляется навсегда"),
+    ),
+    Spec(
+        "general.screenshot_subtitles",
+        "bool",
+        False,
+        QT_TRANSLATE_NOOP("Settings", "Снимок кадра с субтитрами"),
+        QT_TRANSLATE_NOOP("Settings", "По умолчанию субтитры в снимок кадра не попадают"),
+    ),
     # --- Воспроизведение
     Spec(
         "playback.volume_default",

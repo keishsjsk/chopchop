@@ -46,6 +46,19 @@ class ResumeStore:
         except TypeError:
             return None
 
+    def rename(self, old: Path, new: Path) -> None:
+        """Файл переименован: запомненная позиция и дорожки переходят к новому имени."""
+        entries = self._read()
+        entry = entries.pop(str(old), None)
+        if entry is not None:
+            entries[str(new)] = entry
+            self._settings.setValue(_KEY, json.dumps(entries))
+
+    def forget(self, path: Path) -> None:
+        entries = self._read()
+        if entries.pop(str(path), None) is not None:
+            self._settings.setValue(_KEY, json.dumps(entries))
+
     def save(self, path: Path, state: ResumeState, duration: float | None) -> None:
         entries = self._read()
         key = str(path)

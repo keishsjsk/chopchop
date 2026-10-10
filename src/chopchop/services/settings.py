@@ -29,6 +29,14 @@ class RecentFiles:
         paths = [str(p) for p in self.items() if str(p) != entry]
         self._settings.setValue(_RECENT_KEY, [entry, *paths][:MAX_RECENT])
 
+    def remove(self, path: Path) -> None:
+        self._settings.setValue(_RECENT_KEY, [str(p) for p in self.items() if p != path])
+
+    def replace(self, old: Path, new: Path) -> None:
+        """Файл переименован: в списке последних он остаётся на своём месте."""
+        items = [str(new) if p == old else str(p) for p in self.items()]
+        self._settings.setValue(_RECENT_KEY, items)
+
 
 def default_settings() -> QSettings:
     """Служебное хранилище состояния (последние файлы, позиции просмотра); не настройки."""

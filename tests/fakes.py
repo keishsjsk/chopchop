@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any, cast
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QPoint, Signal
 from PySide6.QtWidgets import QWidget
 
 from chopchop.player.player import Player
@@ -29,6 +29,8 @@ class FakeMpv:
         self.secondary_sub_delay = 0.0
         self.secondary_sub_pos = 0.0
         self.sub_codepage = "auto"
+        self.loop_file: Any = "no"
+        self.shots: list[str] = []
         self.sub_font_size = 55
         self.sub_margin_y = 22
         self.alang = ""
@@ -68,6 +70,12 @@ class FakeMpv:
     def command(self, *args: object) -> None:
         self.commands.append(args)
 
+    def screenshot_raw(self, includes: str = "subtitles") -> Any:
+        from PIL import Image
+
+        self.shots.append(includes)
+        return Image.new("RGB", (32, 18), (200, 30, 30))
+
     def sub_add(self, path: str) -> None:
         self.subtitles.append(path)
 
@@ -93,6 +101,8 @@ class FakeOldMpv(FakeMpv):
 
 class FakeVideoPage(QWidget):
     """Замена VideoPage без OpenGL и libmpv: плеер поверх FakeMpv."""
+
+    contextMenuRequested = Signal(QPoint)
 
     def __init__(self) -> None:
         super().__init__()

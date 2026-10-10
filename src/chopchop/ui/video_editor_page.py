@@ -9,7 +9,7 @@ import contextlib
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -54,6 +54,7 @@ from chopchop.engines.video_filters import build_effects_graph, output_frame_siz
 from chopchop.services.app_settings import AppSettings
 from chopchop.services.reveal import reveal_in_folder
 from chopchop.services.temp_files import new_workspace, remove_workspace
+from chopchop.ui.actions import ActionRegistry
 from chopchop.ui.audio_panel import AudioPanel
 from chopchop.ui.clip_strip import ClipInfo, ClipStrip
 from chopchop.ui.editor_shell import EditorShell
@@ -93,6 +94,7 @@ _REASONS = {
 class VideoEditorPage(QWidget):
     exitRequested = Signal()
     message = Signal(str)
+    menuRequested = Signal(str, QPoint, object)  # вид меню, точка на экране, данные
 
     def __init__(
         self,
@@ -102,9 +104,11 @@ class VideoEditorPage(QWidget):
         ffprobe: Path,
         parent: QWidget | None = None,
         settings: AppSettings | None = None,
+        actions: ActionRegistry | None = None,
     ) -> None:
         super().__init__(parent)
         self.session = session
+        self._actions = actions
         self._app = settings or AppSettings(None)
         self._export_args: tuple[Path, bool, EncodeOptions] | None = None
         self._video_page = video_page
@@ -139,6 +143,7 @@ class VideoEditorPage(QWidget):
         self._height_timer.timeout.connect(self._save_trim_height)
 
         self._build_ui()
+        self._bind_actions()
 
         player = video_page.player
         player.positionChanged.connect(self._on_position)
@@ -187,6 +192,7 @@ class VideoEditorPage(QWidget):
         # превью: плеер без плавающих панелей и слой инструментов поверх кадра
         self._video_page.show()  # removeWidget в главном окне скрыл плеер
         self._video_page.set_editor_mode(True)
+        self._video_page.contextMenuRequested.connect(self._on_preview_menu)
         self._overlay = VideoOverlay(self._video_page, self.session.project.frame_size)
         self.message.connect(shell.status.flash)
 
@@ -195,6 +201,7 @@ class VideoEditorPage(QWidget):
         for key, icon, name, hotkey in RAIL_ITEMS:
             shell.rail.add_tool(key, icon, self.tr(name), hotkey)
         shell.rail.toolClicked.connect(self.select_tool)
+        shell.rail.contextRequested.connect(self._on_rail_menu)
 
         # транспорт, полоса обрезки, клипы
         self.transport = self._build_transport()
@@ -204,15 +211,21 @@ class VideoEditorPage(QWidget):
         self.trim.trimCommitted.connect(self._on_trim_committed)
         self.trim.trimming.connect(lambda a, b: self._range.setText(range_label(a, b)))
         self.trim.zoomChanged.connect(self._on_zoom_changed)
-        self.trim.ghostClicked.connect(self._restore_range)
+        self.trim.ghostClicked.connect(self.restore_range)
         self.trim.segmentPicked.connect(self._on_segment_picked)
         self.trim.selectionCleared.connect(self._on_selection_cleared)
         self.trim.rangeMarked.connect(self._on_range_marked)
+        self.trim.menuRequested.connect(
+            lambda pos, seconds: self.menuRequested.emit("trim", pos, seconds)
+        )
         self.clip_strip = ClipStrip()
         self.clip_strip.currentChanged.connect(self._on_row_changed)
         self.clip_strip.moveRequested.connect(self._on_move_requested)
         self.clip_strip.removeRequested.connect(self._remove_clip_at)
         self.clip_strip.addRequested.connect(self.add_clip)
+        self.clip_strip.contextRequested.connect(
+            lambda index, pos: self.menuRequested.emit("clip", pos, index)
+        )
 
         bottom = self._bottom = QWidget()
         column = QVBoxLayout(bottom)
@@ -240,6 +253,7 @@ class VideoEditorPage(QWidget):
         self.effects_chip = EffectsChip()
         self.effects_chip.removeRequested.connect(self._remove_effect)
         self.effects_chip.clearRequested.connect(self.session.clear_effects)
+        self.effects_chip.menuRequested.connect(self._on_effects_menu)
         shell.status.right.addWidget(self.effects_chip)
         shell.status.set_hint(QCoreApplication.translate("VideoEffectsPanel", IDLE_HINT))
         self._summary = shell.status.summary_label
@@ -309,6 +323,97 @@ class VideoEditorPage(QWidget):
             row.addWidget(widget)
         return bar
 
+    def _bind_actions(self) -> None:
+        """Кнопки панелей запускают те же действия реестра, что и меню и горячие клавиши."""
+        if self._actions is None:
+            return
+        pairs = (
+            (self._back, "back_to_view"),
+            (self._undo_button, "undo"),
+            (self._redo_button, "redo"),
+            (self._export_button, "export"),
+            (self._play, "pause"),
+            (self._step_back, "prev"),
+            (self._step_forward, "next"),
+            (self._set_in, "mark_in"),
+            (self._set_out, "mark_out"),
+            (self._reset, "reset_trim"),
+            (self._split, "split"),
+            (self._delete, "delete_segment"),
+            (self._zoom_in, "trim_zoom_in"),
+            (self._zoom_out, "trim_zoom_out"),
+            (self._zoom_fit, "trim_fit"),
+        )
+        for widget, action_id in pairs:
+            with contextlib.suppress(TypeError, RuntimeError):
+                widget.clicked.disconnect()  # прямое подключение заменяется действием
+            self._actions.bind(widget, action_id)
+
+    # --- меню по правой кнопке ---------------------------------------------------------------
+
+    def _on_preview_menu(self, pos: QPoint) -> None:
+        self.menuRequested.emit("preview", pos, None)
+
+    def _entries_with_labels(self, entries: list[EffectEntry]) -> list[tuple[EffectEntry, str]]:
+        return [(entry, self.effects_chip.label_for(entry)) for entry in entries]
+
+    def _on_rail_menu(self, key: str, pos: QPoint) -> None:
+        """Точка-метка на инструменте: меню удаления его эффектов."""
+        entries = [e for e in effect_entries(self.session.project.effects) if e.tool == key]
+        if entries:
+            self.menuRequested.emit("effects", pos, self._entries_with_labels(entries))
+
+    def _on_effects_menu(self, entries: list[EffectEntry], pos: QPoint) -> None:
+        self.menuRequested.emit("effects", pos, self._entries_with_labels(entries))
+
+    # --- то, что нужно меню ------------------------------------------------------------------
+
+    def has_pending(self) -> bool:
+        """Есть ли незавершённое выделение; панели ради ответа не строятся."""
+        return self._tools_ready and self._effects_panel.has_pending()
+
+    def reset_selection(self) -> None:
+        if self._tools_ready:
+            tool = self._effects_panel._active_tool()
+            if tool is not None:
+                tool.reset()
+
+    def session_can_undo(self) -> bool:
+        return self.session.can_undo
+
+    def session_can_redo(self) -> bool:
+        return self.session.can_redo
+
+    def ghost_at(self, seconds: float) -> tuple[float, float] | None:
+        """Удалённый участок под указанной секундой (его можно вернуть)."""
+        return next((g for g in self.clip.ghosts() if g[0] <= seconds <= g[1]), None)
+
+    def restore_range(self, start: float, stop: float) -> None:
+        self.session.cut(RestoreRange(self._index, start, stop))
+
+    def can_delete_selected(self) -> bool:
+        return self._segment is not None or self.trim.marks is not None
+
+    def clip_count(self) -> int:
+        return len(self.session.project.clips)
+
+    def move_clip_by(self, index: int, delta: int) -> None:
+        target = index + delta
+        if 0 <= target < self.clip_count():
+            self._on_move_requested(index, target)
+
+    def remove_clip_at(self, index: int) -> None:
+        self._remove_clip_at(index)
+
+    def reveal_clip(self, index: int) -> None:
+        reveal_in_folder(self.session.project.clips[index].path)
+
+    def remove_effect(self, entry: EffectEntry) -> None:
+        self.session.remove_effect(entry)
+
+    def reset_trim(self) -> None:
+        self._reset_trim()
+
     # --- панели инструментов: строятся по требованию -----------------------------------------
 
     def _ensure_tools(self) -> None:
@@ -363,6 +468,7 @@ class VideoEditorPage(QWidget):
             (player.positionChanged, self._on_position),
             (player.pausedChanged, self._on_paused),
             (player.fileLoaded, self._on_file_loaded),
+            (self._video_page.contextMenuRequested, self._on_preview_menu),
         ):
             signal.disconnect(slot)
         player.set_video_filter(None)
@@ -613,9 +719,6 @@ class VideoEditorPage(QWidget):
             self.message.emit(self.tr("Выделите диапазон на полосе с зажатым Shift"))
             return
         self.delete_selected()
-
-    def _restore_range(self, start: float, stop: float) -> None:
-        self.session.cut(RestoreRange(self._index, start, stop))
 
     def _on_segment_picked(self, start: float, stop: float) -> None:
         self._segment = (start, stop)

@@ -18,6 +18,9 @@ from chopchop.ui.theme.tokens import DEFAULT_ACCENT, Palette, make_palette
 THEME_CHOICES = ("system", "light", "dark")
 
 
+MENU_ICON_SIZE = 32
+
+
 class ThemeStyle(QProxyStyle):
     """Fusion с нашими задержками: подсказка появляется через 400 мс."""
 
@@ -34,6 +37,21 @@ class ThemeStyle(QProxyStyle):
         if hint == QStyle.StyleHint.SH_ToolTip_WakeUpDelay:
             return tokens.TOOLTIP_DELAY_MS
         return super().styleHint(hint, option, widget, returnData)
+
+    def pixelMetric(  # noqa: N802
+        self,
+        metric: QStyle.PixelMetric,
+        option: QStyleOption | None = None,
+        widget: QWidget | None = None,
+    ) -> int:
+        # значки контекстных меню рисуются в 32 px, как у рейки: целый масштаб пиксельной сетки
+        if (
+            metric == QStyle.PixelMetric.PM_SmallIconSize
+            and widget is not None
+            and widget.property("themed")
+        ):
+            return MENU_ICON_SIZE
+        return super().pixelMetric(metric, option, widget)
 
 
 def system_theme() -> str:

@@ -4,10 +4,12 @@
 """
 
 from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QContextMenuEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QToolButton, QWidget
 
 from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.core.video import EffectEntry, VideoEffects, effect_entries
+from chopchop.ui.context_gate import menu_allowed
 from chopchop.ui.floating import FloatingPanel
 from chopchop.ui.theme import tokens
 from chopchop.ui.widgets import button, icon_button
@@ -29,6 +31,7 @@ class EffectsPopup(FloatingPanel):
 
     removeRequested = Signal(object)
     clearRequested = Signal()
+    rowMenuRequested = Signal(object, QPoint)  # правая кнопка на строке списка
 
     def __init__(self, labels: list[tuple[EffectEntry, str]], parent: QWidget) -> None:
         super().__init__(parent)
@@ -39,6 +42,12 @@ class EffectsPopup(FloatingPanel):
         self.rows: list[tuple[EffectEntry, QLabel, QToolButton]] = []
         for entry, text in labels:
             label = QLabel(text)
+            label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            label.customContextMenuRequested.connect(
+                lambda point, e=entry, lab=label: self.rowMenuRequested.emit(
+                    e, lab.mapToGlobal(point)
+                )
+            )
             remove = icon_button("trash", self.tr("Убрать эффект"))
             remove.clicked.connect(lambda _c=False, e=entry: self._remove(e))
             row = QHBoxLayout()
@@ -62,6 +71,7 @@ class EffectsPopup(FloatingPanel):
 class EffectsChip(QPushButton):
     removeRequested = Signal(object)
     clearRequested = Signal()
+    menuRequested = Signal(list, QPoint)  # записи эффектов и точка на экране
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -104,11 +114,17 @@ class EffectsChip(QPushButton):
         popup = EffectsPopup([(e, self.label_for(e)) for e in entries], self)
         popup.removeRequested.connect(self.removeRequested)
         popup.clearRequested.connect(self.clearRequested)
+        popup.rowMenuRequested.connect(lambda entry, pos: self.menuRequested.emit([entry], pos))
         popup.adjustSize()
         origin = self.mapToGlobal(QPoint(self.width() - popup.width(), -popup.height()))
         popup.move(origin)
         self._popup = popup
         popup.show()
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        entries = self.entries()
+        if entries and menu_allowed():
+            self.menuRequested.emit(entries, event.globalPos())
 
     def close_list(self) -> None:
         if self._popup is not None:

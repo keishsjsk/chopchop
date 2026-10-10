@@ -9,7 +9,7 @@ from types import ModuleType
 from typing import Any
 
 from PySide6.QtCore import QPoint, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPaintEvent, QResizeEvent
+from PySide6.QtGui import QColor, QContextMenuEvent, QImage, QPainter, QPaintEvent, QResizeEvent
 from PySide6.QtWidgets import QApplication, QWidget
 
 from chopchop.engines.ffmpeg import find_ffmpeg
@@ -17,6 +17,7 @@ from chopchop.player.mpv_widget import MpvWidget
 from chopchop.player.player import Player
 from chopchop.services.app_settings import AppSettings
 from chopchop.services.sub_presets import PresetStore
+from chopchop.ui.context_gate import menu_allowed
 from chopchop.ui.player_controls import PlayerControls, PreviewBubble
 from chopchop.ui.theme import current, tokens
 from chopchop.ui.top_bar import TopBar
@@ -59,6 +60,7 @@ class VideoPage(QWidget):
     fullscreenRequested = Signal()
     editRequested = Signal()
     subtitleSettingsRequested = Signal()
+    contextMenuRequested = Signal(QPoint)  # ПКМ над видео или его панелями
 
     def __init__(
         self,
@@ -273,6 +275,12 @@ class VideoPage(QWidget):
             self._loader.wait()
         self.video.release()
         self.player.shutdown()
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        """Меню — отдельное окно, поэтому OpenGL под ним не мешает; события панелей доходят сюда."""
+        if menu_allowed():
+            self.contextMenuRequested.emit(event.globalPos())
+            event.accept()
 
     def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         super().resizeEvent(event)

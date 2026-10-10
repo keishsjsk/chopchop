@@ -1,9 +1,10 @@
 """Полоса обрезки: миниатюры кадров, две границы, позиция и масштаб по времени."""
 
-from PySide6.QtCore import QEvent, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QContextMenuEvent,
     QFontMetrics,
     QImage,
     QMouseEvent,
@@ -15,6 +16,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from chopchop.core.video import MIN_CLIP_SECONDS, Range
+from chopchop.ui.context_gate import menu_allowed
 from chopchop.ui.theme import current, tokens
 
 SIDE = 12.0  # поле слева и справа под ручки
@@ -49,6 +51,7 @@ class TrimBar(QWidget):
     segmentPicked = Signal(float, float)  # клик по сегменту: выбрать для удаления
     selectionCleared = Signal()  # клик мимо сегментов и выделения
     rangeMarked = Signal(float, float)  # Shift + протягивание: выделенный диапазон
+    menuRequested = Signal(QPoint, object)  # точка на экране и секунда под ней (None — с клавиши)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -436,6 +439,17 @@ class TrimBar(QWidget):
                 return
         self.set_segment(None)
         self.selectionCleared.emit()
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        """ПКМ или клавиша Menu: сегмент под указателем выбирается, затем меню."""
+        if not menu_allowed() or self._duration <= 0:
+            return
+        seconds: float | None = None
+        if event.reason() != QContextMenuEvent.Reason.Keyboard:
+            seconds = self._time_at(event.pos().x())
+            if not any(a <= seconds <= b for a, b in self.ghost_spans()):
+                self._pick_segment(seconds)
+        self.menuRequested.emit(event.globalPos(), seconds)
 
     def leaveEvent(self, event: QEvent) -> None:  # noqa: N802
         self._hover = None

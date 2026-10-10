@@ -46,6 +46,16 @@ _CHEVRON_DOWN = (
     "........",
 )
 _CHEVRON_UP = tuple(reversed(_CHEVRON_DOWN))
+_CHEVRON_RIGHT = (
+    "........",
+    ".##.....",
+    "..##....",
+    "...##...",
+    "...##...",
+    "..##....",
+    ".##.....",
+    "........",
+)
 
 ASSET_UNIT = 2  # размер «пикселя» значков в стилях, пиксели экрана
 
@@ -138,7 +148,7 @@ def write_assets(palette: Palette, folder: Path) -> dict[str, Path]:
         unit,
     )
     save("radio-on", radio_on)
-    for name, rows in (("down", _CHEVRON_DOWN), ("up", _CHEVRON_UP)):
+    for name, rows in (("down", _CHEVRON_DOWN), ("up", _CHEVRON_UP), ("right", _CHEVRON_RIGHT)):
         glyph = QImage(8 * unit, 8 * unit, QImage.Format.Format_ARGB32)
         glyph.fill(Qt.GlobalColor.transparent)
         _paint_bitmap(glyph, rows, palette.text, 0, 0, unit)
@@ -317,6 +327,16 @@ QMenu {{ background: {p.surface_raised}; border: {b}px solid {p.border_strong}; 
 QMenu::item {{ padding: {s2}px {s4 + s2}px; min-height: {hit - s4}px; }}
 QMenu::item:selected {{ background: {p.accent}; color: {p.on_accent}; }}
 QMenu::item:disabled {{ color: {p.text_muted}; }}
+QMenu[themed="true"] {{
+    background: transparent; border: none;
+    padding: {b + s1}px; margin: 0 {t.SHADOW_OFFSET}px {t.SHADOW_OFFSET}px 0;
+}}
+QMenu[themed="true"]::item {{ padding: 0 {s4 + s2}px 0 {s2}px; min-height: {hit}px; }}
+QMenu[themed="true"]::icon {{ padding-left: {s1}px; }}
+QMenu::indicator {{ width: {2 * s4 - s2}px; height: {2 * s4 - s2}px; margin-left: {s1}px; }}
+QMenu::indicator:non-exclusive:checked {{ image: url({_url(assets["check-on"])}); }}
+QMenu::indicator:exclusive:checked {{ image: url({_url(assets["radio-on"])}); }}
+QMenu::right-arrow {{ image: url({_url(assets["chevron-right"])}); width: {s4}px; }}
 QMenu::separator {{ height: {b}px; background: {p.border}; margin: {s1}px {s2}px; }}
 QStatusBar {{ background: {p.bg}; color: {p.text_muted}; }}
 QProgressBar {{

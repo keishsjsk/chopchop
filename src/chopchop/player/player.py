@@ -302,8 +302,33 @@ class Player(QObject):
         self._mpv.ab_loop_a = "no" if start is None else start
         self._mpv.ab_loop_b = "no" if end is None else end
 
-    def add_subtitle(self, path: Path) -> None:
+    @property
+    def looping(self) -> bool:
+        """Повтор текущего файла (loop-file)."""
+        return str(self._mpv.loop_file).lower() not in ("no", "false", "none", "")
+
+    def set_looping(self, value: bool) -> None:
+        self._mpv.loop_file = "inf" if value else "no"
+
+    def screenshot(self, with_subtitles: bool = False) -> Any | None:
+        """Кадр картинкой Pillow через screenshot-raw; субтитры в нём только по просьбе."""
+        if self._closed:
+            return None
+        try:
+            return self._mpv.screenshot_raw("subtitles" if with_subtitles else "video")
+        except Exception:  # noqa: BLE001 - нет кадра (ничего не открыто) или формат не тот
+            return None
+
+    def add_subtitle(self, path: Path, second: bool = False) -> None:
+        """Загрузить файл субтитров; second — показать его второй строкой, первую не трогая."""
+        previous = self.sub_id()
         self._mpv.sub_add(str(path))
+        if not second:
+            return
+        external = [t for t in of_kind(self.tracks(), "sub") if t.external]
+        if external:
+            self.set_sub(previous)  # mpv делает новую дорожку первой: возвращаем прежнюю
+            self.set_sub2(external[-1].id)
 
     def apply_style(self, style: SubtitleStyle, codepage: str = "auto", pos2: int = 0) -> None:
         """Оформление субтитров в mpv на лету. Свойства, которых нет в этой версии libmpv,

@@ -19,9 +19,10 @@ from PySide6.QtGui import (
     QPen,
     QResizeEvent,
 )
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QMenu, QScrollArea, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QWidget
 
 from chopchop.ui import anim
+from chopchop.ui.context_gate import menu_allowed
 from chopchop.ui.theme import current, tokens
 from chopchop.ui.widgets import icon_button, refresh_icons
 
@@ -155,6 +156,7 @@ class ClipStrip(QScrollArea):
     moveRequested = Signal(int, int)  # откуда, куда
     removeRequested = Signal(int)
     addRequested = Signal()
+    contextRequested = Signal(int, QPoint)  # номер клипа и точка на экране
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -289,8 +291,9 @@ class ClipStrip(QScrollArea):
         elif kind == QEvent.Type.Leave and not self._mini_under_pointer():
             self.mini.disappear()
         elif kind == QEvent.Type.ContextMenu and isinstance(event, QContextMenuEvent):
-            self._select(watched.index)
-            self._menu(event.globalPos())
+            if menu_allowed():
+                self._select(watched.index)
+                self.contextRequested.emit(watched.index, event.globalPos())
             return True
         return False
 
@@ -369,19 +372,3 @@ class ClipStrip(QScrollArea):
         target = self._current + delta
         if 0 <= target < len(self._chips):
             self.moveRequested.emit(self._current, target)
-
-    def _menu(self, global_pos: QPoint) -> None:
-        menu = QMenu(self)
-        count = len(self._chips)
-        earlier = menu.addAction(self.tr("Сдвинуть раньше"))
-        earlier.setEnabled(self._current > 0)
-        earlier.triggered.connect(lambda: self._move_selected(-1))
-        later = menu.addAction(self.tr("Сдвинуть позже"))
-        later.setEnabled(self._current < count - 1)
-        later.triggered.connect(lambda: self._move_selected(1))
-        remove = menu.addAction(self.tr("Удалить клип"))
-        remove.setEnabled(count > 1)
-        remove.triggered.connect(lambda: self.removeRequested.emit(self._current))
-        menu.addSeparator()
-        menu.addAction(self.tr("Добавить клип…"), self.addRequested.emit)
-        menu.exec(global_pos)

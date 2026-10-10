@@ -260,6 +260,7 @@ def test_assets_are_written_for_each_theme(tmp_path: Path, qtbot: QtBot) -> None
         "radio-on",
         "chevron-down",
         "chevron-up",
+        "chevron-right",
     }
     for path in [*light.values(), *dark.values()]:
         assert path.is_file()

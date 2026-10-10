@@ -1,8 +1,10 @@
 """Виджет просмотра фото: вписывание в окно, масштаб колесом, перетаскивание."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QContextMenuEvent,
+    QGuiApplication,
     QImage,
     QMouseEvent,
     QPixmap,
@@ -21,6 +23,7 @@ class ImageViewer(QGraphicsView):
     doubleClicked = Signal()
     zoomChanged = Signal(float)
     navigateRequested = Signal(int)  # колесо в режиме «переключение»: +1 — следующее фото
+    contextMenuRequested = Signal(QPoint)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -153,6 +156,12 @@ class ImageViewer(QGraphicsView):
         super().resizeEvent(event)
         if self._fit:
             self.fit_to_window(self._upscale)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        # во время перетаскивания (рука) меню не открываем
+        if not (QGuiApplication.mouseButtons() & Qt.MouseButton.LeftButton):
+            self.contextMenuRequested.emit(event.globalPos())
+            event.accept()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         self.doubleClicked.emit()

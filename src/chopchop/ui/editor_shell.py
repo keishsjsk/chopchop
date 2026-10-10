@@ -10,8 +10,8 @@
     ├────┴─────────────────────────────────────────┤ 24  строка состояния
 """
 
-from PySide6.QtCore import QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QResizeEvent
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QContextMenuEvent, QPainter, QPaintEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from chopchop.ui import anim
+from chopchop.ui.context_gate import menu_allowed
 from chopchop.ui.export_strip import ExportStrip
 from chopchop.ui.theme import current, tokens
 from chopchop.ui.widgets import refresh_icons, set_icon, tip
@@ -33,14 +34,21 @@ MARK = 6  # размер точки-метки «у инструмента ес�
 class RailButton(QToolButton):
     """Кнопка рейки 40×40; точка в углу показывает, что у инструмента есть эффект."""
 
+    contextRequested = Signal(str, QPoint)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.key = ""
         self._marked = False
         self.setProperty("rail", True)  # размер 40×40 без лишних отступов (см. qss.py)
 
     @property
     def marked(self) -> bool:
         return self._marked
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        if self._marked and menu_allowed():
+            self.contextRequested.emit(self.key, event.globalPos())
 
     def set_marked(self, value: bool) -> None:
         if value != self._marked:
@@ -67,6 +75,7 @@ class ToolRail(QWidget):
     """Вертикальная рейка инструментов: 56 px шириной, кнопки 40×40 с пиксельными иконками."""
 
     toolClicked = Signal(str)
+    contextRequested = Signal(str, QPoint)  # правая кнопка на инструменте с эффектом
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -81,6 +90,8 @@ class ToolRail(QWidget):
 
     def add_tool(self, key: str, icon: str, name: str, hotkey: str = "") -> RailButton:
         item = RailButton()
+        item.key = key
+        item.contextRequested.connect(self.contextRequested)
         item.setCheckable(True)
         item.setFixedSize(tokens.RAIL_BUTTON, tokens.RAIL_BUTTON)
         item.setToolTip(tip(name, hotkey))

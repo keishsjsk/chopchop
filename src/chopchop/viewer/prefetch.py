@@ -59,6 +59,11 @@ class ImageCache(QObject):
             self._images.move_to_end(path)
         return image
 
+    def discard(self, path: Path) -> None:
+        """Забыть файл (удалён или переименован): в кэше не должно остаться старого пути."""
+        self._images.pop(path, None)
+        self._pending.discard(path)
+
     def request(self, path: Path) -> None:
         if path in self._images or path in self._pending:
             return

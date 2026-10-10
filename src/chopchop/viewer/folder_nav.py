@@ -40,6 +40,27 @@ class FolderNav:
     def current(self) -> Path:
         return self.files[self.index]
 
+    def remove(self, path: Path) -> Path | None:
+        """Убрать удалённый файл; вернуть, что открыть вместо него (None — папка пуста)."""
+        if path not in self.files:
+            return self.current if self.files else None
+        position = self.files.index(path)
+        del self.files[position]
+        if not self.files:
+            self.index = 0
+            return None
+        self.index = min(position, len(self.files) - 1)  # на его место встал следующий
+        return self.current
+
+    def rename(self, old: Path, new: Path) -> None:
+        """Файл переименован: список пересортирован, текущим остаётся он же."""
+        if old in self.files:
+            self.files[self.files.index(old)] = new
+        elif new not in self.files:
+            self.files.append(new)
+        self.files.sort(key=lambda p: natural_key(p.name))
+        self.index = self.files.index(new)
+
     def step(self, delta: int) -> Path:
         self.index = (self.index + delta) % len(self.files)
         return self.current

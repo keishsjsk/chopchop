@@ -5,15 +5,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QByteArray, QProcess, QSettings, Qt
+from PySide6.QtCore import QByteArray, QPoint, QProcess, QSettings, Qt
 from PySide6.QtGui import (
-    QAction,
     QCloseEvent,
     QColor,
+    QCursor,
     QDragEnterEvent,
     QDropEvent,
     QImage,
-    QKeySequence,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -40,10 +39,16 @@ from chopchop.services.app_settings import AppSettings, config_dir
 from chopchop.services.settings import RecentFiles, player_prefs
 from chopchop.services.sub_presets import PresetStore
 from chopchop.ui import anim
+from chopchop.ui.actions import PHOTO, PHOTO_EDITOR, START, VIDEO, VIDEO_EDITOR
+from chopchop.ui.context_menus import ContextMenus
 from chopchop.ui.drop_zone import DropZone
+from chopchop.ui.file_commands import FileCommands
+from chopchop.ui.main_actions import build_registry
 from chopchop.ui.settings_dialog import SettingsDialog
 from chopchop.ui.theme import current
 from chopchop.ui.theme.manager import ThemeManager
+from chopchop.ui.themed_menu import ThemedMenu
+from chopchop.ui.toast import Toast
 from chopchop.ui.video_page import VideoPage
 from chopchop.viewer.folder_nav import FolderNav
 from chopchop.viewer.image_viewer import ImageViewer
@@ -117,119 +122,125 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self._zoom_label)
         self.statusBar().showMessage(self._tools_summary())
 
-        self._build_actions()
+        self.toast = Toast(self._stack)  # короткие сообщения: «Скопировано», «Сохранено»
+        self.files = FileCommands(self)
+        self.registry = build_registry(self)
+        self.menus = ContextMenus(self)
+        self.registry.add(
+            "context_menu",
+            self.tr("Контекстное меню"),
+            [Qt.Key.Key_Menu, "Shift+F10"],
+            self.show_context_menu,
+        )
+        self._build_menubar()
+        self._stack.currentChanged.connect(lambda _index: self._sync_context())
+        self.viewer.contextMenuRequested.connect(self._on_photo_menu)
+        self._sync_context()
         self._app.changed.connect(self._on_setting_changed)
         if theme is not None:
             theme.changed.connect(self._on_theme_changed)
         self._apply_appearance()
         self._restore_window()
 
-    def _build_actions(self) -> None:
+    def _build_menubar(self) -> None:
+        """Строка меню из тех же действий, что у горячих клавиш и контекстных меню."""
+        reg = self.registry
         file_menu = self.menuBar().addMenu(self.tr("Файл"))
-        file_menu.addAction(
-            self._action(self.tr("Открыть…"), QKeySequence.StandardKey.Open, self.choose_file)
-        )
-        file_menu.addAction(self._action(self.tr("Настройки…"), "", self.show_settings))
+        for action_id in (
+            "open",
+            "-",
+            "rename",
+            "delete_file",
+            "reveal",
+            "copy_path",
+            "properties",
+        ):
+            if action_id == "-":
+                file_menu.addSeparator()
+            else:
+                file_menu.addAction(reg[action_id])
         file_menu.addSeparator()
-        file_menu.addAction(self._action(self.tr("Выход"), "Ctrl+Q", self.close))
-
+        file_menu.addAction(reg["settings"])
+        file_menu.addSeparator()
+        file_menu.addAction(reg["quit"])
         edit_menu = self.menuBar().addMenu(self.tr("Правка"))
-        for text, shortcut, slot in (
-            (self.tr("Редактировать / назад к просмотру"), "Ctrl+E", self.toggle_editor),
-            (self.tr("Вставить картинку из буфера"), "Ctrl+V", self.paste_image),
-            (self.tr("Отменить"), "Ctrl+Z", lambda: self._with_editor(lambda e: e.undo())),
-            (self.tr("Повторить"), "Ctrl+Y", lambda: self._with_editor(lambda e: e.redo())),
-            (self.tr("Копировать результат"), "Ctrl+C", self._copy),
-            (self.tr("Сохранить"), "Ctrl+S", lambda: self._with_editor(lambda e: e.save_quick())),
-            (
-                self.tr("Сохранить как…"),
-                "Ctrl+Shift+S",
-                lambda: self._with_editor(lambda e: e.save_as()),
-            ),
+        for action_id in (
+            "edit",
+            "back_to_view",
+            "-",
+            "undo",
+            "redo",
+            "-",
+            "copy_image",
+            "copy_result",
+            "paste_image",
+            "-",
+            "save",
+            "export",
+            "save_as",
         ):
-            edit_menu.addAction(self._action(text, shortcut, slot))
+            if action_id == "-":
+                edit_menu.addSeparator()
+            else:
+                edit_menu.addAction(reg[action_id])
 
-        def player_action(text: str, shortcut: str, do: Callable[[Player], object]) -> None:
-            self._add_action(text, shortcut, lambda: self._with_player(do))
+    # --- контекстные меню --------------------------------------------------------------------
 
-        add = self._add_action
-        add(self.tr("Следующее"), Qt.Key.Key_Right, lambda: self._horizontal(1))
-        add(self.tr("Предыдущее"), Qt.Key.Key_Left, lambda: self._horizontal(-1))
-        add(
-            self.tr("Громче"),
-            Qt.Key.Key_Up,
-            lambda: self._volume(self._app.get_int("playback.volume_step")),
-        )
-        add(
-            self.tr("Тише"),
-            Qt.Key.Key_Down,
-            lambda: self._volume(-self._app.get_int("playback.volume_step")),
-        )
-        add(self.tr("Перемотка вперёд"), "Shift+Right", lambda: self._seek_long(1))
-        add(self.tr("Перемотка назад"), "Shift+Left", lambda: self._seek_long(-1))
-        player_action(self.tr("Медленнее"), "[", lambda p: self._change_speed(p, -1))
-        player_action(self.tr("Быстрее"), "]", lambda p: self._change_speed(p, 1))
-        player_action(self.tr("Обычная скорость"), "Backspace", lambda p: self._reset_speed(p))
-        player_action(self.tr("Пауза"), "Space", lambda p: p.toggle_pause())
-        player_action(self.tr("Аудиодорожка"), "A", lambda p: p.cycle_audio())
-        player_action(self.tr("Субтитры 1"), "S", lambda p: p.cycle_sub())
-        player_action(self.tr("Субтитры 2"), "Shift+S", lambda p: p.cycle_sub2())
-        player_action(self.tr("Субтитры 1 раньше"), "Z", lambda p: p.shift_sub(-1))
-        player_action(self.tr("Субтитры 1 позже"), "X", lambda p: p.shift_sub(1))
-        player_action(self.tr("Субтитры 2 раньше"), "Shift+Z", lambda p: p.shift_sub2(-1))
-        player_action(self.tr("Субтитры 2 позже"), "Shift+X", lambda p: p.shift_sub2(1))
-        add(self.tr("Полный экран"), Qt.Key.Key_F, self.toggle_fullscreen)
-        add(self.tr("Полный экран"), Qt.Key.Key_F11, self.toggle_fullscreen)
-        add(self.tr("Выйти из полного экрана"), Qt.Key.Key_Escape, self._escape)
-        add(self.tr("Начало здесь"), "I", lambda: self._with_video_editor(lambda e: e.set_in()))
-        add(self.tr("Конец здесь"), "O", lambda: self._with_video_editor(lambda e: e.set_out()))
-        add(
-            self.tr("Разрезать здесь"),
-            "K",
-            lambda: self._with_video_editor(lambda e: e.split_here()),
-        )
-        add(
-            self.tr("Удалить выбранное"),
-            Qt.Key.Key_Delete,
-            lambda: self._with_video_editor(lambda e: e.delete_selected()),
-        )
-        add(
-            self.tr("Вырезать выделенное"),
-            "Ctrl+X",
-            lambda: self._with_video_editor(lambda e: e.cut_marks()),
-        )
-        for enter in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            add(self.tr("Применить"), enter, lambda: self._with_editor(lambda e: e.apply_pending()))
-        for key, tool in (
-            ("C", "crop"),
-            ("R", "rotate"),
-            ("B", "redact"),
-            ("D", "draw"),
-            ("T", "text"),
-        ):
-            add(tool, key, self._tool_slot(tool))
-        add(self.tr("Вписать в окно"), "Ctrl+0", lambda: self.viewer.fit_to_window())
-        add(self.tr("Масштаб 100%"), "Ctrl+1", self.viewer.actual_size)
+    def _screen_context(self) -> str:
+        """Какой экран открыт: от него зависит, какие действия и клавиши включены."""
+        current_widget = self._stack.currentWidget()
+        if current_widget is self.viewer:
+            return PHOTO
+        if self.video_page is not None and current_widget is self.video_page:
+            return VIDEO
+        if self.editor is not None and current_widget is self.editor:
+            return PHOTO_EDITOR
+        if self.video_editor is not None and current_widget is self.video_editor:
+            return VIDEO_EDITOR
+        return START
 
-    def _action(
-        self,
-        text: str,
-        shortcut: QKeySequence.StandardKey | Qt.Key | str,
-        slot: Callable[[], object],
-    ) -> QAction:
-        action = QAction(text, self)
-        if shortcut:
-            action.setShortcut(QKeySequence(shortcut))
-        action.triggered.connect(slot)
-        return action
+    def _sync_context(self) -> None:
+        self.registry.set_context(self._screen_context())
 
-    def _add_action(
-        self,
-        text: str,
-        shortcut: QKeySequence.StandardKey | Qt.Key | str,
-        slot: Callable[[], object],
-    ) -> None:
-        self.addAction(self._action(text, shortcut, slot))
+    def _popup(self, menu: ThemedMenu, pos: QPoint) -> None:
+        self._open_menu = menu  # меню живёт, пока открыто
+        menu.popup(pos)
+
+    def _on_photo_menu(self, pos: QPoint) -> None:
+        if self._screen_context() == PHOTO:
+            self._popup(self.menus.photo(), pos)
+
+    def _on_video_menu(self, pos: QPoint) -> None:
+        context = self._screen_context()
+        if context == VIDEO:
+            self._popup(self.menus.video(), pos)
+        elif context == VIDEO_EDITOR:
+            self._popup(self.menus.editor_preview(), pos)
+
+    def _on_editor_menu(self, pos: QPoint) -> None:
+        if self._screen_context() == PHOTO_EDITOR:
+            self._popup(self.menus.editor_preview(), pos)
+
+    def _on_video_editor_menu(self, kind: str, pos: QPoint, payload: object) -> None:
+        if kind == "preview":
+            self._popup(self.menus.editor_preview(), pos)
+        elif kind == "trim":
+            seconds = payload if isinstance(payload, float) else None
+            self._popup(self.menus.trim(seconds), pos)
+        elif kind == "clip" and isinstance(payload, int):
+            self._popup(self.menus.clip(payload), pos)
+        elif kind == "effects" and isinstance(payload, list) and payload:
+            self._popup(self.menus.effects(payload), pos)
+
+    def show_context_menu(self) -> None:
+        """Клавиша Menu и Shift+F10: меню текущего экрана у указателя или в центре окна."""
+        menu = self.menus.for_context()
+        if menu is None:
+            return
+        centre = self._stack.mapToGlobal(self._stack.rect().center())
+        cursor = QCursor.pos()
+        inside = self._stack.rect().contains(self._stack.mapFromGlobal(cursor))
+        self._popup(menu, cursor if inside else centre)
 
     def _tools_summary(self) -> str:
         ffmpeg = self.tr("найден") if find_ffmpeg() else self.tr("не найден")
@@ -380,6 +391,7 @@ class MainWindow(QMainWindow):
             return None
         page = VideoPage(module, mpv, settings=self._app, presets=self._presets)
         page.editRequested.connect(self.toggle_editor)
+        page.contextMenuRequested.connect(self._on_video_menu)
         page.subtitleSettingsRequested.connect(lambda: self.show_settings("subtitles"))
         page.fullscreenRequested.connect(self.toggle_fullscreen)
         page.player.errorOccurred.connect(self._on_video_error)
@@ -408,6 +420,17 @@ class MainWindow(QMainWindow):
             resume.position = 0.0  # позицию не возобновляем; дорожки и громкость остаются
         page.player.load(path, resume)
         page.wake()
+
+    def show_start(self) -> None:
+        """Ничего не открыто (например, удалён последний файл папки): стартовый экран."""
+        self._nav = None
+        self._video_nav = None
+        self.current_path = None
+        self._video_path = None
+        self._zoom_label.clear()
+        self._stack.setCurrentWidget(self._drop_zone)
+        self.setWindowTitle("CHOPCHOP")
+        self.statusBar().clearMessage()
 
     def _on_video_ended(self) -> None:
         """Файл доигран: следующее видео в папке, повтор или возврат на стартовый экран."""
@@ -522,6 +545,7 @@ class MainWindow(QMainWindow):
 
     def _on_theme_changed(self, _palette: object) -> None:
         self._drop_zone.refresh_theme()
+        self.registry.refresh_icons()
         if self.video_page is not None:
             self.video_page.refresh_theme()
         if self.editor is not None:
@@ -649,6 +673,7 @@ class MainWindow(QMainWindow):
         self.editor = EditorPage(session, self._app)
         self.editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
         self.editor.exitRequested.connect(self._leave_editor)
+        self.editor.menuRequested.connect(self._on_editor_menu)
         self._stack.addWidget(self.editor)
         self._stack.setCurrentWidget(self.editor)
         self._zoom_label.clear()
@@ -706,7 +731,10 @@ class MainWindow(QMainWindow):
         self._save_resume()
         session = VideoSession(VideoProject((Clip(path, info),)), self)
         self._stack.removeWidget(self.video_page)
-        editor = VideoEditorPage(session, self.video_page, ffmpeg, ffprobe, settings=self._app)
+        editor = VideoEditorPage(
+            session, self.video_page, ffmpeg, ffprobe, settings=self._app, actions=self.registry
+        )
+        editor.menuRequested.connect(self._on_video_editor_menu)
         editor.message.connect(lambda text: self.statusBar().showMessage(text, 8000))
         editor.exitRequested.connect(self._leave_video_editor)
         self.video_editor = editor

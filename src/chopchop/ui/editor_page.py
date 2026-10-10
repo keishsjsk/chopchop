@@ -4,8 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QContextMenuEvent, QImage
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -41,6 +41,7 @@ from chopchop.services.app_settings import AppSettings
 from chopchop.services.reveal import reveal_in_folder
 from chopchop.ui.canvas import Canvas
 from chopchop.ui.color_button import ColorButton, hex_to_color
+from chopchop.ui.context_gate import menu_allowed
 from chopchop.ui.crop_ratio import CropRatioBar
 from chopchop.ui.export_dialog import ExportDialog
 from chopchop.ui.export_strip import ExportStrip
@@ -60,6 +61,7 @@ REFRESH_MS = 15
 class EditorPage(QWidget):
     exitRequested = Signal()
     message = Signal(str)
+    menuRequested = Signal(QPoint)  # правая кнопка над холстом
 
     def __init__(
         self,
@@ -543,6 +545,29 @@ class EditorPage(QWidget):
                 self._reset_sliders()
             return
         self.request_exit()
+
+    def has_pending(self) -> bool:
+        """Есть ли активное выделение или незавершённое действие инструмента."""
+        tool = self._active_tool()
+        return tool is not None and tool.pending_operation() is not None
+
+    def reset_selection(self) -> None:
+        tool = self._active_tool()
+        if tool is not None:
+            tool.reset()
+            if isinstance(tool, AdjustTool):
+                self._reset_sliders()
+
+    def session_can_undo(self) -> bool:
+        return self.session.history.can_undo
+
+    def session_can_redo(self) -> bool:
+        return self.session.history.can_redo
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        if menu_allowed():
+            self.menuRequested.emit(event.globalPos())
+            event.accept()
 
     def undo(self) -> None:
         self.session.undo()
