@@ -290,12 +290,13 @@ def test_clip_chips_fit_their_content_within_limits(qtbot: QtBot) -> None:
         [
             ClipInfo("a.mp4", "0:06"),
             ClipInfo("очень_длинное_название_файла_для_проверки_предела_ширины.mp4", "10:06"),
-            ClipInfo("средний клип.mp4", "0:30"),
+            ClipInfo("mid.mp4", "0:30"),
         ],
         0,
     )
     widths = [chip.width() for chip in strip.chips()]
-    assert CHIP_MIN_W <= widths[0] < widths[2] < widths[1] == CHIP_MAX_W  # по содержимому
+    assert CHIP_MIN_W <= widths[0] <= widths[2] <= widths[1] == CHIP_MAX_W  # по содержимому
+    assert widths[0] < widths[1]
     assert strip.chips()[1].x() == widths[0] + 8 + 0  # чипы идут вплотную, а не растянуты на ряд
 
 

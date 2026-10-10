@@ -22,15 +22,24 @@ def cache_dir() -> Path:
     return base
 
 
-def file_key(path: Path, *parts: object) -> str:
-    """Ключ кэша: файл (путь, размер, время изменения) и параметры; при правке файла меняется."""
+def file_identity(path: Path) -> str:
+    """Путь, размер и время изменения файла одной строкой: меняется при правке файла."""
     try:
         stat = path.stat()
-        identity = f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
+        return f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
     except OSError:
-        identity = str(path)
+        return str(path)
+
+
+def key_for(identity: str, *parts: object) -> str:
+    """Ключ кэша по готовым сведениям о файле и параметрам."""
     text = "|".join([identity, *map(str, parts)])
     return hashlib.blake2b(text.encode("utf-8"), digest_size=16).hexdigest()
+
+
+def file_key(path: Path, *parts: object) -> str:
+    """Ключ кэша: файл (путь, размер, время изменения) и параметры; при правке файла меняется."""
+    return key_for(file_identity(path), *parts)
 
 
 def prune(folder: Path, max_bytes: int = DEFAULT_LIMIT_BYTES) -> int:

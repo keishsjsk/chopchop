@@ -3,9 +3,10 @@
 Один и тот же граф строит и экспорт, и превью в mpv, поэтому на экране то же, что и в файле.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
-from chopchop.core.operations import Adjust, Color, Redact, Text
+from chopchop.core.operations import Adjust, Color, Redact, Text, is_timed
 from chopchop.core.video import VideoEffects
 
 MIN_FONT = 8
@@ -43,7 +44,29 @@ def adjust_filter(adjust: Adjust) -> str:
     )
 
 
-def _text_filter(text: Text, textfile: Path, font: Path | None) -> str:
+EnableFor = Callable[[float, float], str | None]  # (с, до) -> выражение enable или None
+
+
+def result_enable(show_from: float, show_to: float) -> str | None:
+    """Выражение `enable` по времени итога: между(t, с, до); без конца — от начала и дальше."""
+    if show_from <= 0.0 and show_to < 0.0:
+        return None  # весь ролик
+    if show_to < 0.0:
+        return f"gte(t,{show_from:.3f})"
+    return f"between(t,{show_from:.3f},{show_to:.3f})"
+
+
+def _enable_option(effect: Redact | Text, enable_for: EnableFor) -> str:
+    """Опция `enable='…'` (с кавычками: внутри запятые) или пусто, если показ на весь ролик."""
+    if not is_timed(effect):
+        return ""
+    expression = enable_for(effect.show_from, effect.show_to)
+    return f"enable='{expression}'" if expression else ""
+
+
+def _text_filter(
+    text: Text, textfile: Path, font: Path | None, enable_for: EnableFor = result_enable
+) -> str:
     parts = [
         f"textfile={quote_path(textfile)}",
         f"x={round(text.x)}",
@@ -55,6 +78,9 @@ def _text_filter(text: Text, textfile: Path, font: Path | None) -> str:
     ]
     if font is not None:
         parts.append(f"fontfile={quote_path(font)}")
+    enable = _enable_option(text, enable_for)
+    if enable:
+        parts.append(enable)
     return "drawtext=" + ":".join(parts)
 
 
@@ -89,7 +115,9 @@ class _Graph:
         self._current = label
         self._chain = []
 
-    def add_region(self, region_filter: str, box: tuple[int, int, int, int]) -> None:
+    def add_region(
+        self, region_filter: str, box: tuple[int, int, int, int], enable: str = ""
+    ) -> None:
         """Применить фильтр только к области: вырезать копию, обработать и наложить обратно."""
         self.flush()
         left, top, right, bottom = box
@@ -98,30 +126,35 @@ class _Graph:
         self.parts.append(f"[{self._current}]split[{base}][{copy}]")
         crop = f"crop={right - left}:{bottom - top}:{left}:{top}"
         self.parts.append(f"[{copy}]{crop},{region_filter}[{patch}]")
-        self.parts.append(f"[{base}][{patch}]overlay={left}:{top}[{out}]")
+        suffix = f":{enable}" if enable else ""
+        self.parts.append(f"[{base}][{patch}]overlay={left}:{top}{suffix}[{out}]")
         self._current = out
 
     def text(self) -> str:
         return ";".join(self.parts)
 
 
-def _redact_filters(graph: _Graph, redact: Redact, size: tuple[int, int]) -> None:
+def _redact_filters(
+    graph: _Graph, redact: Redact, size: tuple[int, int], enable_for: EnableFor = result_enable
+) -> None:
     box = redact.rect.to_box(*size)
     if box is None:
         return
+    enable = _enable_option(redact, enable_for)
     left, top, right, bottom = box
     width, height = right - left, bottom - top
     if redact.mode == "fill":
+        extra = f":{enable}" if enable else ""
         graph.add(
-            f"drawbox=x={left}:y={top}:w={width}:h={height}:color={hex_color(redact.color)}:t=fill"
+            f"drawbox=x={left}:y={top}:w={width}:h={height}:color={hex_color(redact.color)}:t=fill{extra}"
         )
     elif redact.mode == "blur":
         radius = max(1, min(round(redact.strength), min(width, height) // 4))
-        graph.add_region(f"boxblur={radius}:2", box)
+        graph.add_region(f"boxblur={radius}:2", box, enable)
     else:
         block = max(2, round(redact.strength))
         small = f"scale={max(1, width // block)}:{max(1, height // block)}"
-        graph.add_region(f"{small},scale={width}:{height}:flags=neighbor", box)
+        graph.add_region(f"{small},scale={width}:{height}:flags=neighbor", box, enable)
 
 
 def build_effects_graph(
@@ -133,18 +166,22 @@ def build_effects_graph(
     geometry: bool = True,
     in_label: str = "in",
     out_label: str = "out",
+    enable_for: EnableFor = result_enable,
 ) -> str:
     """Граф от метки in_label до out_label.
+
+    enable_for переводит время показа эффекта (время итога) в выражение `enable`: у экспорта
+    это `between(t,a,b)` как есть, у превью — по времени исходного файла.
 
     geometry=False пропускает кадрирование, поворот и преобразование формата: превью в mpv
     показывает полный кадр, а рамки кадра рисуются поверх.
     """
     graph = _Graph(in_label)
     for redact in effects.redacts:
-        _redact_filters(graph, redact, size)
+        _redact_filters(graph, redact, size, enable_for)
     for index, text in enumerate(effects.texts):
         if text.text.strip() and index in textfiles:
-            graph.add(_text_filter(text, textfiles[index], font))
+            graph.add(_text_filter(text, textfiles[index], font, enable_for))
     if not effects.adjust.is_identity:
         graph.add(adjust_filter(effects.adjust))
     if effects.filter:

@@ -98,6 +98,44 @@ class _Batch(QRunnable):
             part.unlink(missing_ok=True)
 
 
+class _Lookup(QRunnable):
+    """Всё дорогое при открытии клипа: чистка кэша, чтение готовых миниатюр с диска, пачки ffmpeg.
+
+    Выполняется в фоне, чтобы открытие редактора не ждало диска; интерфейс получает заглушки
+    и подменяет их по мере готовности.
+    """
+
+    def __init__(
+        self, loader: "ThumbnailLoader", generation: int, path: Path, duration: float, count: int
+    ) -> None:
+        super().__init__()
+        self._loader = loader
+        self._generation = generation
+        self._path = path
+        self._duration = duration
+        self._count = count
+
+    def run(self) -> None:
+        loader = self._loader
+        folder = loader.prepare_folder()
+        missing: list[tuple[int, float, Path]] = []
+        identity = cache.file_identity(self._path)
+        for index in range(self._count):
+            if loader.generation != self._generation:
+                return
+            dest = folder / f"{cache.key_for(identity, index, self._count, loader.width)}.jpg"
+            at = self._duration * (index + 0.5) / self._count
+            if dest.stem in loader.memory_keys():
+                continue  # уже в памяти: интерфейс показал её сразу
+            image = QImage(str(dest)) if dest.exists() else QImage()
+            if image.isNull():
+                missing.append((index, at, dest))
+            else:
+                loader.signals.ready.emit(str(self._path), index, image)
+        for batch in loader.split(missing):
+            loader.start_batch(_Batch(loader, self._generation, self._path, batch))
+
+
 class ThumbnailLoader(QObject):
     thumbnail = Signal(str, int, QImage)  # путь к файлу, номер миниатюры, кадр
 
@@ -117,45 +155,44 @@ class ThumbnailLoader(QObject):
         self.generation = 0
         self.cancel_flag = threading.Event()
         self._parallel = parallel
-        self._width = width
+        self.width = width
         self._pool = QThreadPool(self)
-        self._pool.setMaxThreadCount(parallel)
+        self._pool.setMaxThreadCount(parallel + 1)  # ещё одно место под поиск готовых на диске
         self._memory: dict[str, QImage] = {}  # ключ кэша файла -> кадр
         self._keys: dict[tuple[str, int], str] = {}
         self._folder: Path | None = None
+        self._folder_lock = threading.Lock()
 
-    def _thumb_dir(self) -> Path:
-        if self._folder is None:
-            self._folder = cache.cache_dir() / "thumbs"
-            self._folder.mkdir(parents=True, exist_ok=True)
-            cache.prune(self._folder, self._limit)
-        return self._folder
+    def prepare_folder(self) -> Path:
+        """Папка кэша: создание и чистка по размеру (диск), поэтому вызывается из фона."""
+        with self._folder_lock:
+            if self._folder is None:
+                folder = cache.cache_dir() / "thumbs"
+                folder.mkdir(parents=True, exist_ok=True)
+                cache.prune(folder, self._limit)
+                self._folder = folder
+            return self._folder
+
+    def memory_keys(self) -> set[str]:
+        return set(self._memory)
 
     def request(self, path: Path, duration: float, count: int) -> list[QImage | None]:
-        """Готовые миниатюры сразу (из памяти или с диска), недостающие грузятся в фоне."""
+        """Миниатюры из памяти сразу, остальные (None — заглушка) приходят из фона по сигналу."""
         self.cancel()  # предыдущий клип больше не нужен
-        folder = self._thumb_dir()
         result: list[QImage | None] = []
-        missing: list[tuple[int, float, Path]] = []
+        identity = cache.file_identity(path)
         for index in range(count):
-            dest = folder / f"{cache.file_key(path, index, count, self._width)}.jpg"
-            key = dest.stem
+            key = cache.key_for(identity, index, count, self.width)
             self._keys[(str(path), index)] = key
-            image = self._memory.get(key)
-            # середина каждого отрезка, чтобы не попасть на чёрный первый кадр
-            at = duration * (index + 0.5) / count
-            if image is None and dest.exists():
-                loaded = QImage(str(dest))
-                if not loaded.isNull():
-                    image = self._memory[key] = loaded
-            result.append(image)
-            if image is None:
-                missing.append((index, at, dest))
-        for batch in self._split(missing):
-            self._pool.start(_Batch(self, self.generation, path, batch))
+            result.append(self._memory.get(key))
+        if any(image is None for image in result):
+            self._pool.start(_Lookup(self, self.generation, path, duration, count))
         return result
 
-    def _split(self, items: list[tuple[int, float, Path]]) -> list[list[tuple[int, float, Path]]]:
+    def start_batch(self, batch: "_Batch") -> None:
+        self._pool.start(batch)
+
+    def split(self, items: list[tuple[int, float, Path]]) -> list[list[tuple[int, float, Path]]]:
         """Делит недостающие кадры на равные пачки по числу параллельных запусков."""
         if not items:
             return []

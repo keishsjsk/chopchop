@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from chopchop.engines.ffmpeg import find_ffmpeg, find_ffprobe
 
@@ -33,8 +34,8 @@ def _store(key: tuple[object, ...], path: Path) -> None:
     _cache[key] = stored
 
 
-def run(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, capture_output=True, text=True, check=True, timeout=120)
+def run(args: list[str], binary: bool = False) -> subprocess.CompletedProcess[Any]:
+    return subprocess.run(args, capture_output=True, text=not binary, check=True, timeout=120)
 
 
 def make_video(

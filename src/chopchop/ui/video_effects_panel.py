@@ -4,6 +4,8 @@
 панели параметров для контекстной панели оболочки (по одной на пункт рейки).
 """
 
+from dataclasses import replace
+
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QSpinBox, QWidget
 
@@ -13,6 +15,7 @@ from chopchop.editor.video_session import VideoSession
 from chopchop.ui.color_button import ColorButton
 from chopchop.ui.crop_ratio import RatioChips
 from chopchop.ui.theme import tokens
+from chopchop.ui.time_window import TimeWindow
 from chopchop.ui.tools.base import Tool
 from chopchop.ui.tools.crop_tool import CropTool
 from chopchop.ui.tools.redact_tool import RedactTool
@@ -132,8 +135,13 @@ class VideoEffectsPanel(QObject):
         self._redact_hint = QLabel()
         self._redact_hint.setProperty("muted", True)
         self._on_redact_mode("fill")
+        self.redact_time = TimeWindow()
         return self._row(
-            self._modes, self._redact_hint, self._apply_button(), self._cancel_button()
+            self._modes,
+            self._redact_hint,
+            self.redact_time,
+            self._apply_button(),
+            self._cancel_button(),
         )
 
     def _on_redact_mode(self, mode: object) -> None:
@@ -148,7 +156,7 @@ class VideoEffectsPanel(QObject):
     def _text_panel(self) -> QWidget:
         self._text = QLineEdit()
         self._text.setPlaceholderText(self.tr("Текст (на всё видео)"))
-        self._text.setMinimumWidth(16 * tokens.SPACE_4)
+        self._text.setMinimumWidth(11 * tokens.SPACE_4)
         self._text.setAccessibleName(self.tr("Текст"))
         self._text_size = QSpinBox()
         self._text_size.setRange(1, 50)
@@ -166,11 +174,13 @@ class VideoEffectsPanel(QObject):
             signal.connect(self._on_text_options)
         size_label = QLabel(self.tr("Размер"))
         size_label.setProperty("muted", True)
+        self.text_time = TimeWindow()
         return self._row(
             self._text,
             size_label,
             self._text_size,
             self._text_color,
+            self.text_time,
             self._apply_button(),
             self._cancel_button(),
         )
@@ -288,9 +298,13 @@ class VideoEffectsPanel(QObject):
         if isinstance(op, Crop):
             self.session.set_crop(op.rect)
         elif isinstance(op, Redact):
-            self.session.add_redact(op)
+            start, stop = self.redact_time.values()
+            self.session.add_redact(replace(op, show_from=start, show_to=stop))
+            self.redact_time.reset()
         elif isinstance(op, Text):
-            self.session.add_text(op)
+            start, stop = self.text_time.values()
+            self.session.add_text(replace(op, show_from=start, show_to=stop))
+            self.text_time.reset()
 
     def escape(self) -> bool:
         """Esc: отменить незавершённое действие или снять инструмент; False — делать нечего."""
@@ -318,4 +332,6 @@ class VideoEffectsPanel(QObject):
             note = self.tr("Поворот и отражение применятся при экспорте")
         self.overlay.set_rotation_note(note)
         self.color.set_values(effects.adjust, effects.filter)
+        self.text_time.set_duration(project.duration)
+        self.redact_time.set_duration(project.duration)
         self._frame_selection()  # после применения рамка снова охватывает кадр

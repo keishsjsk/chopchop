@@ -264,12 +264,18 @@ class TrimBar(QWidget):
         count = len(self._thumbs)
         if count == 0 or self._duration <= 0:
             return
+        palette = current.palette()
         for index, image in enumerate(self._thumbs):
-            if image is None or image.isNull():
-                continue
             x0 = self._x(self._duration * index / count)
             x1 = self._x(self._duration * (index + 1) / count)
             if x1 < track.left() or x0 > track.right():
+                continue
+            if image is None or image.isNull():
+                # заглушка кадра, пока миниатюра грузится: полоса не выглядит пустой
+                tone = palette.surface_raised if index % 2 == 0 else palette.border
+                painter.fillRect(
+                    QRectF(x0, track.top(), max(x1 - x0, 1.0), track.height()), QColor(tone)
+                )
                 continue
             slot = QRectF(x0, track.top(), max(x1 - x0, 1.0), track.height())
             scale = max(slot.width() / image.width(), slot.height() / image.height())

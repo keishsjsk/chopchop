@@ -6,8 +6,8 @@
 (`#` в битмапе), акцентный (`a`) и тень на один пиксель вправо и вниз.
 """
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QIconEngine, QImage, QPainter, QPixmap
 
 from chopchop.ui.theme.icon_data import ICONS_16, ICONS_24
 from chopchop.ui.theme.tokens import Palette
@@ -132,6 +132,57 @@ def pixmap(
     return result
 
 
+class _PixelIconEngine(QIconEngine):
+    """Значок, который рисуется под нужный экран в момент запроса.
+
+    Заранее собирать пиксмапы для всех масштабов и режимов дорого (сотни картинок при первом
+    открытии окна), а нужен один: целый масштаб сетки под `devicePixelRatio` того экрана, где
+    значок показан. Готовые картинки запоминаются в `render`.
+    """
+
+    def __init__(
+        self, name: str, palette: Palette, role: str, checked_role: str, size: int
+    ) -> None:
+        super().__init__()
+        self._args = (name, palette, role, checked_role, size)
+
+    def clone(self) -> "_PixelIconEngine":
+        return _PixelIconEngine(*self._args)
+
+    def _pix(self, size: QSize, mode: QIcon.Mode, state: QIcon.State, ratio: float) -> QPixmap:
+        name, palette, role, checked_role, grid = self._args
+        if mode == QIcon.Mode.Disabled:
+            role, shadow = "text_muted", False
+        elif state == QIcon.State.On:
+            role, shadow = checked_role, False
+        else:
+            shadow = True
+        return pixmap(
+            name,
+            palette,
+            logical=max(size.width(), 1),
+            ratio=ratio,
+            role=role,
+            shadow=shadow,
+            size=grid,
+        )
+
+    def pixmap(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QPixmap:
+        return self._pix(size, mode, state, 1.0)
+
+    def scaledPixmap(  # noqa: N802
+        self, size: QSize, mode: QIcon.Mode, state: QIcon.State, scale: float
+    ) -> QPixmap:
+        return self._pix(size, mode, state, scale)
+
+    def actualSize(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QSize:  # noqa: N802
+        return size
+
+    def paint(self, painter: QPainter, rect: QRect, mode: QIcon.Mode, state: QIcon.State) -> None:
+        ratio = painter.device().devicePixelRatioF()
+        painter.drawPixmap(rect, self._pix(rect.size(), mode, state, ratio))
+
+
 def qicon(
     name: str,
     palette: Palette,
@@ -143,36 +194,14 @@ def qicon(
 ) -> QIcon:
     """QIcon для кнопок: обычная, выключенная (приглушённая), нажатая (цвет на акцентной плашке).
 
-    Пиксмапы сделаны для масштабов 1–4, Qt выбирает подходящий под экран. Готовые значки
-    запоминаются: редактор создаёт десятки одинаковых кнопок, а сборка значка не бесплатна.
+    `logical` оставлен для совместимости: размер берётся из запроса, а масштаб сетки выбирается
+    по `devicePixelRatio` экрана. Готовые значки запоминаются.
     """
-    key = (name, palette, logical, role, checked_role, size)
+    key = (name, palette, role, checked_role, size)
     cached = _qicons.get(key)
     if cached is not None:
         return cached
-    icon = QIcon()
-    side = grid_size(name, size)
-    for ratio in (1.0, 2.0, 3.0, 4.0):
-        for mode, state, state_role, with_shadow in (
-            (QIcon.Mode.Normal, QIcon.State.Off, role, True),
-            (QIcon.Mode.Active, QIcon.State.Off, role, True),
-            (QIcon.Mode.Disabled, QIcon.State.Off, "text_muted", False),
-            (QIcon.Mode.Normal, QIcon.State.On, checked_role, False),
-            (QIcon.Mode.Active, QIcon.State.On, checked_role, False),
-        ):
-            icon.addPixmap(
-                pixmap(
-                    name,
-                    palette,
-                    logical=logical,
-                    ratio=ratio,
-                    role=state_role,
-                    shadow=with_shadow,
-                    size=side,
-                ),
-                mode,
-                state,
-            )
+    icon = QIcon(_PixelIconEngine(name, palette, role, checked_role, size))
     _qicons[key] = icon
     return icon
 

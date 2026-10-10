@@ -55,8 +55,13 @@ def test_second_loader_reads_thumbnails_from_disk_cache_without_ffmpeg(
 
     monkeypatch.setattr("chopchop.workers.thumbs_worker.extract_batch", must_not_run)
     second = ThumbnailLoader(FFMPEG)  # новая сессия: памяти нет, диск есть
+    got: dict[int, int] = {}
+    second.thumbnail.connect(lambda _p, index, image: got.update({index: image.width()}))
     ready = second.request(video, 4.0, 4)
-    assert all(image is not None and image.width() == 160 for image in ready)
+    assert ready == [None] * 4  # открытие не ждёт диска: сразу заглушки
+    qtbot.waitUntil(lambda: len(got) == 4, timeout=10000)  # кэш с диска приходит из фона
+    assert set(got.values()) == {160}
+    second.wait()
 
 
 def test_changed_file_does_not_reuse_stale_thumbnails(qtbot: QtBot, tmp_path: Path) -> None:
@@ -66,7 +71,8 @@ def test_changed_file_does_not_reuse_stale_thumbnails(qtbot: QtBot, tmp_path: Pa
     loader.request(video, 4.0, 2)
     loader.wait()
     video.write_bytes(video.read_bytes() + b"\0")  # размер изменился -> другой ключ
-    assert loader.request(video, 4.0, 2)[0] is None or True  # память по пути, диск по ключу
+    stale = loader.request(video, 4.0, 2)
+    assert stale == [None, None]  # у изменённого файла другой ключ: старые кадры не берутся
     loader.cancel()
     loader.wait()
 

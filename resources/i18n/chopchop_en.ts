@@ -1759,6 +1759,37 @@
     </message>
 </context>
 <context>
+    <name>TimeWindow</name>
+    <message>
+        <source>Начало</source>
+        <translation>Start</translation>
+    </message>
+    <message>
+        <source>С какой секунды итога показывать</source>
+        <translation>Show from this second of the result</translation>
+    </message>
+    <message>
+        <source>Конец</source>
+        <translation>End</translation>
+    </message>
+    <message>
+        <source>До какой секунды итога показывать</source>
+        <translation>Show until this second of the result</translation>
+    </message>
+    <message>
+        <source>Показ</source>
+        <translation>Shown</translation>
+    </message>
+    <message>
+        <source>Время показа в итоговом ролике; по умолчанию весь ролик</source>
+        <translation>Display time in the final video; the whole video by default</translation>
+    </message>
+    <message>
+        <source>с</source>
+        <translation>s</translation>
+    </message>
+</context>
+<context>
     <name>TopBar</name>
     <message>
         <source>Редактировать  Ctrl+E</source>
@@ -1971,6 +2002,14 @@
     <message>
         <source>Пауза</source>
         <translation>Pause</translation>
+    </message>
+    <message>
+        <source>Время показа сжалось до нуля, эффект не виден: </source>
+        <translation>The display time shrank to zero, the effect is not visible: </translation>
+    </message>
+    <message>
+        <source>Время показа обрезано по длине итога: </source>
+        <translation>The display time was cut to the length of the result: </translation>
     </message>
     <message>
         <source>Выберите сегмент кликом или выделите диапазон с Shift</source>

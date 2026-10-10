@@ -112,3 +112,36 @@ def test_fast_join_of_a_cut_clip_and_a_second_file_in_another_container(tmp_path
     video, audio = _durations(result)
     assert video == pytest.approx(4.0 + 4.0, abs=0.4)
     assert abs(video - audio) < 0.3  # раньше смесь контейнеров растягивала звук в разы
+
+
+def _pixel(path: Path, at: float, x: int, y: int) -> tuple[int, int, int]:
+    assert FFMPEG is not None
+    out = run(
+        [str(FFMPEG), "-v", "error", "-ss", f"{at:.3f}", "-i", str(path), "-frames:v", "1"]
+        + ["-vf", f"crop=2:2:{x}:{y}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+        binary=True,
+    ).stdout
+    return out[0], out[1], out[2]
+
+
+def test_timed_redact_shows_only_in_its_window_after_a_cut(tmp_path: Path) -> None:
+    from chopchop.core.geometry import Rect
+    from chopchop.core.operations import Redact
+    from chopchop.core.video import RemoveRange, VideoEffects
+
+    source = make_video(tmp_path / "a.mp4", seconds=SECONDS)
+    clip = _clip(source)
+    redact = Redact(Rect(100, 80, 100, 80), show_from=4.0, show_to=6.0)  # время итога
+    project = VideoProject((clip,), effects=VideoEffects(redacts=(redact,)))
+    project = RemoveRange(0, 1.0, 3.0).apply(project)  # окно уехало бы на 2 секунды раньше
+    from chopchop.core.timing import retime
+
+    old = VideoProject((clip,), effects=VideoEffects(redacts=(redact,)))
+    project, _notes = retime(old, project)
+    assert (project.effects.redacts[0].show_from, project.effects.redacts[0].show_to) == (2.0, 4.0)
+    result = _export(project, tmp_path, precise=True)
+    inside = _pixel(result, 3.0, 150, 120)
+    before = _pixel(result, 1.0, 150, 120)
+    after = _pixel(result, 5.0, 150, 120)
+    assert sum(inside) < 30  # чёрная заливка видна внутри окна
+    assert sum(before) > 60 and sum(after) > 60  # вне окна — картинка

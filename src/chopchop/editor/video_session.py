@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, Signal
 
 from chopchop.core.geometry import Rect
 from chopchop.core.operations import Adjust, FilterName, Redact, Text
+from chopchop.core.timing import retime
 from chopchop.core.video import (
     AudioSettings,
     Clip,
@@ -21,6 +22,7 @@ from chopchop.core.video import (
 
 class VideoSession(QObject):
     changed = Signal()
+    timeNotes = Signal(list)  # list[TimeNote]: время показа сжалось или обрезано
 
     def __init__(self, project: VideoProject, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -47,8 +49,12 @@ class VideoSession(QObject):
         self.changed.emit()
 
     def _apply(self, project: VideoProject) -> None:
-        if self._history.push(project):
+        # время показа текста и областей хранится во времени итога: после вырезов подгоняем его
+        fitted, notes = retime(self._history.current, project)
+        if self._history.push(fitted):
             self.changed.emit()
+            if notes:
+                self.timeNotes.emit(notes)
 
     def undo(self) -> None:
         if self._history.undo():

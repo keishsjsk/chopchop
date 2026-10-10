@@ -1,0 +1,78 @@
+{
+  "what": "10 подряд запусков bench_photo.py --repeat 5 с python -X faulthandler",
+  "exit_codes": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "crashes": 0,
+  "stages": {
+    "viewer.first_show": {
+      "median_of_medians_ms": 149.3,
+      "worst_max_ms": 156.6
+    },
+    "editor.open": {
+      "median_of_medians_ms": 241.0,
+      "worst_max_ms": 250.1
+    },
+    "editor.tool_switch": {
+      "median_of_medians_ms": 10.6,
+      "worst_max_ms": 26.5
+    },
+    "crop.drag_frame": {
+      "median_of_medians_ms": 1.3,
+      "worst_max_ms": 4.0
+    },
+    "crop.release_to_preview": {
+      "median_of_medians_ms": 19.5,
+      "worst_max_ms": 24.6
+    },
+    "brush.stroke_frame": {
+      "median_of_medians_ms": 0.3,
+      "worst_max_ms": 3.4
+    },
+    "brush.release_to_preview": {
+      "median_of_medians_ms": 42.0,
+      "worst_max_ms": 59.5
+    },
+    "redact.drag_frame": {
+      "median_of_medians_ms": 0.9,
+      "worst_max_ms": 1.4
+    },
+    "redact.release_to_preview": {
+      "median_of_medians_ms": 42.2,
+      "worst_max_ms": 54.6
+    },
+    "adjust.slider_to_preview": {
+      "median_of_medians_ms": 31.0,
+      "worst_max_ms": 52.6
+    },
+    "adjust.apply_to_preview": {
+      "median_of_medians_ms": 22.2,
+      "worst_max_ms": 27.4
+    },
+    "history.undo": {
+      "median_of_medians_ms": 19.3,
+      "worst_max_ms": 31.7
+    },
+    "history.redo": {
+      "median_of_medians_ms": 19.6,
+      "worst_max_ms": 25.3
+    },
+    "export.jpeg_full": {
+      "median_of_medians_ms": 1070.6,
+      "worst_max_ms": 1146.4
+    },
+    "ui.max_blocking": {
+      "median_of_medians_ms": 0.0,
+      "worst_max_ms": 30.1
+    }
+  }
+}

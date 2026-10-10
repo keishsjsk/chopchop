@@ -686,3 +686,45 @@ def test_export_dialog_follows_the_cut_mode_setting(qtbot: QtBot, tmp_path: Path
         assert ("2 фрагментов" in notes) is (
             mode != "precise"
         )  # предупреждение только при копировании
+
+
+def test_display_time_is_set_in_the_panel_stored_in_result_time_and_previewed_in_file_time(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    page.select_tool("redact")
+    panel = page.effects_panel
+    tool = panel.tools["redact"]
+    tool.press(10, 10, 4.0)
+    tool.move(100, 100)
+    tool.release(100, 100)
+    panel.redact_time.set_window(3.0, 5.0)
+    page.apply_pending()
+    redact = page.session.project.effects.redacts[0]
+    assert (redact.show_from, redact.show_to) == (3.0, 5.0)
+    assert panel.redact_time.values() == (0.0, -1.0)  # после применения окно снова на весь ролик
+    graph = str(_vf_commands(fake)[-1][2])
+    assert "enable='between(t,3.000,5.000)'" in graph
+    page.session.cut(RemoveRange(0, 1.0, 2.0))  # вырез до окна: итог короче, окно уезжает
+    redact = page.session.project.effects.redacts[0]
+    assert (redact.show_from, redact.show_to) == (2.0, 4.0)
+    graph = str(_vf_commands(fake)[-1][2])
+    assert "enable='between(t,3.000,5.000)'" in graph  # в файле те же секунды, что и раньше
+    notes: list[str] = []
+    page.message.connect(notes.append)
+    page.session.cut(RemoveRange(0, 3.0, 5.0))  # вырезано всё окно целиком
+    assert any("сжалось" in n for n in notes)
+    page.shutdown()
+
+
+def test_text_panel_has_the_same_time_window(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.select_tool("text")
+    panel = page.effects_panel
+    panel._text.setText("Привет")
+    panel.tools["text"].press(30, 40, 4.0)
+    panel.text_time.set_window(1.0, -1.0)
+    page.apply_pending()
+    text = page.session.project.effects.texts[0]
+    assert (text.show_from, text.show_to) == (1.0, -1.0)
+    page.shutdown()

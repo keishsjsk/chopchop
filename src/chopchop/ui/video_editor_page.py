@@ -9,13 +9,15 @@ import contextlib
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QPushButton,
+    QSlider,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (
 from chopchop.core.document import MediaInfo
 from chopchop.core.keyframes import junctions, precise_count
 from chopchop.core.operations import Adjust, FilterName
+from chopchop.core.timing import TimeNote, result_windows_to_source
 from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.core.video import (
     Clip,
@@ -60,11 +63,11 @@ from chopchop.ui.player_controls import format_time
 from chopchop.ui.theme import tokens
 from chopchop.ui.toast import Toast
 from chopchop.ui.trim_bar import TrimBar, range_label
-from chopchop.ui.video_effects_panel import RAIL_ITEMS, VideoEffectsPanel
+from chopchop.ui.video_effects_panel import IDLE_HINT, RAIL_ITEMS, VideoEffectsPanel
 from chopchop.ui.video_export_dialog import VideoExportDialog
 from chopchop.ui.video_overlay import VideoOverlay
 from chopchop.ui.video_page import VideoPage
-from chopchop.ui.widgets import button, icon_button, refresh_icons, set_icon, tip
+from chopchop.ui.widgets import PixelToggle, button, icon_button, refresh_icons, set_icon, tip
 from chopchop.workers.export_worker import ExportWorker
 from chopchop.workers.tasks import TaskRunner
 from chopchop.workers.thumbs_worker import ThumbnailLoader
@@ -72,6 +75,7 @@ from chopchop.workers.thumbs_worker import ThumbnailLoader
 THUMBNAILS = 14
 VIDEO_FILTER = "*.mp4 *.mkv *.avi *.mov *.webm *.m4v *.mpg *.mpeg *.ts"
 SKIP_LEAD = 0.03  # прыгать чуть раньше конца оставленного куска
+TOOLS_DELAY_MS = 40
 COMPACT_HEIGHT = 700  # ниже этого окна полоса клипов сворачивается в одну строку
 SECOND_STEP = 1.0  # Shift + стрелки
 MIN_PREVIEW_HEIGHT = 160
@@ -113,6 +117,7 @@ class VideoEditorPage(QWidget):
         self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
         self._preview_key: str | None = None
         self._sized = False  # высота полосы обрезки из настроек применена
+        self._tools_ready = False  # панели эффектов и звука построены
         self._keyframes: dict[Path, tuple[float, ...]] = {}  # ключевые кадры открытых файлов
         self._segment: tuple[float, float] | None = None  # выбранный сегмент (время файла)
         self._skipping_to: float | None = None  # куда уже перепрыгнули в предпросмотре
@@ -140,9 +145,11 @@ class VideoEditorPage(QWidget):
         player.pausedChanged.connect(self._on_paused)
         player.fileLoaded.connect(self._on_file_loaded)
         session.changed.connect(self._on_session_changed)
+        session.timeNotes.connect(self._on_time_notes)
         self._load_current_clip()
         self._refresh()
         self._on_paused(player.paused)
+        QTimer.singleShot(TOOLS_DELAY_MS, self._ensure_tools)  # после первого кадра
 
     # --- интерфейс ---------------------------------------------------------------------------
 
@@ -181,24 +188,12 @@ class VideoEditorPage(QWidget):
         self._video_page.show()  # removeWidget в главном окне скрыл плеер
         self._video_page.set_editor_mode(True)
         self._overlay = VideoOverlay(self._video_page, self.session.project.frame_size)
-        self.effects_panel = VideoEffectsPanel(self.session, self._overlay, self)
-        self.effects_panel.message.connect(self.message)
-        self.effects_panel.colorPreview.connect(self._on_color_preview)
-        self.effects_panel.colorPreviewEnded.connect(self._on_color_preview_ended)
-        self.effects_panel.selectionChanged.connect(self._on_tool_selected)
-        self.effects_panel.hintChanged.connect(shell.status.set_hint)
         self.message.connect(shell.status.flash)
-        self.audio = AudioPanel(self.session)
-        self._volume = self.audio._volume
-        self._volume_label = self.audio._volume_label
-        self._mute = self.audio._mute
-        self._original_audio = self.audio._original_audio
 
-        # рейка инструментов и контекстные панели
+        # рейка инструментов; панели параметров строятся позже (`_ensure_tools`): открытие
+        # редактора не должно ждать создания десятков виджетов, которые пока не нужны
         for key, icon, name, hotkey in RAIL_ITEMS:
             shell.rail.add_tool(key, icon, self.tr(name), hotkey)
-            panel = self.audio if key == "audio" else self.effects_panel.panels[key]
-            shell.context.add_panel(key, panel)
         shell.rail.toolClicked.connect(self.select_tool)
 
         # транспорт, полоса обрезки, клипы
@@ -246,7 +241,7 @@ class VideoEditorPage(QWidget):
         self.effects_chip.removeRequested.connect(self._remove_effect)
         self.effects_chip.clearRequested.connect(self.session.clear_effects)
         shell.status.right.addWidget(self.effects_chip)
-        shell.status.set_hint(self.effects_panel.hint())
+        shell.status.set_hint(QCoreApplication.translate("VideoEffectsPanel", IDLE_HINT))
         self._summary = shell.status.summary_label
 
         layout = QVBoxLayout(self)
@@ -313,6 +308,53 @@ class VideoEditorPage(QWidget):
         for widget in (self._zoom_out, self._zoom_in, self._zoom_fit):
             row.addWidget(widget)
         return bar
+
+    # --- панели инструментов: строятся по требованию -----------------------------------------
+
+    def _ensure_tools(self) -> None:
+        """Эффекты и звук: создаются после первого кадра или при первом обращении."""
+        if self._tools_ready:
+            return
+        self._tools_ready = True
+        shell = self.shell
+        panel = VideoEffectsPanel(self.session, self._overlay, self)
+        self._effects_panel = panel
+        panel.message.connect(self.message)
+        panel.colorPreview.connect(self._on_color_preview)
+        panel.colorPreviewEnded.connect(self._on_color_preview_ended)
+        panel.selectionChanged.connect(self._on_tool_selected)
+        panel.hintChanged.connect(shell.status.set_hint)
+        self._audio = AudioPanel(self.session)
+        for key, *_rest in RAIL_ITEMS:
+            shell.context.add_panel(key, self._audio if key == "audio" else panel.panels[key])
+        self._audio.refresh()
+        panel.refresh()
+
+    @property
+    def effects_panel(self) -> VideoEffectsPanel:
+        self._ensure_tools()
+        return self._effects_panel
+
+    @property
+    def audio(self) -> AudioPanel:
+        self._ensure_tools()
+        return self._audio
+
+    @property
+    def _volume(self) -> QSlider:
+        return self.audio._volume
+
+    @property
+    def _volume_label(self) -> QLabel:
+        return self.audio._volume_label
+
+    @property
+    def _mute(self) -> PixelToggle:
+        return self.audio._mute
+
+    @property
+    def _original_audio(self) -> QPushButton:
+        return self.audio._original_audio
 
     def release_video_page(self) -> VideoPage:
         """Возвращает плеер владельцу (главному окну) при выходе из редактора."""
@@ -518,6 +560,18 @@ class VideoEditorPage(QWidget):
 
     def _reset_trim(self) -> None:
         self.session.reset_clip(self._index)
+
+    def _on_time_notes(self, notes: list[TimeNote]) -> None:
+        """После правки вырезов время показа пересчитано; что не вышло, говорим прямо."""
+        collapsed = [n.label for n in notes if n.kind == "collapsed"]
+        clamped = [n.label for n in notes if n.kind == "clamped"]
+        if collapsed:
+            self.message.emit(
+                self.tr("Время показа сжалось до нуля, эффект не виден: ") + ", ".join(collapsed)
+            )
+        elif clamped:
+            text = self.tr("Время показа обрезано по длине итога: ")
+            self.message.emit(text + ", ".join(clamped))
 
     # --- разрезы и вырезы --------------------------------------------------------------------
 
@@ -736,16 +790,20 @@ class VideoEditorPage(QWidget):
         self.effects_chip.set_effects(project.effects)
         self._refresh_marks(project.effects)
 
-        self.audio.refresh()
+        if self._tools_ready:
+            self._audio.refresh()
         self._refresh_trim()
         self._apply_loop()
-        self.effects_panel.refresh()
+        if self._tools_ready:
+            self._effects_panel.refresh()
         self._apply_preview()
 
     def _refresh_marks(self, effects: VideoEffects) -> None:
         marked = {entry.tool for entry in effect_entries(effects)}
+        audio = self.session.project.audio
+        customised = audio.volume != 1.0 or audio.mute or audio.replacement is not None
         for key in self.shell.rail.names():
-            on = key in marked or (key == "audio" and self.audio.is_customised())
+            on = key in marked or (key == "audio" and customised)
             self.shell.rail.set_marked(key, on)
 
     def _refresh_trim(self) -> None:
@@ -764,14 +822,25 @@ class VideoEditorPage(QWidget):
     def _preview_graph(self, effects: VideoEffects) -> str | None:
         """Тот же граф, что и при экспорте, но без кадра и поворота (их показывает слой)."""
         files = write_text_files(effects.texts, self._workspace)
+        project = self.session.project
+        index = self._index
+
+        def enable_for(show_from: float, show_to: float) -> str | None:
+            """Окно показа — во времени итога, а плеер идёт по времени файла: переводим."""
+            windows = result_windows_to_source(project, index, show_from, show_to)
+            if not windows:
+                return "0"  # в этом клипе эффект не показывается
+            return "+".join(f"between(t,{a:.3f},{b:.3f})" for a, b in windows)
+
         graph = build_effects_graph(
             effects,
-            self.session.project.frame_size,
+            project.frame_size,
             files,
             find_font_path(),
             geometry=False,
             in_label="vid1",
             out_label="vo",
+            enable_for=enable_for,
         )
         return None if graph == "[vid1]null[vo]" else graph
 

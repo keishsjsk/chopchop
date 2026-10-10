@@ -36,6 +36,8 @@ class Redact:
     mode: RedactMode = "fill"
     strength: float = 12.0  # радиус размытия или размер блока пикселизации, в пикселях
     color: Color = (0, 0, 0)
+    show_from: float = 0.0  # видео: начало показа во времени итога (у фото не используется)
+    show_to: float = -1.0  # видео: конец показа; отрицательное — до конца ролика
 
 
 @dataclass(frozen=True)
@@ -81,12 +83,19 @@ class Text:
     y: float
     size: float = 32.0
     color: Color = (255, 255, 255)
+    show_from: float = 0.0  # видео: начало показа во времени итога (у фото не используется)
+    show_to: float = -1.0  # видео: конец показа; отрицательное — до конца ролика
 
 
 @dataclass(frozen=True)
 class Resize:
     width: int
     height: int
+
+
+def is_timed(effect: "Redact | Text") -> bool:
+    """Показывается ли эффект не весь ролик (у фото поле всегда по умолчанию)."""
+    return effect.show_from > 0.0 or effect.show_to >= 0.0
 
 
 Operation = Crop | Rotate | Flip | Redact | Adjust | Filter | Annotate | Stroke | Text | Resize
