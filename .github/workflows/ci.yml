@@ -40,7 +40,12 @@ jobs:
       - name: Типы
         run: mypy
       - name: Тесты
-        run: pytest
+        shell: bash
+        run: |
+          pytest -rf --tb=short 2>&1 | tee pytest.txt; code=${PIPESTATUS[0]}
+          # причины падений видны в аннотациях запуска (журнал без входа недоступен)
+          grep -E "^(FAILED|ERROR|E )" pytest.txt | head -40 | sed 's/^/::error::/' || true
+          exit $code
       - name: Безопасность
         if: runner.os == 'Linux'
         run: |
