@@ -12,6 +12,7 @@ from PySide6.QtGui import QColor, QEnterEvent, QImage, QMouseEvent, QPainter, QP
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QToolButton, QWidget
 
 from chopchop.player.player import VOLUME_MAX, Player
+from chopchop.player.throttle import Throttle
 from chopchop.ui import anim
 from chopchop.ui.click_slider import ClickSlider
 from chopchop.ui.floating import FloatingPanel
@@ -215,7 +216,9 @@ class VolumeControl(QWidget):
         self.slider.setRange(0, int(VOLUME_MAX))
         self.slider.setValue(100)
         self.slider.setFixedWidth(0)
-        self.slider.valueChanged.connect(lambda value: player.set_volume(float(value)))
+        # громкость mpv не нужна чаще 30 раз в секунду, последнее значение всё равно доходит
+        self._to_player: Throttle[float] = Throttle(33, player.set_volume, self)
+        self.slider.valueChanged.connect(lambda value: self._to_player.push(float(value)))
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(tokens.SPACE_1)

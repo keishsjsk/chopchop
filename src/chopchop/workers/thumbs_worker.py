@@ -85,8 +85,15 @@ class _Batch(QRunnable):
         loader = self._loader
         if loader.generation != self._generation:
             return  # пока ждали очереди, открыли другой клип
-        frames = [(at, dest.with_suffix(".part.jpg")) for _, at, dest in self._items]
-        extract_batch(loader.ffmpeg, self._path, frames, loader.cancel_flag)
+        # своё имя временного файла у каждого поколения: прерванная пачка не трогает файлы новой
+        suffix = f".{self._generation}.part.jpg"
+        frames = [(at, dest.with_suffix(suffix)) for _, at, dest in self._items]
+        finished = extract_batch(loader.ffmpeg, self._path, frames, loader.cancel_flag)
+        if not finished:
+            # отменили или ffmpeg упал: недописанные кадры не публикуем
+            for _, part in frames:
+                part.unlink(missing_ok=True)
+            return
         for (index, _, dest), (_, part) in zip(self._items, frames, strict=True):
             if part.exists():
                 with contextlib.suppress(OSError):
@@ -204,7 +211,8 @@ class ThumbnailLoader(QObject):
         self.generation += 1
         self.cancel_flag.set()
         self._pool.clear()
-        self._pool.waitForDone()
+        # ждать завершения нельзя: идущий ffmpeg убивается в своём потоке, а поток интерфейса
+        # не должен стоять в очереди за ним (раньше открытие клипа держало окно сотни мс)
         self.cancel_flag = threading.Event()
 
     def _on_ready(self, path: str, index: int, image: QImage) -> None:

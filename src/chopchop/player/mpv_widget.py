@@ -68,6 +68,9 @@ class MpvWidget(QOpenGLWidget):
         self._ctx.update()
         self._ctx.render(
             flip_y=True,
+            # по умолчанию render() ждёт момента показа кадра и держит поток интерфейса до
+            # целого кадра видео (20-30 мс); мы показываем кадр сразу, как он готов
+            block_for_target_time=False,
             opengl_fbo={
                 "w": int(self.width() * ratio),
                 "h": int(self.height() * ratio),

@@ -118,6 +118,10 @@ class LoopWatchdog:
         while not self._stop.wait(HEARTBEAT_MS / 1000):
             beat = self._beat
             late = time.perf_counter() - beat
+            if beat != reported and reported:
+                # цикл ожил: настоящая длительность зависания — между старой и новой отметкой
+                self.stalls[-1] = max(self.stalls[-1], (beat - reported) * 1000)
+                reported = 0.0
             if late > self._threshold and beat != reported:
                 reported = beat
                 self.stalls.append(late * 1000)

@@ -9,8 +9,9 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from chopchop import __version__, i18n
-from chopchop.services import logs, temp_files
+from chopchop.services import event_profile, logs, temp_files
 from chopchop.services.app_settings import AppSettings, default_settings_path
+from chopchop.services.event_profile import ProfiledApplication
 from chopchop.services.paths import resource_dir
 from chopchop.services.profiling import LoopWatchdog, enabled, setup_logging
 from chopchop.services.settings import default_settings
@@ -57,7 +58,8 @@ def run(initial: Path | None = None) -> int:
     scale = settings.get_int("appearance.ui_scale")
     if scale != 100 and "QT_SCALE_FACTOR" not in os.environ:
         os.environ["QT_SCALE_FACTOR"] = f"{scale / 100:g}"  # масштаб интерфейса, после перезапуска
-    app = QApplication(sys.argv[:1])
+    app_class = ProfiledApplication if enabled() else QApplication  # время обработчиков событий
+    app = app_class(sys.argv[:1])
     app.setApplicationVersion(__version__)
     icon = resource_dir() / "icons" / "chopchop.png"
     if icon.is_file():
@@ -71,8 +73,8 @@ def run(initial: Path | None = None) -> int:
     temp_files.set_root(Path(folder) if folder else None)
     cleanup_stale()
     setup_logging()
-    watchdog = LoopWatchdog() if enabled() else None
-    if watchdog is not None:
+    watchdogs = [LoopWatchdog(16), LoopWatchdog(50)] if enabled() else []  # кадр и «зависание»
+    for watchdog in watchdogs:
         watchdog.start()
     theme = ThemeManager(app)
     window = MainWindow(default_settings(), settings, theme)
@@ -85,7 +87,9 @@ def run(initial: Path | None = None) -> int:
     code = app.exec()
     settings.flush()
     theme.shutdown()
-    if watchdog is not None:
+    for watchdog in watchdogs:
         watchdog.stop()
+    if enabled():
+        print(event_profile.report(app), file=sys.stderr)
     logs.shutdown()
     return code

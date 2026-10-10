@@ -60,3 +60,26 @@ def test_watchdog_reports_a_blocked_event_loop(qtbot: QtBot) -> None:
     watchdog.stop()
     assert len(watchdog.stalls) == 1
     assert 200 <= watchdog.stalls[0] <= 1500
+
+
+def test_watchdog_records_the_whole_stall_not_only_its_first_detection(qtbot: QtBot) -> None:
+    from PySide6.QtCore import QTimer
+
+    watchdog = profiling.LoopWatchdog(threshold_ms=100)
+    watchdog.start()
+    qtbot.wait(50)
+    QTimer.singleShot(0, lambda: time.sleep(0.5))
+    qtbot.wait(900)
+    watchdog.stop()
+    assert len(watchdog.stalls) == 1
+    assert watchdog.stalls[0] >= 400  # раньше писалось время до обнаружения (около 100 мс)
+
+
+def test_event_stats_percentiles_and_frame_overruns() -> None:
+    from chopchop.services.event_profile import Stat
+
+    stat = Stat()
+    for value in (1.0, 2.0, 3.0, 40.0):
+        stat.add(value)
+    assert stat.count == 4 and stat.longest == 40.0 and stat.over_frame == 1
+    assert stat.percentile(0.5) == 3.0

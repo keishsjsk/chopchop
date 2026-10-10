@@ -1,6 +1,7 @@
 """Управление воспроизведением: mpv живёт в своём потоке, наружу идут сигналы Qt."""
 
 import contextlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -9,12 +10,15 @@ from PySide6.QtCore import QObject, Signal
 from chopchop.core.subtitle_style import SubtitleStyle, to_mpv
 from chopchop.core.tracks import Track, next_track_id, of_kind, parse_tracks
 from chopchop.player.resume import ResumeState
+from chopchop.player.throttle import Throttle
 from chopchop.services.settings import PlayerPrefs
 
 VOLUME_MAX = 130.0
 SPEED_MIN = 0.25
 SPEED_MAX = 4.0
 SUB_DELAY_STEP = 0.1
+SEEK_INTERVAL_MS = 30  # перемотка при перетаскивании: не чаще 33 раз в секунду
+POSITION_INTERVAL_MS = 33  # позиция для интерфейса: до 30 раз в секунду, а не на каждый кадр
 
 
 def _track_id(value: object) -> int | None:
@@ -39,6 +43,7 @@ class Player(QObject):
     ended = Signal()
     fileLoaded = Signal()
     errorOccurred = Signal(str)
+    _positionRaw = Signal(float)  # из потока mpv; наружу уходит через ограничитель
 
     def __init__(self, mpv: Any, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -46,25 +51,47 @@ class Player(QObject):
         self._closed = False
         self._current: Path | None = None
         self._copy_decoding = False
+        self._paused: bool | None = None
+        # дорожки из наблюдателей: опрос ядра во время загрузки файла держит интерфейс сотни мс
+        self._track_cache: dict[str, object] = {}
         self._default_volume = 100.0
         self.unsupported_style: set[str] = set()
         self._applied_codepage = "auto"
         # обработчики вызываются из потока mpv; сигналы Qt сами ставят доставку в очередь
-        mpv.observe_property("time-pos", lambda _n, v: self._emit_float(self.positionChanged, v))
+        self._seeks: Throttle[float] = Throttle(SEEK_INTERVAL_MS, self._seek_keyframes, self)
+        self._positions: Throttle[float] = Throttle(
+            POSITION_INTERVAL_MS, self.positionChanged.emit, self
+        )
+        self._positionRaw.connect(self._positions.push)
+        mpv.observe_property("time-pos", lambda _n, v: self._emit_float(self._positionRaw, v))
         mpv.observe_property("duration", lambda _n, v: self._emit_float(self.durationChanged, v))
         mpv.observe_property("volume", lambda _n, v: self._emit_float(self.volumeChanged, v))
         mpv.observe_property("speed", lambda _n, v: self._emit_float(self.speedChanged, v))
-        mpv.observe_property("pause", lambda _n, v: self.pausedChanged.emit(bool(v)))
+        mpv.observe_property("pause", self._on_pause)
         mpv.observe_property("mute", lambda _n, v: self.muteChanged.emit(bool(v)))
         mpv.observe_property("eof-reached", self._on_eof)
         for name in ("track-list", "aid", "sid", "secondary-sid"):
-            mpv.observe_property(name, lambda _n, _v: self.tracksChanged.emit())
+            mpv.observe_property(name, self._on_track_property)
         mpv.event_callback("end-file")(self._on_end_file)
         mpv.event_callback("file-loaded")(lambda _event: self.fileLoaded.emit())
 
     def _emit_float(self, signal: Any, value: object) -> None:
         if isinstance(value, int | float) and not isinstance(value, bool):
             signal.emit(float(value))
+
+    def _on_track_property(self, name: str, value: object) -> None:
+        if value is not None:
+            self._track_cache[name] = value
+        self.tracksChanged.emit()
+
+    def _tracks_value(self, name: str, read: Callable[[], object]) -> object:
+        if name in self._track_cache:
+            return self._track_cache[name]
+        return read()
+
+    def _on_pause(self, _name: str, value: object) -> None:
+        self._paused = bool(value)  # запоминаем: опрос ядра во время перемотки блокирует интерфейс
+        self.pausedChanged.emit(self._paused)
 
     def _on_eof(self, _name: str, value: object) -> None:
         if value is True:
@@ -125,7 +152,8 @@ class Player(QObject):
 
     @property
     def paused(self) -> bool:
-        return bool(self._mpv.pause)
+        """Из наблюдателя mpv, без опроса ядра (опрос занят перемоткой и держит интерфейс)."""
+        return self._paused if self._paused is not None else bool(self._mpv.pause)
 
     @property
     def volume(self) -> float:
@@ -146,16 +174,17 @@ class Player(QObject):
         return float(self._mpv.secondary_sub_delay or 0.0)
 
     def tracks(self) -> list[Track]:
-        return parse_tracks(self._mpv.track_list or [])
+        listing = self._tracks_value("track-list", lambda: self._mpv.track_list)
+        return parse_tracks(listing or [])  # type: ignore[arg-type]
 
     def audio_id(self) -> int | None:
-        return _track_id(self._mpv.aid)
+        return _track_id(self._tracks_value("aid", lambda: self._mpv.aid))
 
     def sub_id(self) -> int | None:
-        return _track_id(self._mpv.sid)
+        return _track_id(self._tracks_value("sid", lambda: self._mpv.sid))
 
     def sub2_id(self) -> int | None:
-        return _track_id(self._mpv.secondary_sid)
+        return _track_id(self._tracks_value("secondary-sid", lambda: self._mpv.secondary_sid))
 
     def state(self) -> ResumeState:
         return ResumeState(
@@ -171,14 +200,29 @@ class Player(QObject):
     # --- управление ------------------------------------------------------------------------
 
     def toggle_pause(self) -> None:
-        self._mpv.pause = not self._mpv.pause
+        self._mpv.pause = not self.paused
 
     def seek(self, delta: float) -> None:
-        self._mpv.seek(delta, "relative", "keyframes")
+        self._send_seek(delta, "relative", "keyframes")
+
+    def _send_seek(self, amount: float, reference: str, precision: str) -> None:
+        """Перемотка не ждёт ядро mpv: синхронный вызов держал интерфейс десятки миллисекунд."""
+        self._mpv.command_async("seek", amount, reference, precision)
+
+    def _seek_keyframes(self, seconds: float) -> None:
+        self._send_seek(seconds, "absolute", "keyframes")
 
     def seek_to(self, seconds: float, exact: bool = False) -> None:
-        """Перемотка: по ключевым кадрам (быстро, для перетаскивания) или точно на кадр."""
-        self._mpv.seek(max(seconds, 0.0), "absolute", "exact" if exact else "keyframes")
+        """Перемотка: по ключевым кадрам (для перетаскивания, не чаще 33 раз в секунду) или точно.
+
+        Точная отменяет отложенную и уходит сразу: она последняя, когда ползунок отпустили.
+        """
+        seconds = max(seconds, 0.0)
+        if exact:
+            self._seeks.cancel()
+            self._send_seek(seconds, "absolute", "exact")
+        else:
+            self._seeks.push(seconds)
 
     def step_frame(self, direction: int) -> None:
         """Шаг на один кадр вперёд (direction > 0) или назад; воспроизведение встаёт на паузу."""
@@ -255,7 +299,7 @@ class Player(QObject):
         if position is None:
             self._reload(0.0, False)
         elif self._mpv.vo_configured:
-            self._mpv.seek(0, "relative", "exact")
+            self._send_seek(0, "relative", "exact")
         else:
             self._reload(float(position), bool(self._mpv.pause))
 
@@ -299,8 +343,9 @@ class Player(QObject):
 
     def set_loop(self, start: float | None, end: float | None) -> None:
         """Зациклить фрагмент [start, end] (предпросмотр обрезки); None снимает цикл."""
-        self._mpv.ab_loop_a = "no" if start is None else start
-        self._mpv.ab_loop_b = "no" if end is None else end
+        # асинхронно: при загрузке файла ядро занято, а синхронная запись держала окно 200 мс
+        self._mpv.command_async("set", "ab-loop-a", "no" if start is None else start)
+        self._mpv.command_async("set", "ab-loop-b", "no" if end is None else end)
 
     @property
     def looping(self) -> bool:

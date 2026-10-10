@@ -1,0 +1,1850 @@
+{
+  "1440p.play_idle": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 264,
+        "p50": 6.48,
+        "p95": 22.56,
+        "max": 28.96,
+        "over16": 36,
+        "total_ms": 2203
+      },
+      "Paint:MpvWidget": {
+        "n": 181,
+        "p50": 3.89,
+        "p95": 5.83,
+        "max": 6.86,
+        "over16": 0,
+        "total_ms": 712
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1013,
+        "p50": 0.08,
+        "p95": 0.47,
+        "max": 1.52,
+        "over16": 0,
+        "total_ms": 135
+      },
+      "Timer:QTimer": {
+        "n": 1143,
+        "p50": 0.02,
+        "p95": 0.28,
+        "max": 0.87,
+        "over16": 0,
+        "total_ms": 74
+      },
+      "Paint:PlayerControls": {
+        "n": 127,
+        "p50": 0.39,
+        "p95": 0.83,
+        "max": 1.1,
+        "over16": 0,
+        "total_ms": 57
+      },
+      "Paint:QToolButton": {
+        "n": 220,
+        "p50": 0.1,
+        "p95": 0.33,
+        "max": 0.61,
+        "over16": 0,
+        "total_ms": 29
+      },
+      "Paint:QLabel": {
+        "n": 92,
+        "p50": 0.22,
+        "p95": 0.38,
+        "max": 0.53,
+        "over16": 0,
+        "total_ms": 21
+      },
+      "Paint:TopBar": {
+        "n": 44,
+        "p50": 0.44,
+        "p95": 0.69,
+        "max": 0.73,
+        "over16": 0,
+        "total_ms": 20
+      }
+    },
+    "stalls_16": 69,
+    "stalls_50": 0,
+    "stall_max": 45.8,
+    "move_latency_p50": 0.0,
+    "move_latency_p95": 0.0,
+    "move_latency_max": 0.0,
+    "press_latency": [],
+    "paintgl_p50": 3.24,
+    "paintgl_p95": 4.28,
+    "paintgl_n": 181,
+    "cpu_share": 0.59,
+    "runs": [
+      {
+        "stalls_16": 62,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 69,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 74,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.hover_buttons": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 405,
+        "p50": 6.52,
+        "p95": 27.76,
+        "max": 49.24,
+        "over16": 78,
+        "total_ms": 4205
+      },
+      "Paint:MpvWidget": {
+        "n": 183,
+        "p50": 2.61,
+        "p95": 4.14,
+        "max": 20.78,
+        "over16": 1,
+        "total_ms": 473
+      },
+      "MouseMove:QWindow": {
+        "n": 358,
+        "p50": 0.35,
+        "p95": 1.37,
+        "max": 2.63,
+        "over16": 0,
+        "total_ms": 179
+      },
+      "Paint:PlayerControls": {
+        "n": 347,
+        "p50": 0.25,
+        "p95": 0.82,
+        "max": 1.4,
+        "over16": 0,
+        "total_ms": 116
+      },
+      "MouseMove:ProgressLine": {
+        "n": 144,
+        "p50": 0.41,
+        "p95": 1.18,
+        "max": 1.52,
+        "over16": 0,
+        "total_ms": 80
+      },
+      "Paint:QToolButton": {
+        "n": 673,
+        "p50": 0.09,
+        "p95": 0.28,
+        "max": 0.59,
+        "over16": 0,
+        "total_ms": 76
+      },
+      "Paint:QLabel": {
+        "n": 487,
+        "p50": 0.13,
+        "p95": 0.31,
+        "max": 0.79,
+        "over16": 0,
+        "total_ms": 76
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1064,
+        "p50": 0.04,
+        "p95": 0.23,
+        "max": 1.02,
+        "over16": 0,
+        "total_ms": 75
+      }
+    },
+    "stalls_16": 74,
+    "stalls_50": 0,
+    "stall_max": 52.0,
+    "move_latency_p50": 13.2,
+    "move_latency_p95": 60.1,
+    "move_latency_max": 84.1,
+    "press_latency": [],
+    "paintgl_p50": 2.0,
+    "paintgl_p95": 3.3,
+    "paintgl_n": 183,
+    "cpu_share": 0.89,
+    "runs": [
+      {
+        "stalls_16": 69,
+        "stalls_50": 0,
+        "move_latency_p95": 54.6,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 74,
+        "stalls_50": 0,
+        "move_latency_p95": 60.1,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 80,
+        "stalls_50": 0,
+        "move_latency_p95": 55.3,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.hover_seek": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 495,
+        "p50": 5.63,
+        "p95": 26.7,
+        "max": 35.53,
+        "over16": 100,
+        "total_ms": 5040
+      },
+      "Paint:MpvWidget": {
+        "n": 189,
+        "p50": 2.35,
+        "p95": 4.38,
+        "max": 5.73,
+        "over16": 0,
+        "total_ms": 453
+      },
+      "MouseMove:QWindow": {
+        "n": 396,
+        "p50": 0.44,
+        "p95": 1.43,
+        "max": 2.4,
+        "over16": 0,
+        "total_ms": 249
+      },
+      "MouseMove:ProgressLine": {
+        "n": 396,
+        "p50": 0.38,
+        "p95": 1.21,
+        "max": 2.15,
+        "over16": 0,
+        "total_ms": 212
+      },
+      "Paint:PlayerControls": {
+        "n": 454,
+        "p50": 0.2,
+        "p95": 0.82,
+        "max": 1.1,
+        "over16": 0,
+        "total_ms": 144
+      },
+      "Paint:QLabel": {
+        "n": 940,
+        "p50": 0.1,
+        "p95": 0.29,
+        "max": 0.52,
+        "over16": 0,
+        "total_ms": 124
+      },
+      "Paint:QToolButton": {
+        "n": 740,
+        "p50": 0.1,
+        "p95": 0.28,
+        "max": 0.66,
+        "over16": 0,
+        "total_ms": 88
+      },
+      "Paint:TopBar": {
+        "n": 148,
+        "p50": 0.49,
+        "p95": 0.88,
+        "max": 1.27,
+        "over16": 0,
+        "total_ms": 70
+      }
+    },
+    "stalls_16": 102,
+    "stalls_50": 0,
+    "stall_max": 69.1,
+    "move_latency_p50": 12.8,
+    "move_latency_p95": 57.4,
+    "move_latency_max": 77.0,
+    "press_latency": [],
+    "paintgl_p50": 1.85,
+    "paintgl_p95": 3.66,
+    "paintgl_n": 189,
+    "cpu_share": 1.03,
+    "runs": [
+      {
+        "stalls_16": 98,
+        "stalls_50": 0,
+        "move_latency_p95": 58.8,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 102,
+        "stalls_50": 0,
+        "move_latency_p95": 57.4,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 93,
+        "stalls_50": 1,
+        "move_latency_p95": 58.8,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.drag_seek": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 501,
+        "p50": 5.88,
+        "p95": 29.89,
+        "max": 75.33,
+        "over16": 83,
+        "total_ms": 5153
+      },
+      "Paint:MpvWidget": {
+        "n": 168,
+        "p50": 2.64,
+        "p95": 5.07,
+        "max": 6.66,
+        "over16": 0,
+        "total_ms": 528
+      },
+      "MouseMove:QWindow": {
+        "n": 401,
+        "p50": 0.56,
+        "p95": 1.46,
+        "max": 4.03,
+        "over16": 0,
+        "total_ms": 277
+      },
+      "MouseMove:ProgressLine": {
+        "n": 401,
+        "p50": 0.46,
+        "p95": 1.18,
+        "max": 1.83,
+        "over16": 0,
+        "total_ms": 227
+      },
+      "Paint:QLabel": {
+        "n": 990,
+        "p50": 0.12,
+        "p95": 0.7,
+        "max": 14.59,
+        "over16": 0,
+        "total_ms": 209
+      },
+      "Paint:PlayerControls": {
+        "n": 453,
+        "p50": 0.26,
+        "p95": 0.94,
+        "max": 3.83,
+        "over16": 0,
+        "total_ms": 173
+      },
+      "Paint:QToolButton": {
+        "n": 604,
+        "p50": 0.13,
+        "p95": 0.34,
+        "max": 0.89,
+        "over16": 0,
+        "total_ms": 92
+      },
+      "Timer:QTimer": {
+        "n": 970,
+        "p50": 0.02,
+        "p95": 0.42,
+        "max": 0.99,
+        "over16": 0,
+        "total_ms": 84
+      }
+    },
+    "stalls_16": 102,
+    "stalls_50": 2,
+    "stall_max": 79.5,
+    "move_latency_p50": 20.0,
+    "move_latency_p95": 49.0,
+    "move_latency_max": 125.8,
+    "press_latency": [
+      19.4
+    ],
+    "paintgl_p50": 2.24,
+    "paintgl_p95": 4.36,
+    "paintgl_n": 168,
+    "cpu_share": 1.83,
+    "runs": [
+      {
+        "stalls_16": 106,
+        "stalls_50": 1,
+        "move_latency_p95": 50.1,
+        "press_latency": [
+          36.2
+        ]
+      },
+      {
+        "stalls_16": 102,
+        "stalls_50": 2,
+        "move_latency_p95": 49.0,
+        "press_latency": [
+          19.4
+        ]
+      },
+      {
+        "stalls_16": 112,
+        "stalls_50": 2,
+        "move_latency_p95": 52.6,
+        "press_latency": [
+          37.6
+        ]
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.drag_volume": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 539,
+        "p50": 4.78,
+        "p95": 29.16,
+        "max": 45.09,
+        "over16": 94,
+        "total_ms": 5044
+      },
+      "Paint:MpvWidget": {
+        "n": 194,
+        "p50": 1.9,
+        "p95": 4.33,
+        "max": 4.95,
+        "over16": 0,
+        "total_ms": 455
+      },
+      "Paint:PlayerControls": {
+        "n": 499,
+        "p50": 0.19,
+        "p95": 0.86,
+        "max": 2.82,
+        "over16": 0,
+        "total_ms": 156
+      },
+      "MouseMove:QWindow": {
+        "n": 417,
+        "p50": 0.24,
+        "p95": 0.85,
+        "max": 1.36,
+        "over16": 0,
+        "total_ms": 146
+      },
+      "MouseMove:ClickSlider": {
+        "n": 417,
+        "p50": 0.19,
+        "p95": 0.62,
+        "max": 1.17,
+        "over16": 0,
+        "total_ms": 112
+      },
+      "Paint:QToolButton": {
+        "n": 836,
+        "p50": 0.09,
+        "p95": 0.27,
+        "max": 0.61,
+        "over16": 0,
+        "total_ms": 95
+      },
+      "Timer:QTimer": {
+        "n": 1138,
+        "p50": 0.01,
+        "p95": 0.33,
+        "max": 2.43,
+        "over16": 0,
+        "total_ms": 84
+      },
+      "Paint:TopBar": {
+        "n": 154,
+        "p50": 0.48,
+        "p95": 0.85,
+        "max": 1.32,
+        "over16": 0,
+        "total_ms": 69
+      }
+    },
+    "stalls_16": 97,
+    "stalls_50": 0,
+    "stall_max": 47.9,
+    "move_latency_p50": 9.5,
+    "move_latency_p95": 57.4,
+    "move_latency_max": 68.3,
+    "press_latency": [
+      38.3
+    ],
+    "paintgl_p50": 1.47,
+    "paintgl_p95": 3.38,
+    "paintgl_n": 194,
+    "cpu_share": 0.95,
+    "runs": [
+      {
+        "stalls_16": 96,
+        "stalls_50": 0,
+        "move_latency_p95": 54.9,
+        "press_latency": [
+          30.9
+        ]
+      },
+      {
+        "stalls_16": 97,
+        "stalls_50": 0,
+        "move_latency_p95": 57.4,
+        "press_latency": [
+          38.3
+        ]
+      },
+      {
+        "stalls_16": 98,
+        "stalls_50": 0,
+        "move_latency_p95": 56.1,
+        "press_latency": [
+          51.3
+        ]
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.editor_idle": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 263,
+        "p50": 6.92,
+        "p95": 23.84,
+        "max": 29.48,
+        "over16": 33,
+        "total_ms": 2325
+      },
+      "Paint:MpvWidget": {
+        "n": 181,
+        "p50": 3.94,
+        "p95": 6.32,
+        "max": 7.66,
+        "over16": 0,
+        "total_ms": 687
+      },
+      "Paint:TrimBar": {
+        "n": 129,
+        "p50": 1.58,
+        "p95": 2.46,
+        "max": 3.99,
+        "over16": 0,
+        "total_ms": 196
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1010,
+        "p50": 0.07,
+        "p95": 0.49,
+        "max": 1.84,
+        "over16": 0,
+        "total_ms": 134
+      },
+      "Timer:QTimer": {
+        "n": 1136,
+        "p50": 0.02,
+        "p95": 0.31,
+        "max": 1.47,
+        "over16": 0,
+        "total_ms": 76
+      },
+      "Paint:MainWindow": {
+        "n": 129,
+        "p50": 0.08,
+        "p95": 0.2,
+        "max": 0.57,
+        "over16": 0,
+        "total_ms": 12
+      },
+      "MetaCall:Throttle": {
+        "n": 181,
+        "p50": 0.04,
+        "p95": 0.11,
+        "max": 0.41,
+        "over16": 0,
+        "total_ms": 9
+      },
+      "MetaCall:MpvWidget": {
+        "n": 181,
+        "p50": 0.04,
+        "p95": 0.13,
+        "max": 0.46,
+        "over16": 0,
+        "total_ms": 9
+      }
+    },
+    "stalls_16": 55,
+    "stalls_50": 0,
+    "stall_max": 46.5,
+    "move_latency_p50": 0.0,
+    "move_latency_p95": 0.0,
+    "move_latency_max": 0.0,
+    "press_latency": [],
+    "paintgl_p50": 3.31,
+    "paintgl_p95": 4.28,
+    "paintgl_n": 181,
+    "cpu_share": 0.64,
+    "runs": [
+      {
+        "stalls_16": 52,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 55,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 57,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.editor_hover": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 377,
+        "p50": 7.77,
+        "p95": 25.92,
+        "max": 31.58,
+        "over16": 65,
+        "total_ms": 3814
+      },
+      "Paint:MpvWidget": {
+        "n": 196,
+        "p50": 2.38,
+        "p95": 5.73,
+        "max": 6.94,
+        "over16": 0,
+        "total_ms": 568
+      },
+      "Paint:TrimBar": {
+        "n": 136,
+        "p50": 1.42,
+        "p95": 2.79,
+        "max": 5.29,
+        "over16": 0,
+        "total_ms": 209
+      },
+      "MouseMove:QWindow": {
+        "n": 477,
+        "p50": 0.25,
+        "p95": 0.84,
+        "max": 1.81,
+        "over16": 0,
+        "total_ms": 163
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1008,
+        "p50": 0.04,
+        "p95": 0.19,
+        "max": 0.84,
+        "over16": 0,
+        "total_ms": 64
+      },
+      "Timer:QTimer": {
+        "n": 1143,
+        "p50": 0.01,
+        "p95": 0.3,
+        "max": 1.69,
+        "over16": 0,
+        "total_ms": 62
+      },
+      "MouseMove:QToolButton": {
+        "n": 328,
+        "p50": 0.14,
+        "p95": 0.43,
+        "max": 1.6,
+        "over16": 0,
+        "total_ms": 60
+      },
+      "Paint:QToolButton": {
+        "n": 183,
+        "p50": 0.14,
+        "p95": 0.44,
+        "max": 0.69,
+        "over16": 0,
+        "total_ms": 34
+      }
+    },
+    "stalls_16": 70,
+    "stalls_50": 0,
+    "stall_max": 50.2,
+    "move_latency_p50": 13.2,
+    "move_latency_p95": 42.9,
+    "move_latency_max": 60.5,
+    "press_latency": [],
+    "paintgl_p50": 1.93,
+    "paintgl_p95": 4.78,
+    "paintgl_n": 196,
+    "cpu_share": 0.83,
+    "runs": [
+      {
+        "stalls_16": 57,
+        "stalls_50": 0,
+        "move_latency_p95": 37.6,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 70,
+        "stalls_50": 0,
+        "move_latency_p95": 42.9,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 79,
+        "stalls_50": 0,
+        "move_latency_p95": 42.4,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1440p.editor_drag_trim": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 486,
+        "p50": 7.16,
+        "p95": 27.43,
+        "max": 62.13,
+        "over16": 83,
+        "total_ms": 5246
+      },
+      "Paint:TrimBar": {
+        "n": 457,
+        "p50": 0.97,
+        "p95": 2.39,
+        "max": 19.27,
+        "over16": 1,
+        "total_ms": 589
+      },
+      "Paint:MpvWidget": {
+        "n": 150,
+        "p50": 2.87,
+        "p95": 5.79,
+        "max": 6.71,
+        "over16": 0,
+        "total_ms": 515
+      },
+      "MouseMove:QWindow": {
+        "n": 400,
+        "p50": 0.27,
+        "p95": 0.79,
+        "max": 1.58,
+        "over16": 0,
+        "total_ms": 140
+      },
+      "Timer:QTimer": {
+        "n": 1010,
+        "p50": 0.02,
+        "p95": 0.4,
+        "max": 1.44,
+        "over16": 0,
+        "total_ms": 98
+      },
+      "MouseMove:TrimBar": {
+        "n": 400,
+        "p50": 0.18,
+        "p95": 0.48,
+        "max": 1.28,
+        "over16": 0,
+        "total_ms": 90
+      },
+      "Paint:QLabel": {
+        "n": 127,
+        "p50": 0.17,
+        "p95": 0.42,
+        "max": 14.98,
+        "over16": 0,
+        "total_ms": 40
+      },
+      "Paint:MainWindow": {
+        "n": 457,
+        "p50": 0.05,
+        "p95": 0.19,
+        "max": 0.32,
+        "over16": 0,
+        "total_ms": 33
+      }
+    },
+    "stalls_16": 118,
+    "stalls_50": 1,
+    "stall_max": 67.2,
+    "move_latency_p50": 23.4,
+    "move_latency_p95": 49.5,
+    "move_latency_max": 91.8,
+    "press_latency": [
+      35.5
+    ],
+    "paintgl_p50": 2.42,
+    "paintgl_p95": 4.98,
+    "paintgl_n": 150,
+    "cpu_share": 1.94,
+    "runs": [
+      {
+        "stalls_16": 113,
+        "stalls_50": 1,
+        "move_latency_p95": 49.0,
+        "press_latency": [
+          30.6
+        ]
+      },
+      {
+        "stalls_16": 118,
+        "stalls_50": 1,
+        "move_latency_p95": 49.5,
+        "press_latency": [
+          35.5
+        ]
+      },
+      {
+        "stalls_16": 106,
+        "stalls_50": 3,
+        "move_latency_p95": 52.4,
+        "press_latency": [
+          15.8
+        ]
+      }
+    ],
+    "crashes": 1
+  },
+  "1440p.editor_open": {
+    "events": {
+      "MetaCall:TaskRunner": {
+        "n": 2,
+        "p50": 1162.81,
+        "p95": 1162.81,
+        "max": 1162.81,
+        "over16": 1,
+        "total_ms": 1164
+      },
+      "UpdateRequest:MainWindow": {
+        "n": 113,
+        "p50": 5.46,
+        "p95": 26.92,
+        "max": 121.79,
+        "over16": 13,
+        "total_ms": 1106
+      },
+      "Paint:MpvWidget": {
+        "n": 103,
+        "p50": 4.51,
+        "p95": 6.36,
+        "max": 78.49,
+        "over16": 2,
+        "total_ms": 566
+      },
+      "Resize:MpvWidget": {
+        "n": 2,
+        "p50": 345.38,
+        "p95": 345.38,
+        "max": 345.38,
+        "over16": 1,
+        "total_ms": 359
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1211,
+        "p50": 0.1,
+        "p95": 0.61,
+        "max": 1.41,
+        "over16": 0,
+        "total_ms": 224
+      },
+      "Timer:QTimer": {
+        "n": 1279,
+        "p50": 0.03,
+        "p95": 0.3,
+        "max": 91.35,
+        "over16": 1,
+        "total_ms": 179
+      },
+      "MetaCall:TracksPanel": {
+        "n": 16,
+        "p50": 4.48,
+        "p95": 12.76,
+        "max": 12.76,
+        "over16": 0,
+        "total_ms": 85
+      },
+      "StyleChange:QListView": {
+        "n": 16,
+        "p50": 0.86,
+        "p95": 16.02,
+        "max": 16.02,
+        "over16": 1,
+        "total_ms": 60
+      }
+    },
+    "stalls_16": 140,
+    "stalls_50": 4,
+    "stall_max": 1257.4,
+    "move_latency_p50": 0.0,
+    "move_latency_p95": 0.0,
+    "move_latency_max": 0.0,
+    "press_latency": [],
+    "paintgl_p50": 3.89,
+    "paintgl_p95": 5.23,
+    "paintgl_n": 102,
+    "cpu_share": 0.82,
+    "runs": [
+      {
+        "stalls_16": 123,
+        "stalls_50": 3,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 140,
+        "stalls_50": 4,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 146,
+        "stalls_50": 4,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.play_idle": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 189,
+        "p50": 4.11,
+        "p95": 7.75,
+        "max": 47.82,
+        "over16": 8,
+        "total_ms": 923
+      },
+      "Paint:MpvWidget": {
+        "n": 183,
+        "p50": 3.43,
+        "p95": 4.27,
+        "max": 5.48,
+        "over16": 0,
+        "total_ms": 582
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1046,
+        "p50": 0.1,
+        "p95": 0.51,
+        "max": 1.39,
+        "over16": 0,
+        "total_ms": 159
+      },
+      "Timer:QTimer": {
+        "n": 1169,
+        "p50": 0.03,
+        "p95": 0.3,
+        "max": 1.13,
+        "over16": 0,
+        "total_ms": 83
+      },
+      "Resize:SubtitleStyleEditor": {
+        "n": 1,
+        "p50": 15.71,
+        "p95": 15.71,
+        "max": 15.71,
+        "over16": 0,
+        "total_ms": 16
+      },
+      "MetaCall:MpvWidget": {
+        "n": 183,
+        "p50": 0.04,
+        "p95": 0.2,
+        "max": 0.77,
+        "over16": 0,
+        "total_ms": 13
+      },
+      "MetaCall:Throttle": {
+        "n": 185,
+        "p50": 0.04,
+        "p95": 0.12,
+        "max": 0.31,
+        "over16": 0,
+        "total_ms": 9
+      },
+      "Paint:PlayerControls": {
+        "n": 12,
+        "p50": 0.62,
+        "p95": 1.28,
+        "max": 1.28,
+        "over16": 0,
+        "total_ms": 8
+      }
+    },
+    "stalls_16": 45,
+    "stalls_50": 0,
+    "stall_max": 56.7,
+    "move_latency_p50": 0.0,
+    "move_latency_p95": 0.0,
+    "move_latency_max": 0.0,
+    "press_latency": [],
+    "paintgl_p50": 2.94,
+    "paintgl_p95": 3.57,
+    "paintgl_n": 183,
+    "cpu_share": 0.43,
+    "runs": [
+      {
+        "stalls_16": 31,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 45,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 38,
+        "stalls_50": 1,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.hover_buttons": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 462,
+        "p50": 5.44,
+        "p95": 24.32,
+        "max": 26.99,
+        "over16": 66,
+        "total_ms": 4004
+      },
+      "Paint:MpvWidget": {
+        "n": 186,
+        "p50": 1.87,
+        "p95": 4.01,
+        "max": 4.74,
+        "over16": 0,
+        "total_ms": 397
+      },
+      "MouseMove:QWindow": {
+        "n": 397,
+        "p50": 0.36,
+        "p95": 1.35,
+        "max": 2.44,
+        "over16": 0,
+        "total_ms": 195
+      },
+      "Paint:PlayerControls": {
+        "n": 392,
+        "p50": 0.22,
+        "p95": 0.75,
+        "max": 1.19,
+        "over16": 0,
+        "total_ms": 121
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1182,
+        "p50": 0.04,
+        "p95": 0.24,
+        "max": 0.94,
+        "over16": 0,
+        "total_ms": 86
+      },
+      "MouseMove:ProgressLine": {
+        "n": 160,
+        "p50": 0.37,
+        "p95": 1.04,
+        "max": 1.39,
+        "over16": 0,
+        "total_ms": 82
+      },
+      "Paint:QLabel": {
+        "n": 519,
+        "p50": 0.11,
+        "p95": 0.3,
+        "max": 0.54,
+        "over16": 0,
+        "total_ms": 74
+      },
+      "Paint:QToolButton": {
+        "n": 641,
+        "p50": 0.09,
+        "p95": 0.26,
+        "max": 0.83,
+        "over16": 0,
+        "total_ms": 73
+      }
+    },
+    "stalls_16": 70,
+    "stalls_50": 0,
+    "stall_max": 32.7,
+    "move_latency_p50": 12.5,
+    "move_latency_p95": 48.0,
+    "move_latency_max": 57.7,
+    "press_latency": [],
+    "paintgl_p50": 1.41,
+    "paintgl_p95": 3.34,
+    "paintgl_n": 186,
+    "cpu_share": 0.85,
+    "runs": [
+      {
+        "stalls_16": 59,
+        "stalls_50": 0,
+        "move_latency_p95": 41.9,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 70,
+        "stalls_50": 0,
+        "move_latency_p95": 48.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 73,
+        "stalls_50": 0,
+        "move_latency_p95": 51.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.hover_seek": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 598,
+        "p50": 5.07,
+        "p95": 24.27,
+        "max": 27.71,
+        "over16": 83,
+        "total_ms": 5031
+      },
+      "Paint:MpvWidget": {
+        "n": 198,
+        "p50": 1.32,
+        "p95": 3.69,
+        "max": 4.53,
+        "over16": 0,
+        "total_ms": 365
+      },
+      "MouseMove:QWindow": {
+        "n": 477,
+        "p50": 0.41,
+        "p95": 1.31,
+        "max": 2.21,
+        "over16": 0,
+        "total_ms": 274
+      },
+      "MouseMove:ProgressLine": {
+        "n": 477,
+        "p50": 0.36,
+        "p95": 1.15,
+        "max": 1.79,
+        "over16": 0,
+        "total_ms": 235
+      },
+      "Paint:PlayerControls": {
+        "n": 548,
+        "p50": 0.19,
+        "p95": 0.72,
+        "max": 1.31,
+        "over16": 0,
+        "total_ms": 155
+      },
+      "Paint:QLabel": {
+        "n": 1129,
+        "p50": 0.08,
+        "p95": 0.28,
+        "max": 0.61,
+        "over16": 0,
+        "total_ms": 131
+      },
+      "Paint:PreviewBubble": {
+        "n": 494,
+        "p50": 0.12,
+        "p95": 0.33,
+        "max": 0.7,
+        "over16": 0,
+        "total_ms": 80
+      },
+      "Paint:QToolButton": {
+        "n": 740,
+        "p50": 0.09,
+        "p95": 0.25,
+        "max": 0.55,
+        "over16": 0,
+        "total_ms": 77
+      }
+    },
+    "stalls_16": 76,
+    "stalls_50": 0,
+    "stall_max": 30.9,
+    "move_latency_p50": 11.1,
+    "move_latency_p95": 50.3,
+    "move_latency_max": 59.7,
+    "press_latency": [],
+    "paintgl_p50": 1.02,
+    "paintgl_p95": 3.16,
+    "paintgl_n": 198,
+    "cpu_share": 0.98,
+    "runs": [
+      {
+        "stalls_16": 67,
+        "stalls_50": 0,
+        "move_latency_p95": 48.2,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 76,
+        "stalls_50": 0,
+        "move_latency_p95": 50.3,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 78,
+        "stalls_50": 0,
+        "move_latency_p95": 50.8,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.drag_seek": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 619,
+        "p50": 4.98,
+        "p95": 25.72,
+        "max": 37.38,
+        "over16": 69,
+        "total_ms": 5427
+      },
+      "Paint:MpvWidget": {
+        "n": 264,
+        "p50": 1.84,
+        "p95": 3.94,
+        "max": 5.46,
+        "over16": 0,
+        "total_ms": 588
+      },
+      "MouseMove:QWindow": {
+        "n": 481,
+        "p50": 0.4,
+        "p95": 1.13,
+        "max": 2.44,
+        "over16": 0,
+        "total_ms": 259
+      },
+      "MouseMove:ProgressLine": {
+        "n": 481,
+        "p50": 0.35,
+        "p95": 0.91,
+        "max": 2.1,
+        "over16": 0,
+        "total_ms": 217
+      },
+      "Paint:QLabel": {
+        "n": 1393,
+        "p50": 0.08,
+        "p95": 0.37,
+        "max": 1.45,
+        "over16": 0,
+        "total_ms": 187
+      },
+      "Paint:PlayerControls": {
+        "n": 567,
+        "p50": 0.23,
+        "p95": 0.85,
+        "max": 2.93,
+        "over16": 0,
+        "total_ms": 180
+      },
+      "Paint:QToolButton": {
+        "n": 1060,
+        "p50": 0.08,
+        "p95": 0.27,
+        "max": 0.83,
+        "over16": 0,
+        "total_ms": 109
+      },
+      "Timer:QTimer": {
+        "n": 1134,
+        "p50": 0.01,
+        "p95": 0.31,
+        "max": 1.04,
+        "over16": 0,
+        "total_ms": 83
+      }
+    },
+    "stalls_16": 103,
+    "stalls_50": 0,
+    "stall_max": 50.7,
+    "move_latency_p50": 14.8,
+    "move_latency_p95": 40.3,
+    "move_latency_max": 66.2,
+    "press_latency": [
+      29.9
+    ],
+    "paintgl_p50": 1.5,
+    "paintgl_p95": 3.32,
+    "paintgl_n": 264,
+    "cpu_share": 1.71,
+    "runs": [
+      {
+        "stalls_16": 99,
+        "stalls_50": 0,
+        "move_latency_p95": 41.0,
+        "press_latency": [
+          31.7
+        ]
+      },
+      {
+        "stalls_16": 103,
+        "stalls_50": 0,
+        "move_latency_p95": 40.3,
+        "press_latency": [
+          29.9
+        ]
+      },
+      {
+        "stalls_16": 104,
+        "stalls_50": 1,
+        "move_latency_p95": 41.4,
+        "press_latency": [
+          56.2
+        ]
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.drag_volume": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 632,
+        "p50": 4.6,
+        "p95": 23.74,
+        "max": 26.95,
+        "over16": 57,
+        "total_ms": 4504
+      },
+      "Paint:MpvWidget": {
+        "n": 187,
+        "p50": 1.19,
+        "p95": 3.63,
+        "max": 4.83,
+        "over16": 0,
+        "total_ms": 314
+      },
+      "MouseMove:QWindow": {
+        "n": 478,
+        "p50": 0.23,
+        "p95": 0.76,
+        "max": 1.47,
+        "over16": 0,
+        "total_ms": 152
+      },
+      "Paint:PlayerControls": {
+        "n": 574,
+        "p50": 0.18,
+        "p95": 0.64,
+        "max": 1.72,
+        "over16": 0,
+        "total_ms": 143
+      },
+      "MouseMove:ClickSlider": {
+        "n": 478,
+        "p50": 0.18,
+        "p95": 0.57,
+        "max": 1.28,
+        "over16": 0,
+        "total_ms": 118
+      },
+      "Paint:QToolButton": {
+        "n": 724,
+        "p50": 0.09,
+        "p95": 0.25,
+        "max": 0.49,
+        "over16": 0,
+        "total_ms": 75
+      },
+      "Timer:QTimer": {
+        "n": 1247,
+        "p50": 0.01,
+        "p95": 0.24,
+        "max": 2.09,
+        "over16": 0,
+        "total_ms": 67
+      },
+      "Paint:QLabel": {
+        "n": 261,
+        "p50": 0.15,
+        "p95": 0.32,
+        "max": 0.62,
+        "over16": 0,
+        "total_ms": 49
+      }
+    },
+    "stalls_16": 64,
+    "stalls_50": 0,
+    "stall_max": 37.1,
+    "move_latency_p50": 9.1,
+    "move_latency_p95": 36.6,
+    "move_latency_max": 54.2,
+    "press_latency": [
+      28.9
+    ],
+    "paintgl_p50": 0.93,
+    "paintgl_p95": 2.88,
+    "paintgl_n": 187,
+    "cpu_share": 0.92,
+    "runs": [
+      {
+        "stalls_16": 63,
+        "stalls_50": 0,
+        "move_latency_p95": 37.7,
+        "press_latency": [
+          28.9
+        ]
+      },
+      {
+        "stalls_16": 64,
+        "stalls_50": 0,
+        "move_latency_p95": 36.6,
+        "press_latency": [
+          28.9
+        ]
+      },
+      {
+        "stalls_16": 72,
+        "stalls_50": 0,
+        "move_latency_p95": 35.7,
+        "press_latency": [
+          33.0
+        ]
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.editor_idle": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 266,
+        "p50": 5.91,
+        "p95": 19.39,
+        "max": 27.29,
+        "over16": 22,
+        "total_ms": 2014
+      },
+      "Paint:MpvWidget": {
+        "n": 182,
+        "p50": 3.24,
+        "p95": 5.03,
+        "max": 6.22,
+        "over16": 0,
+        "total_ms": 574
+      },
+      "Paint:TrimBar": {
+        "n": 129,
+        "p50": 1.39,
+        "p95": 2.39,
+        "max": 3.5,
+        "over16": 0,
+        "total_ms": 184
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1051,
+        "p50": 0.08,
+        "p95": 0.4,
+        "max": 0.93,
+        "over16": 0,
+        "total_ms": 132
+      },
+      "Timer:QTimer": {
+        "n": 1178,
+        "p50": 0.02,
+        "p95": 0.32,
+        "max": 0.74,
+        "over16": 0,
+        "total_ms": 84
+      },
+      "Paint:MainWindow": {
+        "n": 129,
+        "p50": 0.07,
+        "p95": 0.16,
+        "max": 0.29,
+        "over16": 0,
+        "total_ms": 10
+      },
+      "MetaCall:MpvWidget": {
+        "n": 182,
+        "p50": 0.04,
+        "p95": 0.15,
+        "max": 0.29,
+        "over16": 0,
+        "total_ms": 10
+      },
+      "MetaCall:Throttle": {
+        "n": 181,
+        "p50": 0.04,
+        "p95": 0.11,
+        "max": 0.8,
+        "over16": 0,
+        "total_ms": 9
+      }
+    },
+    "stalls_16": 48,
+    "stalls_50": 0,
+    "stall_max": 40.9,
+    "move_latency_p50": 0.0,
+    "move_latency_p95": 0.0,
+    "move_latency_max": 0.0,
+    "press_latency": [],
+    "paintgl_p50": 2.69,
+    "paintgl_p95": 3.59,
+    "paintgl_n": 182,
+    "cpu_share": 0.56,
+    "runs": [
+      {
+        "stalls_16": 40,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 48,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 54,
+        "stalls_50": 0,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.editor_hover": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 446,
+        "p50": 5.88,
+        "p95": 20.11,
+        "max": 26.29,
+        "over16": 38,
+        "total_ms": 3441
+      },
+      "Paint:MpvWidget": {
+        "n": 206,
+        "p50": 2.95,
+        "p95": 4.57,
+        "max": 6.67,
+        "over16": 0,
+        "total_ms": 608
+      },
+      "Paint:TrimBar": {
+        "n": 147,
+        "p50": 1.29,
+        "p95": 2.61,
+        "max": 3.44,
+        "over16": 0,
+        "total_ms": 206
+      },
+      "MouseMove:QWindow": {
+        "n": 576,
+        "p50": 0.25,
+        "p95": 0.77,
+        "max": 1.28,
+        "over16": 0,
+        "total_ms": 179
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1190,
+        "p50": 0.04,
+        "p95": 0.19,
+        "max": 0.84,
+        "over16": 0,
+        "total_ms": 74
+      },
+      "MouseMove:QToolButton": {
+        "n": 396,
+        "p50": 0.13,
+        "p95": 0.41,
+        "max": 0.74,
+        "over16": 0,
+        "total_ms": 69
+      },
+      "Timer:QTimer": {
+        "n": 1335,
+        "p50": 0.01,
+        "p95": 0.26,
+        "max": 1.06,
+        "over16": 0,
+        "total_ms": 67
+      },
+      "Paint:QToolButton": {
+        "n": 219,
+        "p50": 0.14,
+        "p95": 0.43,
+        "max": 1.14,
+        "over16": 0,
+        "total_ms": 39
+      }
+    },
+    "stalls_16": 55,
+    "stalls_50": 0,
+    "stall_max": 40.5,
+    "move_latency_p50": 10.6,
+    "move_latency_p95": 31.5,
+    "move_latency_max": 53.5,
+    "press_latency": [],
+    "paintgl_p50": 2.46,
+    "paintgl_p95": 3.79,
+    "paintgl_n": 206,
+    "cpu_share": 0.79,
+    "runs": [
+      {
+        "stalls_16": 54,
+        "stalls_50": 0,
+        "move_latency_p95": 31.4,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 55,
+        "stalls_50": 0,
+        "move_latency_p95": 31.5,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 55,
+        "stalls_50": 0,
+        "move_latency_p95": 27.6,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.editor_drag_trim": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 505,
+        "p50": 5.43,
+        "p95": 24.48,
+        "max": 29.68,
+        "over16": 75,
+        "total_ms": 4686
+      },
+      "Paint:MpvWidget": {
+        "n": 198,
+        "p50": 2.07,
+        "p95": 4.62,
+        "max": 5.54,
+        "over16": 0,
+        "total_ms": 509
+      },
+      "Paint:TrimBar": {
+        "n": 460,
+        "p50": 0.74,
+        "p95": 2.37,
+        "max": 5.01,
+        "over16": 0,
+        "total_ms": 504
+      },
+      "MouseMove:QWindow": {
+        "n": 400,
+        "p50": 0.2,
+        "p95": 0.57,
+        "max": 1.18,
+        "over16": 0,
+        "total_ms": 110
+      },
+      "Timer:QTimer": {
+        "n": 950,
+        "p50": 0.01,
+        "p95": 0.38,
+        "max": 1.48,
+        "over16": 0,
+        "total_ms": 85
+      },
+      "MouseMove:TrimBar": {
+        "n": 400,
+        "p50": 0.13,
+        "p95": 0.37,
+        "max": 0.78,
+        "over16": 0,
+        "total_ms": 72
+      },
+      "Paint:MainWindow": {
+        "n": 460,
+        "p50": 0.04,
+        "p95": 0.16,
+        "max": 0.72,
+        "over16": 0,
+        "total_ms": 28
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 650,
+        "p50": 0.03,
+        "p95": 0.1,
+        "max": 0.48,
+        "over16": 0,
+        "total_ms": 23
+      }
+    },
+    "stalls_16": 106,
+    "stalls_50": 0,
+    "stall_max": 53.7,
+    "move_latency_p50": 18.8,
+    "move_latency_p95": 42.0,
+    "move_latency_max": 79.5,
+    "press_latency": [
+      31.7
+    ],
+    "paintgl_p50": 1.67,
+    "paintgl_p95": 3.74,
+    "paintgl_n": 198,
+    "cpu_share": 1.88,
+    "runs": [
+      {
+        "stalls_16": 89,
+        "stalls_50": 0,
+        "move_latency_p95": 41.9,
+        "press_latency": [
+          12.6
+        ]
+      },
+      {
+        "stalls_16": 106,
+        "stalls_50": 0,
+        "move_latency_p95": 42.0,
+        "press_latency": [
+          31.7
+        ]
+      },
+      {
+        "stalls_16": 108,
+        "stalls_50": 0,
+        "move_latency_p95": 41.1,
+        "press_latency": [
+          33.5
+        ]
+      }
+    ],
+    "crashes": 0
+  },
+  "1080p.editor_open": {
+    "events": {
+      "UpdateRequest:MainWindow": {
+        "n": 117,
+        "p50": 4.86,
+        "p95": 26.55,
+        "max": 110.42,
+        "over16": 16,
+        "total_ms": 1073
+      },
+      "MetaCall:TaskRunner": {
+        "n": 2,
+        "p50": 812.28,
+        "p95": 812.28,
+        "max": 812.28,
+        "over16": 1,
+        "total_ms": 813
+      },
+      "MetaCall:VideoEditorPage": {
+        "n": 4,
+        "p50": 1.05,
+        "p95": 480.24,
+        "max": 480.24,
+        "over16": 1,
+        "total_ms": 482
+      },
+      "Paint:MpvWidget": {
+        "n": 102,
+        "p50": 3.82,
+        "p95": 5.38,
+        "max": 71.28,
+        "over16": 1,
+        "total_ms": 470
+      },
+      "Resize:MpvWidget": {
+        "n": 2,
+        "p50": 321.68,
+        "p95": 321.68,
+        "max": 321.68,
+        "over16": 1,
+        "total_ms": 327
+      },
+      "Timer:QAbstractEventDispatcher": {
+        "n": 1125,
+        "p50": 0.09,
+        "p95": 0.55,
+        "max": 0.96,
+        "over16": 0,
+        "total_ms": 175
+      },
+      "Timer:QTimer": {
+        "n": 1191,
+        "p50": 0.02,
+        "p95": 0.25,
+        "max": 92.2,
+        "over16": 1,
+        "total_ms": 160
+      },
+      "MetaCall:TracksPanel": {
+        "n": 16,
+        "p50": 4.75,
+        "p95": 33.19,
+        "max": 33.19,
+        "over16": 1,
+        "total_ms": 108
+      }
+    },
+    "stalls_16": 115,
+    "stalls_50": 4,
+    "stall_max": 910.9,
+    "move_latency_p50": 0.0,
+    "move_latency_p95": 0.0,
+    "move_latency_max": 0.0,
+    "press_latency": [],
+    "paintgl_p50": 3.25,
+    "paintgl_p95": 3.93,
+    "paintgl_n": 101,
+    "cpu_share": 0.81,
+    "runs": [
+      {
+        "stalls_16": 151,
+        "stalls_50": 3,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 115,
+        "stalls_50": 4,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      },
+      {
+        "stalls_16": 125,
+        "stalls_50": 4,
+        "move_latency_p95": 0.0,
+        "press_latency": []
+      }
+    ],
+    "crashes": 0
+  }
+}

@@ -60,6 +60,7 @@ def test_cycle_subtitles_goes_through_off() -> None:
     player.cycle_sub()
     assert fake.sid == 1
     fake.sid = 2
+    fake.fire("sid", 2)  # наблюдатель mpv сообщает о смене
     player.cycle_sub()
     assert fake.sid == "no"
 

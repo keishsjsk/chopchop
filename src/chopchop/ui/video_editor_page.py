@@ -688,8 +688,10 @@ class VideoEditorPage(QWidget):
         исходного файла, поэтому полоса обрезки, ручки и ключевые кадры не требуют пересчёта,
         а правка вырезов не перезагружает файл. Цена — короткий скачок на стыке.
         """
+        if not self.clip.has_cuts:
+            return
         player = self._video_page.player
-        if player.paused or not self.clip.has_cuts:
+        if player.paused:
             return
         for (_a, b), (c, _d) in zip(self.clip.ranges, self.clip.ranges[1:], strict=False):
             if b - SKIP_LEAD <= seconds < c:

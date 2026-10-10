@@ -11,7 +11,19 @@ from chopchop.ui.video_page import VideoPage
 
 
 class FakeMpv:
+    # свойства, чтение которых равно опросу ядра mpv: за ними следят тесты «без опроса»
+    _WATCHED = frozenset({"track_list", "aid", "sid", "secondary_sid", "pause"})
+
+    def __getattribute__(self, name: str) -> Any:
+        if name in FakeMpv._WATCHED:
+            polled = object.__getattribute__(self, "__dict__").get("polled")
+            if polled is not None:
+                polled.append(name)
+        return object.__getattribute__(self, name)
+
     def __init__(self) -> None:
+        self.polled: list[str] = []
+        self.async_commands: list[tuple[object, ...]] = []
         self.pause = False
         self.vo_configured = True
         self.hwdec: Any = "auto-safe"
@@ -66,6 +78,16 @@ class FakeMpv:
 
     def seek(self, *args: object) -> None:
         self.seeks.append(args)
+
+    def command_async(self, name: str, *args: object, **_kwargs: object) -> None:
+        """Перемотка идёт асинхронно: записываем так же, как синхронный seek."""
+        self.async_commands.append((name, *args))
+        if name == "seek":
+            self.seeks.append(args)
+        elif name == "set":
+            setattr(self, str(args[0]).replace("-", "_"), args[1])
+        else:
+            self.commands.append((name, *args))
 
     def command(self, *args: object) -> None:
         self.commands.append(args)
