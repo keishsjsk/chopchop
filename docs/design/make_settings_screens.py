@@ -25,7 +25,7 @@ from chopchop.ui.settings_dialog import SettingsDialog  # noqa: E402
 from chopchop.ui.theme import fonts  # noqa: E402
 from chopchop.ui.theme.manager import ThemeManager  # noqa: E402
 
-SIZES = ((720, 480), (860, 600), (1200, 800))
+SIZES = ((720, 480), (860, 600), (960, 600), (1200, 800), (1440, 900))
 
 
 def main() -> int:
