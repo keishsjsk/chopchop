@@ -230,3 +230,16 @@ def test_spec_bundles_fonts_and_other_resources() -> None:
 def test_sbom_step_adds_fonts() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     assert "packaging/font_components.py" in workflow
+
+
+def test_download_refuses_plain_http_and_wrong_checksum(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="https"):
+        fetch.download(fetch.Asset("http://example.com/x.zip", "0" * 64), tmp_path)
+
+
+def test_bundled_pixel_font_covers_cyrillic() -> None:
+    from fontTools.ttLib import TTFont  # type: ignore[import-untyped]
+
+    cmap = TTFont(ROOT / "resources" / "fonts" / "Tiny5.ttf").getBestCmap()
+    letters = [*range(0x410, 0x450), 0x401, 0x451]
+    assert [hex(code) for code in letters if code not in cmap] == []

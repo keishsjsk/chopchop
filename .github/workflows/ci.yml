@@ -44,5 +44,5 @@ jobs:
       - name: Безопасность
         if: runner.os == 'Linux'
         run: |
-          bandit -c pyproject.toml -r src -q
+          bandit -c pyproject.toml -r src packaging -q
           pip-audit

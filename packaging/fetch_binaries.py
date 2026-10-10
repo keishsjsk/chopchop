@@ -57,9 +57,16 @@ def sha256_of(path: Path) -> str:
 
 
 def download(asset: Asset, directory: Path) -> Path:
+    if not asset.url.startswith("https://"):
+        raise SystemExit(f"разрешён только https: {asset.url}")
     target = directory / PurePosixPath(asset.url).name
     print(f"скачиваю {asset.url}")
-    with urllib.request.urlopen(asset.url, timeout=120) as response, target.open("wb") as out:  # noqa: S310
+    # Причина nosec: схема проверена выше, адреса закреплены в этом файле, а результат
+    # принимается только при совпадении SHA-256 с закреплённым значением.
+    with (
+        urllib.request.urlopen(asset.url, timeout=120) as response,  # noqa: S310  # nosec B310
+        target.open("wb") as out,
+    ):
         shutil.copyfileobj(response, out, CHUNK)
     actual = sha256_of(target)
     if actual != asset.sha256:
