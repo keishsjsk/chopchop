@@ -5,6 +5,7 @@
 плавающих панелей плеера поверх кадра.
 """
 
+import contextlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -38,7 +39,7 @@ from chopchop.editor.video_session import VideoSession
 from chopchop.engines.encoders import available_hw_encoders
 from chopchop.engines.fonts import find_font_path
 from chopchop.engines.keyframes import read_keyframes
-from chopchop.engines.probe import probe
+from chopchop.engines.probe import ProbeError, probe
 from chopchop.engines.video_engine import (
     EncodeOptions,
     ExportPlanError,
@@ -864,10 +865,9 @@ class VideoEditorPage(QWidget):
         """Ключевые кадры всех клипов; недостающие читаются сейчас (быстро, без декодирования)."""
         for clip in self.session.project.clips:
             if clip.path not in self._keyframes:
-                try:
+                # без ключевых кадров копирование работает, но начала не привязываются
+                with contextlib.suppress(ProbeError, OSError):
                     self._keyframes[clip.path] = read_keyframes(clip.path, self._ffprobe)
-                except Exception:  # noqa: BLE001 - без них копирование работает, но не привязывается
-                    continue
         return dict(self._keyframes)
 
     def _cancel_export(self) -> None:
