@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import QEvent, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
+    QBrush,
     QColor,
     QFontMetrics,
     QImage,
@@ -13,7 +14,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
-from chopchop.core.video import MIN_CLIP_SECONDS
+from chopchop.core.video import MIN_CLIP_SECONDS, Range
 from chopchop.ui.theme import current, tokens
 
 SIDE = 12.0  # поле слева и справа под ручки
@@ -21,6 +22,9 @@ HANDLE_GRAB = 9.0  # зона захвата ручки в пикселях
 ZOOM_STEP = 1.5
 MAX_ZOOM = 64.0
 LABEL_PAD = 4
+KEY_TICK = 4  # высота метки ключевого кадра
+MIN_TICK_GAP = 6  # ключевые кадры чаще этого расстояния не рисуем
+MIN_MARK_SECONDS = 0.04
 
 
 def format_precise(seconds: float) -> str:
@@ -41,6 +45,10 @@ class TrimBar(QWidget):
     trimCommitted = Signal(float, float)  # граница отпущена
     seekFinished = Signal(float)  # отпустили мышь: точная перемотка в последнюю позицию
     zoomChanged = Signal(float)
+    ghostClicked = Signal(float, float)  # клик по удалённому участку: вернуть его
+    segmentPicked = Signal(float, float)  # клик по сегменту: выбрать для удаления
+    selectionCleared = Signal()  # клик мимо сегментов и выделения
+    rangeMarked = Signal(float, float)  # Shift + протягивание: выделенный диапазон
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -53,6 +61,14 @@ class TrimBar(QWidget):
         self._thumbs: list[QImage | None] = []
         self._drag: str | None = None
         self._hover: str | None = None  # ручка под указателем: у неё показывается время
+        self._ghosts: tuple[Range, ...] | None = None  # удалённые участки; None — только края
+        self._splits: tuple[float, ...] = ()
+        self._segments: tuple[Range, ...] | None = None
+        self._segment: Range | None = None  # выбранный сегмент
+        self._marks: Range | None = None  # выделенный диапазон (Shift + протягивание)
+        self._keyframes: tuple[float, ...] = ()
+        self._junctions: tuple[tuple[float, float, bool], ...] = ()
+        self._press: tuple[str, float, float] | None = None  # вид нажатия и его данные
         self.setMinimumHeight(tokens.TRIM_MIN_H)
         self.setMinimumWidth(240)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -87,6 +103,45 @@ class TrimBar(QWidget):
         if self._drag is None:
             self._start, self._end = start, end
             self.update()
+
+    def set_cuts(
+        self,
+        ghosts: tuple[Range, ...],
+        splits: tuple[float, ...],
+        segments: tuple[Range, ...] | None = None,
+    ) -> None:
+        """Удалённые участки (призраки), метки разрезов и сегменты клипа."""
+        self._ghosts = ghosts
+        self._splits = splits
+        self._segments = segments
+        self.update()
+
+    def set_segment(self, segment: Range | None) -> None:
+        self._segment = segment
+        self.update()
+
+    def set_marks(self, marks: Range | None) -> None:
+        self._marks = marks
+        self.update()
+
+    @property
+    def marks(self) -> Range | None:
+        return self._marks
+
+    def set_keyframes(self, keyframes: tuple[float, ...]) -> None:
+        self._keyframes = keyframes
+        self.update()
+
+    def set_junctions(self, junctions: tuple[tuple[float, float, bool], ...]) -> None:
+        """Начала диапазонов: (где начало, к какому ключевому кадру привяжется, нужна ли точная)."""
+        self._junctions = junctions
+        self.update()
+
+    def ghost_spans(self) -> tuple[Range, ...]:
+        if self._ghosts is not None:
+            return self._ghosts
+        edges = [(0.0, self._start), (self._end, self._duration)]
+        return tuple((a, b) for a, b in edges if b - a > 0.0005)
 
     def set_thumbnail(self, index: int, image: QImage) -> None:
         if 0 <= index < len(self._thumbs):
@@ -181,12 +236,12 @@ class TrimBar(QWidget):
         painter.restore()
 
         left, right = self._x(self._start), self._x(self._end)
-        shade = QColor(*p.scrim)
-        top, height = track.top(), track.height()
-        dim_left = min(max(left, track.left()), track.right())
-        dim_right = min(max(right, track.left()), track.right())
-        painter.fillRect(QRectF(track.left(), top, dim_left - track.left(), height), shade)
-        painter.fillRect(QRectF(dim_right, top, track.right() - dim_right, height), shade)
+        painter.save()
+        painter.setClipRect(track)
+        self._paint_ghosts(painter, track)
+        self._paint_marks(painter, track)
+        self._paint_keyframes(painter, track)
+        painter.restore()
 
         painter.setPen(QPen(QColor(p.accent), tokens.BORDER_WIDTH))
         painter.drawRect(QRectF(left, track.top(), right - left, track.height()))
@@ -224,6 +279,57 @@ class TrimBar(QWidget):
             )
             painter.drawImage(slot, image, source)
 
+    def _paint_ghosts(self, painter: QPainter, track: QRectF) -> None:
+        """Удалённые участки: затемнение со штриховкой, чтобы они читались как «призраки»."""
+        p = current.palette()
+        shade = QColor(*p.scrim)
+        hatch = QBrush(QColor(p.text_muted), Qt.BrushStyle.BDiagPattern)
+        for a, b in self.ghost_spans():
+            box = QRectF(self._x(a), track.top(), self._x(b) - self._x(a), track.height())
+            painter.fillRect(box, shade)
+            painter.fillRect(box, hatch)
+        painter.setPen(QPen(QColor(p.text), tokens.BORDER_WIDTH))
+        for s in self._splits:  # метки разрезов
+            x = self._x(s)
+            painter.drawLine(int(x), int(track.top()), int(x), int(track.bottom()))
+        if self._segment is not None:  # выбранный сегмент
+            a, b = self._segment
+            painter.setPen(QPen(QColor(p.accent), tokens.BORDER_WIDTH))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(
+                QRectF(self._x(a), track.top() + 1, self._x(b) - self._x(a), track.height() - 2)
+            )
+
+    def _paint_marks(self, painter: QPainter, track: QRectF) -> None:
+        if self._marks is None:
+            return
+        a, b = self._marks
+        tint = QColor(current.palette().accent)
+        tint.setAlpha(110)
+        painter.fillRect(
+            QRectF(self._x(a), track.top(), self._x(b) - self._x(a), track.height()), tint
+        )
+
+    def _paint_keyframes(self, painter: QPainter, track: QRectF) -> None:
+        """Ключевые кадры: короткие метки внизу; места привязки быстрой резки — крупнее."""
+        p = current.palette()
+        painter.setPen(QPen(QColor(p.text_muted), 1))
+        last = float(-MIN_TICK_GAP)
+        for seconds in self._keyframes:
+            x = self._x(seconds)
+            if x < track.left() or x > track.right() or x - last < MIN_TICK_GAP:
+                continue
+            last = x
+            painter.drawLine(int(x), int(track.bottom()) - KEY_TICK, int(x), int(track.bottom()))
+        for start, snapped, precise in self._junctions:
+            color = QColor(p.danger if precise else p.accent)
+            painter.setPen(QPen(color, tokens.BORDER_WIDTH))
+            x0, x1 = self._x(snapped), self._x(start)
+            bottom = int(track.bottom())
+            painter.drawLine(int(x0), bottom - 2 * KEY_TICK, int(x0), bottom)
+            if precise:  # привязка сдвигает начало: показываем на сколько
+                painter.drawLine(int(x0), bottom - 1, int(x1), bottom - 1)
+
     def _paint_handle_time(self, painter: QPainter, track: QRectF) -> None:
         """Время границы рядом с ручкой, только пока на неё наведён указатель (или её тянут)."""
         handle = self._drag if self._drag in ("start", "end") else self._hover
@@ -255,8 +361,26 @@ class TrimBar(QWidget):
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() != Qt.MouseButton.LeftButton or self._duration <= 0:
             return
-        self._drag = self._handle_at(event.position().x()) or "seek"
-        self._drag_to(event.position().x())
+        x = event.position().x()
+        handle = self._handle_at(x)
+        self._press = None
+        if handle is None and event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            self._drag = "mark"
+            anchor = self._time_at(x)
+            self._press = ("mark", anchor, anchor)
+            self.set_marks(None)
+            return
+        seconds = self._time_at(x)
+        if handle is None:
+            ghost = next((g for g in self.ghost_spans() if g[0] <= seconds <= g[1]), None)
+            if ghost is not None:
+                self._drag = "ghost"
+                self._press = ("ghost", ghost[0], ghost[1])
+                return
+        self._drag = handle or "seek"
+        if self._drag == "seek":
+            self._pick_segment(seconds)
+        self._drag_to(x)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         x = event.position().x()
@@ -265,6 +389,9 @@ class TrimBar(QWidget):
             if handle != self._hover:
                 self._hover = handle
                 self.update()
+            seconds = self._time_at(x)
+            on_ghost = handle is None and any(a <= seconds <= b for a, b in self.ghost_spans())
+            self.setToolTip(self.tr("Нажмите, чтобы вернуть удалённый участок") if on_ghost else "")
             self.setCursor(
                 Qt.CursorShape.SizeHorCursor if handle else Qt.CursorShape.PointingHandCursor
             )
@@ -278,6 +405,31 @@ class TrimBar(QWidget):
             self.seekFinished.emit(self._start if drag == "start" else self._end)
         elif drag == "seek":
             self.seekFinished.emit(self._time_at(event.position().x()))
+        elif drag == "ghost" and self._press is not None:
+            _kind, a, b = self._press
+            if a <= self._time_at(event.position().x()) <= b:
+                self.ghostClicked.emit(a, b)
+        elif drag == "mark" and self._press is not None:
+            _kind, a, b = self._press
+            low, high = min(a, b), max(a, b)
+            if high - low >= MIN_MARK_SECONDS:
+                self.set_marks((low, high))
+                self.rangeMarked.emit(low, high)
+            else:
+                self.set_marks(None)
+        self._press = None
+
+    def _pick_segment(self, seconds: float) -> None:
+        """Клик по оставленному: этот сегмент выбран; мимо сегментов — выбор снят."""
+        self.set_marks(None)
+        if self._segments is not None:
+            hit = next((s for s in self._segments if s[0] <= seconds < s[1]), None)
+            if hit is not None:
+                self.set_segment(hit)
+                self.segmentPicked.emit(*hit)
+                return
+        self.set_segment(None)
+        self.selectionCleared.emit()
 
     def leaveEvent(self, event: QEvent) -> None:  # noqa: N802
         self._hover = None
@@ -309,4 +461,8 @@ class TrimBar(QWidget):
             self.seekRequested.emit(self._end)
         elif self._drag == "seek":
             self.seekRequested.emit(seconds)
+        elif self._drag == "mark" and self._press is not None:
+            _kind, anchor, _last = self._press
+            self._press = ("mark", anchor, seconds)
+            self.set_marks((min(anchor, seconds), max(anchor, seconds)))
         self.update()

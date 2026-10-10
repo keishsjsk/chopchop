@@ -5,12 +5,13 @@
 Перекодирование (libx264) включается для эффектов, точной обрезки и склейки разных роликов.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
+from chopchop.core.keyframes import snap_back
 from chopchop.core.operations import Text
-from chopchop.core.video import AudioSettings, Clip, VideoProject
+from chopchop.core.video import EPS, AudioSettings, Clip, FlatRange, VideoProject
 from chopchop.engines.ffmpeg import FfmpegStep
 from chopchop.engines.video_filters import build_effects_graph
 from chopchop.services.output import render_name, unique_path
@@ -176,10 +177,12 @@ def build_plan(
     precise: bool = False,
     font: Path | None = None,
     encode: EncodeOptions = DEFAULT_ENCODE,
+    keyframes: Mapping[Path, Sequence[float]] | None = None,
 ) -> ExportPlan:
-    """Шаги экспорта. workdir — пустая временная папка для промежуточных файлов.
+    """Шаги экспорта. workdir — папка для списка склейки и текстов эффектов.
 
     precise=True включает точную обрезку: видео перекодируется, зато границы — с точностью до кадра.
+    keyframes — ключевые кадры файлов: при быстрой резке начала диапазонов привязываются к ним.
     """
     clips = project.clips
     if not clips:
@@ -190,7 +193,7 @@ def build_plan(
     if dest.resolve() in sources:
         raise ExportPlanError("output would overwrite a source file")
     if project.reencode_reason(precise) is None:
-        return _build_copy_plan(project, dest, ffmpeg, workdir)
+        return _build_copy_plan(project, dest, ffmpeg, workdir, keyframes or {})
     return _build_reencode_plan(project, dest, ffmpeg, workdir, font, encode)
 
 
@@ -205,26 +208,72 @@ def write_text_files(texts: tuple[Text, ...], workdir: Path) -> dict[int, Path]:
     return files
 
 
-def _normalize_video(index: int, width: int, height: int, fps: float) -> str:
-    """Привести клип к размеру и fps первого клипа; при другом формате — чёрные поля."""
+def _normalize_video(source: str, out: str, width: int, height: int, fps: float) -> str:
+    """Привести кусок к размеру и fps первого клипа; при другом формате — чёрные поля."""
     return (
-        f"[{index}:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"[{source}]scale={width}:{height}:force_original_aspect_ratio=decrease,"
         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps:.3f},"
-        f"format=yuv420p[v{index}]"
+        f"format=yuv420p[{out}]"
     )
 
 
-def _normalize_audio(index: int, clip: Clip) -> str:
-    if clip.info.has_audio:
-        return (
-            f"[{index}:a]aresample={SAMPLE_RATE},"
-            f"aformat=sample_fmts=fltp:channel_layouts=stereo[a{index}]"
-        )
+def _normalize_audio(source: str, out: str) -> str:
+    return (
+        f"[{source}]aresample={SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo[{out}]"
+    )
+
+
+def _silence(out: str, length: float) -> str:
     # у клипа нет звука: вместо него тишина той же длины, иначе склейка собьёт синхронизацию
     return (
-        f"anullsrc=r={SAMPLE_RATE}:cl=stereo,atrim=duration={clip.length:.3f},"
-        f"asetpts=PTS-STARTPTS[a{index}]"
+        f"anullsrc=r={SAMPLE_RATE}:cl=stereo,atrim=duration={length:.3f},"
+        f"asetpts=PTS-STARTPTS[{out}]"
     )
+
+
+@dataclass(frozen=True)
+class _Piece:
+    """Один оставленный диапазон на входе фильтра склейки."""
+
+    video: str  # метка видео до нормализации
+    audio: str | None  # метка звука; None — у клипа звука нет, нужна тишина
+    length: float
+
+
+def _split_clip(index: int, clip: Clip, join_audio: bool) -> tuple[list[str], list[_Piece]]:
+    """Фильтры, разделяющие вход клипа на диапазоны: split, trim/atrim и setpts от нуля.
+
+    Вход уже обрезан по внешним границам клипа (-ss/-to), поэтому метки времени внутри него
+    отсчитываются от `clip.start`. Каждый диапазон получает собственные метки от нуля,
+    иначе concat склеит куски с дырами и рассинхроном.
+    """
+    ranges = clip.ranges
+    has_audio = clip.info.has_audio
+    if len(ranges) == 1:
+        single_audio = f"{index}:a" if has_audio else None
+        return [], [_Piece(f"{index}:v", single_audio, clip.length)]
+    graph: list[str] = []
+    count = len(ranges)
+    v_out = "".join(f"[sv{index}_{j}]" for j in range(count))
+    graph.append(f"[{index}:v]split={count}{v_out}")
+    if join_audio and has_audio:
+        a_out = "".join(f"[sa{index}_{j}]" for j in range(count))
+        graph.append(f"[{index}:a]asplit={count}{a_out}")
+    pieces: list[_Piece] = []
+    for j, (a, b) in enumerate(ranges):
+        rel_a, rel_b = a - clip.start, b - clip.start
+        graph.append(
+            f"[sv{index}_{j}]trim=start={rel_a:.3f}:end={rel_b:.3f},setpts=PTS-STARTPTS[tv{index}_{j}]"
+        )
+        label: str | None = None
+        if join_audio and has_audio:
+            graph.append(
+                f"[sa{index}_{j}]atrim=start={rel_a:.3f}:end={rel_b:.3f},"
+                f"asetpts=PTS-STARTPTS[ta{index}_{j}]"
+            )
+            label = f"ta{index}_{j}"
+        pieces.append(_Piece(f"tv{index}_{j}", label, b - a))
+    return graph, pieces
 
 
 def _build_reencode_plan(
@@ -235,11 +284,12 @@ def _build_reencode_plan(
     font: Path | None,
     encode: EncodeOptions,
 ) -> ExportPlan:
-    """Один вызов ffmpeg: клипы нормализуются, склеиваются, затем идут эффекты."""
+    """Один вызов ffmpeg: диапазоны вырезаются, нормализуются, склеиваются, затем идут эффекты."""
     clips = project.clips
     effects = project.effects
     audio = project.audio
-    many = len(clips) > 1
+    total_pieces = len(project.flat_ranges())
+    many = total_pieces > 1
     width, height = project.frame_size
     first_fps = clips[0].info.fps
     fps = min(first_fps, MAX_FPS) if first_fps > 0 else DEFAULT_FPS
@@ -258,13 +308,23 @@ def _build_reencode_plan(
 
     graph: list[str] = []
     if many:
+        pieces: list[_Piece] = []
         for index, clip in enumerate(clips):
-            graph.append(_normalize_video(index, width, height, fps))
+            parts, clip_pieces = _split_clip(index, clip, join_audio)
+            graph += parts
+            pieces += clip_pieces
+        labels = ""
+        for number, piece in enumerate(pieces):
+            graph.append(_normalize_video(piece.video, f"v{number}", width, height, fps))
+            labels += f"[v{number}]"
             if join_audio:
-                graph.append(_normalize_audio(index, clip))
-        pairs = "".join(f"[v{i}][a{i}]" if join_audio else f"[v{i}]" for i in range(len(clips)))
+                if piece.audio is not None:
+                    graph.append(_normalize_audio(piece.audio, f"a{number}"))
+                else:
+                    graph.append(_silence(f"a{number}", piece.length))
+                labels += f"[a{number}]"
         outputs = "[vcat][acat]" if join_audio else "[vcat]"
-        graph.append(f"{pairs}concat=n={len(clips)}:v=1:a={1 if join_audio else 0}{outputs}")
+        graph.append(f"{labels}concat=n={len(pieces)}:v=1:a={1 if join_audio else 0}{outputs}")
         video_in = "vcat"
     else:
         video_in = "0:v"
@@ -312,43 +372,76 @@ def _aac() -> list[str]:
     return ["-c:a", "aac", "-b:a", AUDIO_BITRATE]
 
 
-def _build_copy_plan(project: VideoProject, dest: Path, ffmpeg: Path, workdir: Path) -> ExportPlan:
-    """Быстрый экспорт: видео копируется без перекодирования."""
-    clips = project.clips
-    has_audio = clips[0].info.has_audio
-    audio = _audio_args(project.audio, has_audio, project.duration)
+def ranges_concat_list(entries: Sequence[tuple[PurePath, float | None, float | None]]) -> str:
+    """Список для concat demuxer: файл и, если нужно, inpoint и outpoint (секунды)."""
+    lines = ["ffconcat version 1.0"]
+    for path, inpoint, outpoint in entries:
+        escaped = path.as_posix().replace("'", "'\\''")
+        lines.append(f"file '{escaped}'")
+        if inpoint is not None:
+            lines.append(f"inpoint {inpoint:.6f}")
+        if outpoint is not None:
+            lines.append(f"outpoint {outpoint:.6f}")
+    return "\n".join(lines) + "\n"
+
+
+def _entries(
+    project: VideoProject,
+    flat: Sequence[FlatRange],
+    keyframes: Mapping[Path, Sequence[float]],
+) -> list[tuple[PurePath, float | None, float | None]]:
+    """Строки списка склейки: начало привязано к ключевому кадру не позже него."""
+    entries: list[tuple[PurePath, float | None, float | None]] = []
+    for item in flat:
+        clip = project.clips[item.clip_index]
+        frames = keyframes.get(clip.path, ())
+        start = snap_back(frames, item.start) if frames else item.start
+        inpoint = start if start > EPS else None
+        outpoint = item.stop if item.stop < clip.info.duration - EPS else None
+        entries.append((clip.path, inpoint, outpoint))
+    return entries
+
+
+def _build_piece_plan(
+    project: VideoProject,
+    dest: Path,
+    ffmpeg: Path,
+    workdir: Path,
+    keyframes: Mapping[Path, Sequence[float]],
+    audio: "_AudioArgs",
+) -> ExportPlan:
+    """Быстрый экспорт из нескольких разных файлов: каждый клип сначала в общий контейнер.
+
+    Склеивать разные файлы напрямую concat demuxer нельзя: у контейнеров разные единицы
+    времени (mp4 и mkv), метки времени ломаются, а звук растягивается в разы. Поэтому каждый
+    клип копируется в mkv (вырезы одного клипа — тем же списком inpoint и outpoint), а затем
+    куски склеиваются.
+    """
     steps: list[FfmpegStep] = []
     temp_files: list[Path] = []
-
-    if len(clips) == 1:
-        args = [
-            *_base(ffmpeg),
-            *_trim_input(clips[0]),
-            *audio.extra_input,
-            *audio.maps,
-            *audio.codec,
-            *_output_options(dest),
-        ]
-        steps.append(FfmpegStep(tuple(args), project.duration, dest))
-        return ExportPlan(tuple(steps), dest, audio.reencodes, ())
-
-    # шаг 1: каждый клип (обрезанный или нет) копируется в одинаковый временный контейнер.
-    # Склеивать оригиналы напрямую нельзя: смесь контейнеров (mp4 и mkv) ломает метки времени,
-    # и звук получается в десятки раз длиннее видео.
     pieces: list[Path] = []
-    for number, clip in enumerate(clips):
+    for number, clip in enumerate(project.clips):
         piece = workdir / f"clip{number:03d}.mkv"
+        if len(clip.ranges) == 1:
+            source = _trim_input(clip)
+        else:
+            listing = workdir / f"clip{number:03d}.txt"
+            single = VideoProject((clip,))
+            flat = single.flat_ranges()
+            listing.write_text(
+                ranges_concat_list(_entries(single, flat, keyframes)), encoding="utf-8"
+            )
+            temp_files.append(listing)
+            source = ["-f", "concat", "-safe", "0", "-i", str(listing)]
         trim_args = [
             *_base(ffmpeg),
-            *_trim_input(clip),
+            *source,
             *["-map", "0:v", "-map", "0:a?", "-c", "copy", "-avoid_negative_ts", "make_zero"],
             str(piece),
         ]
         steps.append(FfmpegStep(tuple(trim_args), clip.length, piece))
         pieces.append(piece)
         temp_files.append(piece)
-
-    # шаг 2: склейка (вместе с настройками звука) в итоговый файл
     list_file = workdir / "list.txt"
     list_file.write_text(concat_list(pieces), encoding="utf-8")
     temp_files.append(list_file)
@@ -362,6 +455,55 @@ def _build_copy_plan(project: VideoProject, dest: Path, ffmpeg: Path, workdir: P
     ]
     steps.append(FfmpegStep(tuple(final_args), project.duration, dest))
     return ExportPlan(tuple(steps), dest, audio.reencodes, tuple(temp_files))
+
+
+def _build_copy_plan(
+    project: VideoProject,
+    dest: Path,
+    ffmpeg: Path,
+    workdir: Path,
+    keyframes: Mapping[Path, Sequence[float]],
+) -> ExportPlan:
+    """Быстрый экспорт: видео копируется без перекодирования.
+
+    Один клип одним куском — обычная обрезка (-ss и -to). Вырезы из середины одного файла — один
+    вызов ffmpeg с concat demuxer: диапазоны перечислены директивами inpoint и outpoint,
+    промежуточных медиафайлов нет. Начало каждого диапазона привязывается к ключевому кадру не
+    позже него: иначе демультиплексор отдал бы лишние кадры до начала. Склейка разных файлов
+    идёт через общий контейнер (см. `_build_piece_plan`).
+    """
+    clips = project.clips
+    has_audio = clips[0].info.has_audio
+    audio = _audio_args(project.audio, has_audio, project.duration)
+    flat = project.flat_ranges()
+
+    if len(clips) == 1 and len(flat) == 1:
+        args = [
+            *_base(ffmpeg),
+            *_trim_input(clips[0]),
+            *audio.extra_input,
+            *audio.maps,
+            *audio.codec,
+            *_output_options(dest),
+        ]
+        return ExportPlan(
+            (FfmpegStep(tuple(args), project.duration, dest),), dest, audio.reencodes, ()
+        )
+
+    if len({clip.path for clip in clips}) > 1:
+        return _build_piece_plan(project, dest, ffmpeg, workdir, keyframes, audio)
+    list_file = workdir / "list.txt"
+    list_file.write_text(ranges_concat_list(_entries(project, flat, keyframes)), encoding="utf-8")
+    final_args = [
+        *_base(ffmpeg),
+        *["-f", "concat", "-safe", "0", "-i", str(list_file)],
+        *audio.extra_input,
+        *audio.maps,
+        *audio.codec,
+        *_output_options(dest),
+    ]
+    step = FfmpegStep(tuple(final_args), project.duration, dest)
+    return ExportPlan((step,), dest, audio.reencodes, (list_file,))
 
 
 def thumbnail_args(ffmpeg: Path, path: Path, at: float, width: int = THUMB_WIDTH) -> list[str]:

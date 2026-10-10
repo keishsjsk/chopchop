@@ -21,12 +21,23 @@ from PySide6.QtWidgets import (
 )
 
 from chopchop.core.document import MediaInfo
+from chopchop.core.keyframes import junctions, precise_count
 from chopchop.core.operations import Adjust, FilterName
 from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
-from chopchop.core.video import Clip, EffectEntry, VideoEffects, effect_entries, incompatibility
+from chopchop.core.video import (
+    Clip,
+    EffectEntry,
+    RemoveRange,
+    RestoreRange,
+    SplitAt,
+    VideoEffects,
+    effect_entries,
+    incompatibility,
+)
 from chopchop.editor.video_session import VideoSession
 from chopchop.engines.encoders import available_hw_encoders
 from chopchop.engines.fonts import find_font_path
+from chopchop.engines.keyframes import read_keyframes
 from chopchop.engines.probe import probe
 from chopchop.engines.video_engine import (
     EncodeOptions,
@@ -59,6 +70,7 @@ from chopchop.workers.thumbs_worker import ThumbnailLoader
 
 THUMBNAILS = 14
 VIDEO_FILTER = "*.mp4 *.mkv *.avi *.mov *.webm *.m4v *.mpg *.mpeg *.ts"
+SKIP_LEAD = 0.03  # прыгать чуть раньше конца оставленного куска
 COMPACT_HEIGHT = 700  # ниже этого окна полоса клипов сворачивается в одну строку
 SECOND_STEP = 1.0  # Shift + стрелки
 MIN_PREVIEW_HEIGHT = 160
@@ -100,6 +112,9 @@ class VideoEditorPage(QWidget):
         self._workspace = new_workspace()  # файлы текста для предпросмотра эффектов
         self._preview_key: str | None = None
         self._sized = False  # высота полосы обрезки из настроек применена
+        self._keyframes: dict[Path, tuple[float, ...]] = {}  # ключевые кадры открытых файлов
+        self._segment: tuple[float, float] | None = None  # выбранный сегмент (время файла)
+        self._skipping_to: float | None = None  # куда уже перепрыгнули в предпросмотре
         self._strip_height = tokens.CLIP_STRIP_H
 
         self._thumbs = ThumbnailLoader(
@@ -193,6 +208,10 @@ class VideoEditorPage(QWidget):
         self.trim.trimCommitted.connect(self._on_trim_committed)
         self.trim.trimming.connect(lambda a, b: self._range.setText(range_label(a, b)))
         self.trim.zoomChanged.connect(self._on_zoom_changed)
+        self.trim.ghostClicked.connect(self._restore_range)
+        self.trim.segmentPicked.connect(self._on_segment_picked)
+        self.trim.selectionCleared.connect(self._on_selection_cleared)
+        self.trim.rangeMarked.connect(self._on_range_marked)
         self.clip_strip = ClipStrip()
         self.clip_strip.currentChanged.connect(self._on_row_changed)
         self.clip_strip.moveRequested.connect(self._on_move_requested)
@@ -256,6 +275,12 @@ class VideoEditorPage(QWidget):
             "mark_out", tip(self.tr("Конец фрагмента здесь"), "O"), self.set_out
         )
         self._reset = icon_button("reset_trim", self.tr("Сбросить обрезку"), self._reset_trim)
+        self._split = icon_button("scissors", tip(self.tr("Разрезать здесь"), "K"), self.split_here)
+        self._delete = icon_button(
+            "trash", tip(self.tr("Удалить выбранное"), "Delete"), self.delete_selected
+        )
+        self._delete.setEnabled(False)
+        self._mode = icon_button("mode_fast", "", self.cycle_cut_mode, text=self.tr("Быстрая"))
         self._zoom_out = icon_button(
             "zoom_out", self.tr("Уменьшить полосу"), lambda: self.trim.zoom_out()
         )
@@ -278,8 +303,12 @@ class VideoEditorPage(QWidget):
         for widget in (self._set_in, self._set_out, self._reset):
             row.addWidget(widget)
         row.addSpacing(tokens.SPACE_3)
+        for widget in (self._split, self._delete):
+            row.addWidget(widget)
+        row.addSpacing(tokens.SPACE_3)
         row.addWidget(self._range)
         row.addStretch(1)
+        row.addWidget(self._mode)
         for widget in (self._zoom_out, self._zoom_in, self._zoom_fit):
             row.addWidget(widget)
         return bar
@@ -387,7 +416,45 @@ class VideoEditorPage(QWidget):
         self._video_page.player.load(clip.path)
         self._thumbs_for(clip)
 
+    def _load_keyframes(self, clip: Clip) -> None:
+        """Ключевые кадры файла в фоне: по ним показывается привязка быстрой резки."""
+        if clip.path in self._keyframes:
+            self._show_keyframes()
+            return
+        path = clip.path
+        self._tasks.run(
+            lambda: read_keyframes(path, self._ffprobe),
+            lambda frames: self._on_keyframes(path, frames),
+            lambda _error: None,  # без ключевых кадров быстрая резка работает, но не предупреждает
+        )
+
+    def _on_keyframes(self, path: Path, frames: tuple[float, ...]) -> None:
+        self._keyframes[path] = frames
+        self._show_keyframes()
+
+    def _show_keyframes(self) -> None:
+        clip = self.clip
+        self.trim.set_keyframes(self._keyframes.get(clip.path, ()))
+        self._update_junctions()
+
+    def precise_junctions(self) -> int:
+        """Сколько стыков итога начинается не на ключевом кадре (нужна точная резка)."""
+        return precise_count(self.session.project, self._keyframes)
+
+    def _update_junctions(self) -> None:
+        project = self.session.project
+        found = junctions(project, self._keyframes)
+        flat = project.flat_ranges()
+        mine = [
+            (j.start, j.snapped, j.precise)
+            for j, item in zip(found, flat, strict=True)
+            if item.clip_index == self._index
+        ]
+        self.trim.set_junctions(tuple(mine))
+        self._refresh_mode()
+
     def _thumbs_for(self, clip: Clip) -> None:
+        self._load_keyframes(clip)
         thumbs = self._thumbs.request(clip.path, clip.info.duration, THUMBNAILS)
         self.trim.set_clip(clip.info.duration, clip.start, clip.stop, thumbs)
 
@@ -423,6 +490,7 @@ class VideoEditorPage(QWidget):
 
     def _on_position(self, seconds: float) -> None:
         self.trim.set_position(seconds)
+        self._skip_cuts(seconds)
         total = self.clip.info.duration
         self._time.setText(f"{format_time(round(seconds))} / {format_time(round(total))}")
 
@@ -448,7 +516,112 @@ class VideoEditorPage(QWidget):
         self.session.set_trim(self._index, self.clip.start, self._video_page.player.position)
 
     def _reset_trim(self) -> None:
-        self.session.set_trim(self._index, 0.0, self.clip.info.duration)
+        self.session.reset_clip(self._index)
+
+    # --- разрезы и вырезы --------------------------------------------------------------------
+
+    def _skip_cuts(self, seconds: float) -> None:
+        """Предпросмотр играет только оставленное: дойдя до выреза, перепрыгивает через него.
+
+        Выбран перескок по наблюдателю позиции, а не EDL mpv: время в плеере остаётся временем
+        исходного файла, поэтому полоса обрезки, ручки и ключевые кадры не требуют пересчёта,
+        а правка вырезов не перезагружает файл. Цена — короткий скачок на стыке.
+        """
+        player = self._video_page.player
+        if player.paused or not self.clip.has_cuts:
+            return
+        for (_a, b), (c, _d) in zip(self.clip.ranges, self.clip.ranges[1:], strict=False):
+            if b - SKIP_LEAD <= seconds < c:
+                if self._skipping_to != c:  # один прыжок на один вырез
+                    self._skipping_to = c
+                    player.seek_to(c, exact=True)
+                return
+        self._skipping_to = None
+
+    def split_here(self) -> None:
+        """K: разрезать клип в позиции указателя (сегменты можно выбрать и удалить)."""
+        self.session.cut(SplitAt(self._index, self._video_page.player.position))
+
+    def delete_selected(self) -> None:
+        """Delete: вырезать выделенный диапазон или выбранный сегмент (остаток сдвигается)."""
+        target = self.trim.marks or self._segment
+        if target is None:
+            self.message.emit(self.tr("Выберите сегмент кликом или выделите диапазон с Shift"))
+            return
+        self._segment = None
+        self.trim.set_marks(None)
+        self.session.cut(RemoveRange(self._index, *target))
+
+    def cut_marks(self) -> None:
+        """Ctrl+X: вырезать выделенный диапазон между маркерами."""
+        if self.trim.marks is None:
+            self.message.emit(self.tr("Выделите диапазон на полосе с зажатым Shift"))
+            return
+        self.delete_selected()
+
+    def _restore_range(self, start: float, stop: float) -> None:
+        self.session.cut(RestoreRange(self._index, start, stop))
+
+    def _on_segment_picked(self, start: float, stop: float) -> None:
+        self._segment = (start, stop)
+        self._delete.setEnabled(True)
+
+    def _on_selection_cleared(self) -> None:
+        self._segment = None
+        self._delete.setEnabled(self.trim.marks is not None)
+
+    def _on_range_marked(self, _start: float, _stop: float) -> None:
+        self._segment = None
+        self.trim.set_segment(None)
+        self._delete.setEnabled(True)
+
+    # --- режим резки -------------------------------------------------------------------------
+
+    def cut_mode(self) -> str:
+        return self._app.get_str("editor.cut_mode")
+
+    def cycle_cut_mode(self) -> None:
+        order = ("fast", "precise", "ask")
+        mode = self.cut_mode()
+        self._app.set(
+            "editor.cut_mode", order[(order.index(mode) + 1) % 3] if mode in order else "ask"
+        )
+        self._refresh_mode()
+
+    def _refresh_mode(self) -> None:
+        """Значок режима резки: быстрая, точная или спросить; предупреждение о стыках."""
+        mode = self.cut_mode()
+        warn = mode == "fast" and self.precise_junctions() > 0
+        icon, text, tooltip = {
+            "fast": (
+                "mode_fast",
+                self.tr("Быстрая"),
+                self.tr("Быстрая резка: без перекодирования, по ключевым кадрам"),
+            ),
+            "precise": (
+                "mode_precise",
+                self.tr("Точная"),
+                self.tr("Точная резка: с перекодированием, границы до кадра"),
+            ),
+        }.get(
+            mode,
+            (
+                "settings",
+                self.tr("Спросить"),
+                self.tr("Способ резки выбирается при экспорте"),
+            ),
+        )
+        set_icon(self._mode, "warning" if warn else icon)
+        self._mode.setText(text)
+        extra = ""
+        if warn:
+            extra = "\n" + self.tr("На стыках ({0}) нужна точная резка: начало сдвинется").format(
+                self.precise_junctions()
+            )
+        self._mode.setToolTip(tooltip + extra + "\n" + self.tr("Нажмите, чтобы сменить режим"))
+        self._mode.setProperty("warn", warn)
+        self._mode.style().unpolish(self._mode)
+        self._mode.style().polish(self._mode)
 
     # --- клипы -------------------------------------------------------------------------------
 
@@ -577,7 +750,13 @@ class VideoEditorPage(QWidget):
     def _refresh_trim(self) -> None:
         clip = self.clip
         self.trim.set_range(clip.start, clip.stop)
+        self.trim.set_cuts(clip.ghosts(), clip.splits, clip.segments())
+        if self._segment is not None and self._segment not in clip.segments():
+            self._segment = None  # выбранного сегмента больше нет (удалён или разрезан)
+            self._delete.setEnabled(self.trim.marks is not None)
+        self.trim.set_segment(self._segment)
         self._range.setText(range_label(clip.start, clip.stop))
+        self._update_junctions()
 
     # --- предпросмотр эффектов в mpv ---------------------------------------------------------
 
@@ -640,7 +819,7 @@ class VideoEditorPage(QWidget):
     def export(self) -> None:
         if self._export_dir is not None:
             return  # предыдущий экспорт ещё идёт
-        dialog = VideoExportDialog(self.session.project, self, self._app)
+        dialog = VideoExportDialog(self.session.project, self, self._app, self.precise_junctions())
         if not dialog.exec():
             return
         self._start_export(dialog.path(), dialog.precise(), self._encode_options())
@@ -669,6 +848,7 @@ class VideoEditorPage(QWidget):
                 precise=precise,
                 font=find_font_path(),
                 encode=encode,
+                keyframes=self._export_keyframes(),
             )
         except ExportPlanError as error:
             remove_workspace(workdir)
@@ -679,6 +859,16 @@ class VideoEditorPage(QWidget):
         self._progress = self.export_strip
         self._export_button.setEnabled(False)
         self._worker.start(plan, workdir)
+
+    def _export_keyframes(self) -> dict[Path, tuple[float, ...]]:
+        """Ключевые кадры всех клипов; недостающие читаются сейчас (быстро, без декодирования)."""
+        for clip in self.session.project.clips:
+            if clip.path not in self._keyframes:
+                try:
+                    self._keyframes[clip.path] = read_keyframes(clip.path, self._ffprobe)
+                except Exception:  # noqa: BLE001 - без них копирование работает, но не привязывается
+                    continue
+        return dict(self._keyframes)
 
     def _cancel_export(self) -> None:
         self.export_strip.cancelling()

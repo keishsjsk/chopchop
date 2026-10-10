@@ -253,3 +253,26 @@ def test_video_editor_needs_ffmpeg(
     window.toggle_editor()
     assert "ffmpeg" in window.statusBar().currentMessage()
     assert window.video_editor is None
+
+
+@pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
+def test_cut_keys_reach_the_video_editor(qtbot: QtBot, tmp_path: Path, no_thumbnails: None) -> None:
+    window, fake, _source = _window_with_fake_player(qtbot, tmp_path)
+    window.toggle_editor()
+    qtbot.waitUntil(lambda: window.video_editor is not None, timeout=10000)
+    editor = window.video_editor
+    assert editor is not None
+    fake.mpv.time_pos = 2.0
+    window._with_video_editor(lambda e: e.split_here())  # клавиша K
+    assert editor.session.project.clips[0].splits == (2.0,)
+    fake.mpv.time_pos = 4.0
+    window._with_video_editor(lambda e: e.split_here())
+    editor._segment = editor.clip.segments()[1]  # средний сегмент: вырез, а не обрезка края
+    try:
+        window._with_video_editor(lambda e: e.delete_selected())  # клавиша Delete
+        assert editor.session.project.clips[0].has_cuts
+        cuts = editor.session.project.clips[0].cuts
+        window._with_video_editor(lambda e: e.cut_marks())  # Ctrl+X без выделения: без изменений
+        assert editor.session.project.clips[0].cuts == cuts
+    finally:
+        editor.session.mark_saved()  # иначе закрытие окна спросит про несохранённое

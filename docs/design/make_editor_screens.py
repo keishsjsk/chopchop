@@ -26,7 +26,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from chopchop import i18n  # noqa: E402
 from chopchop.core.geometry import Rect  # noqa: E402
 from chopchop.core.operations import Redact, Text  # noqa: E402
-from chopchop.core.video import Clip  # noqa: E402
+from chopchop.core.video import Clip, RemoveRange, SplitAt  # noqa: E402
 from chopchop.engines.probe import probe  # noqa: E402
 from chopchop.services.app_settings import AppSettings  # noqa: E402
 from chopchop.ui.main_window import MainWindow  # noqa: E402
@@ -61,6 +61,8 @@ def prepare(window: MainWindow, video: Path, second: Path) -> None:
     editor.session.add_redact(Redact(Rect(width * 0.08, height * 0.12, width * 0.2, height * 0.16)))
     editor.session.add_text(Text("CHOPCHOP", width * 0.55, height * 0.78, height * 0.07))
     editor.session.set_volume(0.8)
+    editor.session.cut(RemoveRange(0, 5.0, 6.5))  # вырез из середины: призрак на полосе
+    editor.session.cut(SplitAt(0, 8.0))
     editor.session.add_clip(Clip(second, probe(second, FFPROBE)))
     editor.clip_strip.set_current(0)
     editor._on_row_changed(0)

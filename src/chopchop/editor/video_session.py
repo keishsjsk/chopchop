@@ -10,6 +10,7 @@ from chopchop.core.operations import Adjust, FilterName, Redact, Text
 from chopchop.core.video import (
     AudioSettings,
     Clip,
+    CutOperation,
     EffectEntry,
     ProjectHistory,
     VideoEffects,
@@ -60,6 +61,14 @@ class VideoSession(QObject):
     def set_trim(self, index: int, start: float, end: float) -> None:
         clip = self.project.clips[index]
         self._apply(self.project.with_clip(index, clip.with_trim(start, end)))
+
+    def cut(self, operation: CutOperation) -> None:
+        """Разрезать, вырезать или вернуть участок: одна операция — один шаг истории."""
+        self._apply(operation.apply(self.project))
+
+    def reset_clip(self, index: int) -> None:
+        """Вернуть клип целиком: без обрезки, вырезов и разрезов."""
+        self._apply(self.project.with_clip(index, self.project.clips[index].reset()))
 
     def add_clip(self, clip: Clip) -> None:
         self._apply(self.project.add_clip(clip))

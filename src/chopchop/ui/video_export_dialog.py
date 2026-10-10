@@ -28,9 +28,11 @@ class VideoExportDialog(QDialog):
         project: VideoProject,
         parent: QWidget | None = None,
         settings: AppSettings | None = None,
+        precise_junctions: int = 0,
     ) -> None:
         super().__init__(parent)
         self._app = settings or AppSettings(None)
+        self._junctions = precise_junctions  # стыки не на ключевом кадре (нужна точная резка)
         self.setWindowTitle(self.tr("Экспорт видео"))
         self._project = project
         source = project.clips[0].path
@@ -59,8 +61,17 @@ class VideoExportDialog(QDialog):
         self._precise.setToolTip(
             self.tr("Без неё резать можно только по ключевым кадрам, начало может сдвинуться")
         )
-        self._precise.setEnabled(any(clip.is_trimmed for clip in project.clips))
-        self._precise.setChecked(self._app.get_str("editor.cut_mode") == "precise")
+        mode = self._app.get_str("editor.cut_mode")
+        trimmed = any(clip.is_trimmed for clip in project.clips)
+        # «быстрая» и «точная» заданы в настройках; выбор в диалоге — только у «спрашивать»
+        self._precise.setEnabled(trimmed and mode == "ask")
+        self._precise.setChecked(trimmed and mode == "precise")
+        if trimmed and mode != "ask":
+            self._precise.setToolTip(
+                self._precise.toolTip()
+                + "\n"
+                + self.tr("Режим задан в настройках («Резка видео»).")
+            )
         self._precise.toggled.connect(self._update_notes)
 
         form = QFormLayout()
@@ -98,6 +109,13 @@ class VideoExportDialog(QDialog):
                     self.tr(
                         "Обрезка идёт по ключевым кадрам: начало может сдвинуться на долю секунды."
                     )
+                )
+            if self._junctions:
+                notes.append(
+                    self.tr(
+                        "Начало {0} фрагментов не на ключевом кадре: оно сдвинется назад. "
+                        "Для точной резки включите перекодирование."
+                    ).format(self._junctions)
                 )
         elif reason == "effects":
             notes.append(self.tr("Эффекты требуют перекодирования видео (H.264): это дольше."))
@@ -138,4 +156,5 @@ class VideoExportDialog(QDialog):
         return Path(self._path.text())
 
     def precise(self) -> bool:
-        return self._precise.isChecked() and self._precise.isEnabled()
+        trimmed = any(clip.is_trimmed for clip in self._project.clips)
+        return self._precise.isChecked() and trimmed

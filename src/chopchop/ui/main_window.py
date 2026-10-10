@@ -183,6 +183,21 @@ class MainWindow(QMainWindow):
         add(self.tr("Выйти из полного экрана"), Qt.Key.Key_Escape, self._escape)
         add(self.tr("Начало здесь"), "I", lambda: self._with_video_editor(lambda e: e.set_in()))
         add(self.tr("Конец здесь"), "O", lambda: self._with_video_editor(lambda e: e.set_out()))
+        add(
+            self.tr("Разрезать здесь"),
+            "K",
+            lambda: self._with_video_editor(lambda e: e.split_here()),
+        )
+        add(
+            self.tr("Удалить выбранное"),
+            Qt.Key.Key_Delete,
+            lambda: self._with_video_editor(lambda e: e.delete_selected()),
+        )
+        add(
+            self.tr("Вырезать выделенное"),
+            "Ctrl+X",
+            lambda: self._with_video_editor(lambda e: e.cut_marks()),
+        )
         for enter in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             add(self.tr("Применить"), enter, lambda: self._with_editor(lambda e: e.apply_pending()))
         for key, tool in (

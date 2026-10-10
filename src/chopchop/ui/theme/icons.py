@@ -23,7 +23,7 @@ REQUIRED = (
     "add_clip", "remove_clip", "zoom_in", "zoom_out", "fit", "close", "check", "warning",
     "info", "trash", "scissors", "drop", "sliders", "step_back", "step_forward",
     "chevron_up", "chevron_down", "chevron_left", "chevron_right", "mark_in", "mark_out",
-    "reset_trim",
+    "reset_trim", "mode_fast", "mode_precise",
 )  # fmt: skip
 
 _cache: dict[tuple[object, ...], QImage] = {}

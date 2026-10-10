@@ -617,6 +617,18 @@
         <translation>End here</translation>
     </message>
     <message>
+        <source>Разрезать здесь</source>
+        <translation>Split here</translation>
+    </message>
+    <message>
+        <source>Удалить выбранное</source>
+        <translation>Delete selected</translation>
+    </message>
+    <message>
+        <source>Вырезать выделенное</source>
+        <translation>Cut out selection</translation>
+    </message>
+    <message>
         <source>Применить</source>
         <translation>Apply</translation>
     </message>
@@ -1797,6 +1809,13 @@
     </message>
 </context>
 <context>
+    <name>TrimBar</name>
+    <message>
+        <source>Нажмите, чтобы вернуть удалённый участок</source>
+        <translation>Click to bring the removed part back</translation>
+    </message>
+</context>
+<context>
     <name>VideoColorPanel</name>
     <message>
         <source>Без фильтра</source>
@@ -1922,6 +1941,18 @@
         <translation>End the clip here</translation>
     </message>
     <message>
+        <source>Разрезать здесь</source>
+        <translation>Split here</translation>
+    </message>
+    <message>
+        <source>Удалить выбранное</source>
+        <translation>Delete selected</translation>
+    </message>
+    <message>
+        <source>Быстрая</source>
+        <translation>Fast</translation>
+    </message>
+    <message>
         <source>Уменьшить полосу</source>
         <translation>Zoom the bar out</translation>
     </message>
@@ -1940,6 +1971,42 @@
     <message>
         <source>Пауза</source>
         <translation>Pause</translation>
+    </message>
+    <message>
+        <source>Выберите сегмент кликом или выделите диапазон с Shift</source>
+        <translation>Click a segment or Shift-drag a range first</translation>
+    </message>
+    <message>
+        <source>Выделите диапазон на полосе с зажатым Shift</source>
+        <translation>Shift-drag a range on the bar first</translation>
+    </message>
+    <message>
+        <source>Быстрая резка: без перекодирования, по ключевым кадрам</source>
+        <translation>Fast cut: no re-encoding, on keyframes</translation>
+    </message>
+    <message>
+        <source>Точная</source>
+        <translation>Precise</translation>
+    </message>
+    <message>
+        <source>Точная резка: с перекодированием, границы до кадра</source>
+        <translation>Precise cut: re-encoded, frame-accurate bounds</translation>
+    </message>
+    <message>
+        <source>Спросить</source>
+        <translation>Ask</translation>
+    </message>
+    <message>
+        <source>Способ резки выбирается при экспорте</source>
+        <translation>The cut method is chosen on export</translation>
+    </message>
+    <message>
+        <source>На стыках ({0}) нужна точная резка: начало сдвинется</source>
+        <translation>Joins ({0}) need a precise cut: the start will shift</translation>
+    </message>
+    <message>
+        <source>Нажмите, чтобы сменить режим</source>
+        <translation>Click to change the mode</translation>
     </message>
     <message>
         <source>Итог {0} · {1}×{2} · клипов {3}</source>
@@ -2136,6 +2203,10 @@
         <translation>Without it, cuts are possible only at keyframes, so the start may shift</translation>
     </message>
     <message>
+        <source>Режим задан в настройках («Резка видео»).</source>
+        <translation>The mode is set in Settings (Video cutting).</translation>
+    </message>
+    <message>
         <source>Контейнер</source>
         <translation>Container</translation>
     </message>
@@ -2150,6 +2221,10 @@
     <message>
         <source>Обрезка идёт по ключевым кадрам: начало может сдвинуться на долю секунды.</source>
         <translation>Trimming happens at keyframes: the start may shift by a fraction of a second.</translation>
+    </message>
+    <message>
+        <source>Начало {0} фрагментов не на ключевом кадре: оно сдвинется назад. Для точной резки включите перекодирование.</source>
+        <translation>The start of {0} pieces is not on a keyframe and will shift back. Turn on re-encoding for a precise cut.</translation>
     </message>
     <message>
         <source>Эффекты требуют перекодирования видео (H.264): это дольше.</source>

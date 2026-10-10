@@ -8,7 +8,7 @@ from pytestqt.qtbot import QtBot
 
 from chopchop.core.geometry import Rect
 from chopchop.core.operations import Redact, Text
-from chopchop.core.video import Clip, VideoProject
+from chopchop.core.video import Clip, RemoveRange, SplitAt, VideoProject
 from chopchop.editor.video_session import VideoSession
 from chopchop.engines.probe import probe
 from chopchop.ui.video_editor_page import VideoEditorPage
@@ -544,3 +544,145 @@ def test_theme_switch_recolours_the_editor(qtbot: QtBot, tmp_path: Path) -> None
     page.refresh_theme()  # не падает и перекрашивает значки
     assert page.shell.rail.button("crop").icon().isNull() is False
     page.shutdown()
+
+
+# --- вырезы из середины -------------------------------------------------------------------------
+
+
+def _click(bar, seconds: float, shift: bool = False) -> None:  # type: ignore[no-untyped-def]
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+
+    modifier = Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier
+    QTest.mouseClick(
+        bar,
+        Qt.MouseButton.LeftButton,
+        modifier,
+        QPointF(bar._x(seconds), bar.height() / 2).toPoint(),
+    )
+
+
+def test_split_select_segment_and_delete_with_undo(qtbot: QtBot, tmp_path: Path) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    page.resize(1100, 800)
+    fake.mpv.time_pos = 2.0
+    page.split_here()
+    fake.mpv.time_pos = 4.0
+    page.split_here()
+    clip = page.session.project.clips[0]
+    assert clip.splits == (2.0, 4.0) and clip.length == pytest.approx(6.0, abs=0.1)
+    assert not page._delete.isEnabled()
+    _click(page.trim, 3.0)  # клик по среднему сегменту выбирает его
+    assert page._segment == (2.0, 4.0) and page._delete.isEnabled()
+    page.delete_selected()
+    clip = page.session.project.clips[0]
+    assert clip.ranges[0] == (0.0, 2.0) and clip.ranges[1][0] == 4.0
+    assert "0:04" in page.shell.status.summary()  # длина итога обновилась
+    assert clip.ghosts() == ((2.0, 4.0),)
+    page.undo()  # одна операция — один шаг
+    assert page.session.project.clips[0].splits == (2.0, 4.0)
+    assert page.session.project.clips[0].ranges[0][1] == pytest.approx(6.0, abs=0.1)
+    page.shutdown()
+
+
+def test_shift_drag_marks_a_range_and_ctrl_x_cuts_it(qtbot: QtBot, tmp_path: Path) -> None:
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+
+    page, _fake = _page(qtbot, tmp_path)
+    page.resize(1100, 800)
+    page.cut_marks()  # выделения нет: подсказка, ничего не меняется
+    assert len(page.session.project.clips[0].ranges) == 1
+    bar = page.trim
+    y = bar.height() // 2
+    shift = Qt.KeyboardModifier.ShiftModifier
+    QTest.mousePress(bar, Qt.MouseButton.LeftButton, shift, QPointF(bar._x(1.0), y).toPoint())
+    QTest.mouseMove(bar, QPointF(bar._x(3.0), y).toPoint())
+    QTest.mouseRelease(bar, Qt.MouseButton.LeftButton, shift, QPointF(bar._x(3.0), y).toPoint())
+    assert bar.marks is not None and bar.marks[0] == pytest.approx(1.0, abs=0.1)
+    page.cut_marks()
+    clip = page.session.project.clips[0]
+    assert len(clip.ranges) == 2 and clip.length == pytest.approx(4.0, abs=0.2)
+    assert bar.marks is None
+    page.shutdown()
+
+
+def test_clicking_a_ghost_restores_it_and_reset_clears_everything(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.resize(1100, 800)
+    page.session.cut(SplitAt(0, 3.0))
+    page.session.cut(RemoveRange(0, 2.0, 3.0))
+    assert page.session.project.clips[0].has_cuts
+    _click(page.trim, 2.5)  # клик по заштрихованному призраку
+    assert not page.session.project.clips[0].has_cuts
+    page.session.cut(RemoveRange(0, 1.0, 2.0))
+    page._reset.click()
+    assert page.session.project.clips[0] == page.session.project.clips[0].reset()
+    assert not page.session.project.clips[0].is_trimmed and not page.session.project.clips[0].splits
+    page.shutdown()
+
+
+def test_preview_skips_removed_parts_only_while_playing(qtbot: QtBot, tmp_path: Path) -> None:
+    page, fake = _page(qtbot, tmp_path)
+    page.session.cut(RemoveRange(0, 2.0, 4.0))
+    fake.mpv.pause = True
+    page._on_position(1.99)
+    assert not any(
+        s[0] == 4.0 for s in fake.mpv.seeks
+    )  # на паузе не прыгаем: можно шагать по кадрам
+    fake.mpv.pause = False
+    page._on_position(1.99)
+    assert fake.mpv.seeks[-1] == (4.0, "absolute", "exact")
+    count = len(fake.mpv.seeks)
+    page._on_position(2.01)  # ещё внутри выреза: второго прыжка нет
+    assert len(fake.mpv.seeks) == count
+    page._on_position(4.5)
+    page._on_position(1.99)  # вернулись к вырезу снова — прыжок снова возможен
+    assert len(fake.mpv.seeks) == count + 1
+    page.shutdown()
+
+
+def test_cut_mode_badge_cycles_and_warns_about_junctions(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    settings = page._app
+    settings.set("editor.cut_mode", "fast")
+    path = page.clip.path
+    page._keyframes[path] = (0.0, 2.0, 4.0)
+    page.session.cut(
+        RemoveRange(0, 1.0, 3.0)
+    )  # второй кусок начинается на 3.0, не на ключевом кадре
+    assert page.precise_junctions() == 1
+    assert page._mode.property("warn") is True and "(1)" in page._mode.toolTip()
+    page.cycle_cut_mode()
+    assert settings.get_str("editor.cut_mode") == "precise" and page._mode.text() == "Точная"
+    assert page._mode.property("warn") is False  # точная резка предупреждений не требует
+    page.cycle_cut_mode()
+    assert settings.get_str("editor.cut_mode") == "ask" and page._mode.text() == "Спросить"
+    page.cycle_cut_mode()
+    assert page._mode.text() == "Быстрая"
+    page.shutdown()
+
+
+def test_export_dialog_follows_the_cut_mode_setting(qtbot: QtBot, tmp_path: Path) -> None:
+    from chopchop.services.app_settings import AppSettings
+
+    source = make_video(tmp_path / "a.mp4", seconds=3)
+    clip = Clip(source, probe(source)).remove_span(0.5, 1.5)
+    project = VideoProject((clip,))
+    for mode, enabled, checked in (
+        ("ask", True, False),
+        ("fast", False, False),
+        ("precise", False, True),
+    ):
+        settings = AppSettings(None)
+        settings.set("editor.cut_mode", mode)
+        dialog = VideoExportDialog(project, None, settings, precise_junctions=2)
+        qtbot.addWidget(dialog)
+        assert dialog._precise.isEnabled() is enabled and dialog._precise.isChecked() is checked
+        assert dialog.precise() is checked
+        notes = "\n".join(dialog.notes())
+        assert ("2 фрагментов" in notes) is (
+            mode != "precise"
+        )  # предупреждение только при копировании

@@ -240,6 +240,7 @@ QToolButton[variant="ghost"] {{
     min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px; padding: 0;
 }}
 QToolButton[variant="ghost"][labelled="true"] {{ padding: 0 {s3}px; }}
+QToolButton[variant="ghost"][warn="true"] {{ color: {p.danger}; }}
 QToolButton::menu-indicator {{ image: none; width: 0; }}
 
 /* поля ввода */

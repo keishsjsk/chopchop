@@ -36,7 +36,7 @@ def test_icon_bitmaps_are_well_formed(size: int) -> None:
 def test_all_required_icons_exist() -> None:
     missing = [name for name in icons.REQUIRED if name not in icons.names(16)]
     assert missing == []
-    assert len(icons.REQUIRED) == 56
+    assert len(icons.REQUIRED) == 58
 
 
 def test_large_icons_have_a_24_grid() -> None:
