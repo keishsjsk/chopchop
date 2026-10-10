@@ -1910,6 +1910,10 @@
         <translation>Frame forward</translation>
     </message>
     <message>
+        <source>Начало, конец и длина фрагмента</source>
+        <translation>Start, end and length of the clip</translation>
+    </message>
+    <message>
         <source>Начало фрагмента здесь</source>
         <translation>Start the clip here</translation>
     </message>
@@ -1940,6 +1944,10 @@
     <message>
         <source>Итог {0} · {1}×{2} · клипов {3}</source>
         <translation>Result {0} · {1}×{2} · clips {3}</translation>
+    </message>
+    <message>
+        <source>Звёздочка: есть несохранённые изменения</source>
+        <translation>Asterisk: there are unsaved changes</translation>
     </message>
     <message>
         <source>Предпросмотр эффектов недоступен, но экспорт сработает</source>

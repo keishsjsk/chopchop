@@ -52,6 +52,19 @@ OVERLAY_LIGHT = (255, 255, 255)
 RGBA = tuple[int, int, int, int]
 
 
+TINT_AMOUNT = 0.2  # доля акцента в тонировке выбранного сегмента
+
+
+def blend(foreground: Color, background: Color, amount: float) -> Color:
+    """Смесь двух цветов: amount — доля foreground."""
+    parts = []
+    for index in (1, 3, 5):
+        top = int(foreground[index : index + 2], 16)
+        bottom = int(background[index : index + 2], 16)
+        parts.append(round(top * amount + bottom * (1 - amount)))
+    return "#{:02x}{:02x}{:02x}".format(*parts)
+
+
 @dataclass(frozen=True)
 class Palette:
     """Цвета одной темы. Обычные цвета — «#rrggbb», scrim — с прозрачностью."""
@@ -76,6 +89,13 @@ class Palette:
     scrim: RGBA
     focus_ring: Color
     shadow: Color  # жёсткая тень рамок
+    accent_tint: Color = ""  # лёгкая тонировка выбранного сегмента: акцент поверх поверхности
+
+    def __post_init__(self) -> None:
+        if not self.accent_tint:
+            object.__setattr__(
+                self, "accent_tint", blend(self.accent, self.surface_raised, TINT_AMOUNT)
+            )
 
     def with_accent(self, accent: "AccentSet") -> "Palette":
         return replace(
@@ -84,6 +104,7 @@ class Palette:
             accent_hover=accent.hover,
             accent_pressed=accent.pressed,
             on_accent=accent.on_accent,
+            accent_tint="",  # пересчитывается под новый акцент
         )
 
 
@@ -103,7 +124,7 @@ LIGHT = Palette(
     border="#D9C7AE",
     border_strong="#98827A",
     text="#3E2230",
-    text_muted="#7A6670",
+    text_muted="#6F5B65",
     accent="#CE6C2A",
     accent_hover="#DA7A38",
     accent_pressed="#C96932",
@@ -189,13 +210,3 @@ def contrast(first: Color, second: Color) -> float:
     """Коэффициент контраста WCAG от 1 до 21."""
     bright, dark = sorted((luminance(first), luminance(second)), reverse=True)
     return (bright + 0.05) / (dark + 0.05)
-
-
-def blend(foreground: Color, background: Color, amount: float) -> Color:
-    """Смесь двух цветов: amount — доля foreground."""
-    parts = []
-    for index in (1, 3, 5):
-        top = int(foreground[index : index + 2], 16)
-        bottom = int(background[index : index + 2], 16)
-        parts.append(round(top * amount + bottom * (1 - amount)))
-    return "#{:02x}{:02x}{:02x}".format(*parts)

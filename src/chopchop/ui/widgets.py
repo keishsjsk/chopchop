@@ -33,7 +33,7 @@ def tip(name: str, key: str = "") -> str:
     return f"{name} ({key})" if key else name
 
 
-def set_icon(button: QAbstractButton, name: str, logical: int = 16, role: str = "text") -> None:
+def set_icon(button: QAbstractButton, name: str, logical: int = 32, role: str = "text") -> None:
     """Значок кнопки в цветах темы; запоминается, чтобы перекраситься при смене темы."""
     button.setProperty(ICON_NAME, name)
     button.setProperty(ICON_SIZE, logical)
@@ -50,7 +50,7 @@ def refresh_icons(root: QWidget) -> None:
             set_icon(
                 button,
                 name,
-                int(button.property(ICON_SIZE) or 16),
+                int(button.property(ICON_SIZE) or 32),
                 str(button.property(ICON_ROLE) or "text"),
             )
 
@@ -68,7 +68,7 @@ def button(
     if variant:
         result.setProperty("variant", variant)
     if icon:
-        set_icon(result, icon, 16, "on_accent" if variant == "primary" else "text")
+        set_icon(result, icon, 32, "on_accent" if variant == "primary" else "text")
     if tooltip:
         result.setToolTip(tooltip)
     if slot is not None:
@@ -83,7 +83,7 @@ def icon_button(
     *,
     text: str = "",
     checkable: bool = False,
-    logical: int = 16,
+    logical: int = 32,
 ) -> QToolButton:
     """Призрачная кнопка со значком (и необязательной подписью рядом)."""
     result = QToolButton()
@@ -134,7 +134,7 @@ class Segmented(QWidget):
         item.setProperty("variant", self._variant)
         item.setCheckable(not momentary)
         if icon:
-            set_icon(item, icon, 16, "text")
+            set_icon(item, icon, 32, "text")
         if tooltip:
             item.setToolTip(tooltip)
         if momentary:

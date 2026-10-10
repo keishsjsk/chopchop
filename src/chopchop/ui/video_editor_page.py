@@ -47,7 +47,7 @@ from chopchop.ui.export_strip import ExportStrip
 from chopchop.ui.player_controls import format_time
 from chopchop.ui.theme import tokens
 from chopchop.ui.toast import Toast
-from chopchop.ui.trim_bar import TrimBar
+from chopchop.ui.trim_bar import TrimBar, range_label
 from chopchop.ui.video_effects_panel import RAIL_ITEMS, VideoEffectsPanel
 from chopchop.ui.video_export_dialog import VideoExportDialog
 from chopchop.ui.video_overlay import VideoOverlay
@@ -191,6 +191,7 @@ class VideoEditorPage(QWidget):
         self.trim.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
         self.trim.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
         self.trim.trimCommitted.connect(self._on_trim_committed)
+        self.trim.trimming.connect(lambda a, b: self._range.setText(range_label(a, b)))
         self.trim.zoomChanged.connect(self._on_zoom_changed)
         self.clip_strip = ClipStrip()
         self.clip_strip.currentChanged.connect(self._on_row_changed)
@@ -244,6 +245,9 @@ class VideoEditorPage(QWidget):
             "step_forward", tip(self.tr("Кадр вперёд"), "→"), lambda: self.step_frame(1)
         )
         self._time = QLabel("0:00 / 0:00")
+        self._range = QLabel()  # границы фрагмента и его длина: «0:00.0 – 0:06.9 · 0:06.9»
+        self._range.setProperty("muted", True)
+        self._range.setToolTip(self.tr("Начало, конец и длина фрагмента"))
         self._time.setMinimumWidth(8 * tokens.SPACE_2)
         self._set_in = icon_button(
             "mark_in", tip(self.tr("Начало фрагмента здесь"), "I"), self.set_in
@@ -273,6 +277,8 @@ class VideoEditorPage(QWidget):
         row.addSpacing(tokens.SPACE_4)
         for widget in (self._set_in, self._set_out, self._reset):
             row.addWidget(widget)
+        row.addSpacing(tokens.SPACE_3)
+        row.addWidget(self._range)
         row.addStretch(1)
         for widget in (self._zoom_out, self._zoom_in, self._zoom_fit):
             row.addWidget(widget)
@@ -421,7 +427,7 @@ class VideoEditorPage(QWidget):
         self._time.setText(f"{format_time(round(seconds))} / {format_time(round(total))}")
 
     def _on_paused(self, paused: bool) -> None:
-        set_icon(self._play, "play" if paused else "pause", 16)
+        set_icon(self._play, "play" if paused else "pause")
         label = self.tr("Воспроизвести") if paused else self.tr("Пауза")
         self._play.setToolTip(tip(label, "Space"))
 
@@ -550,6 +556,9 @@ class VideoEditorPage(QWidget):
             )
             + marker
         )
+        self.shell.status.summary_label.setToolTip(
+            self.tr("Звёздочка: есть несохранённые изменения") if marker else ""
+        )
         self.effects_chip.set_effects(project.effects)
         self._refresh_marks(project.effects)
 
@@ -568,6 +577,7 @@ class VideoEditorPage(QWidget):
     def _refresh_trim(self) -> None:
         clip = self.clip
         self.trim.set_range(clip.start, clip.stop)
+        self._range.setText(range_label(clip.start, clip.stop))
 
     # --- предпросмотр эффектов в mpv ---------------------------------------------------------
 

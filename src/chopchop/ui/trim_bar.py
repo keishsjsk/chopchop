@@ -1,6 +1,6 @@
 """Полоса обрезки: миниатюры кадров, две границы, позиция и масштаб по времени."""
 
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFontMetrics,
@@ -52,6 +52,7 @@ class TrimBar(QWidget):
         self._view_span = 0.0  # 0 — вся длина
         self._thumbs: list[QImage | None] = []
         self._drag: str | None = None
+        self._hover: str | None = None  # ручка под указателем: у неё показывается время
         self.setMinimumHeight(tokens.TRIM_MIN_H)
         self.setMinimumWidth(240)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -198,7 +199,7 @@ class TrimBar(QWidget):
             painter.setPen(QPen(QColor(p.text), tokens.BORDER_WIDTH))
             x = self._x(self._position)
             painter.drawLine(int(x), 0, int(x), self.height())
-        self._paint_label(painter, track, left)
+        self._paint_handle_time(painter, track)
         if self.hasFocus():
             painter.setPen(QPen(QColor(p.focus_ring), tokens.BORDER_WIDTH))
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -223,15 +224,20 @@ class TrimBar(QWidget):
             )
             painter.drawImage(slot, image, source)
 
-    def _paint_label(self, painter: QPainter, track: QRectF, left: float) -> None:
-        """Подпись диапазона прямо на полосе: плашка с затемнением, чтобы читалась на кадрах."""
-        if self._duration <= 0:
+    def _paint_handle_time(self, painter: QPainter, track: QRectF) -> None:
+        """Время границы рядом с ручкой, только пока на неё наведён указатель (или её тянут)."""
+        handle = self._drag if self._drag in ("start", "end") else self._hover
+        if handle is None or self._duration <= 0:
             return
+        seconds = self._start if handle == "start" else self._end
         metrics = QFontMetrics(painter.font())
-        text = self.label_text()
+        text = format_precise(seconds)
         width = metrics.horizontalAdvance(text) + 2 * LABEL_PAD
         box_height = metrics.height() + LABEL_PAD
-        x = min(max(left + SIDE / 2 + LABEL_PAD, track.left() + LABEL_PAD), track.right() - width)
+        anchor = self._x(seconds)
+        # у левой ручки плашка справа от неё, у правой — слева, чтобы не выходить за край
+        x = anchor + SIDE / 2 + LABEL_PAD if handle == "start" else anchor - width - LABEL_PAD
+        x = min(max(x, track.left()), track.right() - width)
         box = QRectF(x, track.top() + LABEL_PAD, width, box_height)
         painter.fillRect(box, QColor(*current.palette().scrim))
         painter.setPen(QColor(*tokens.OVERLAY_LIGHT))
@@ -256,6 +262,9 @@ class TrimBar(QWidget):
         x = event.position().x()
         if self._drag is None:
             handle = self._handle_at(x)
+            if handle != self._hover:
+                self._hover = handle
+                self.update()
             self.setCursor(
                 Qt.CursorShape.SizeHorCursor if handle else Qt.CursorShape.PointingHandCursor
             )
@@ -269,6 +278,11 @@ class TrimBar(QWidget):
             self.seekFinished.emit(self._start if drag == "start" else self._end)
         elif drag == "seek":
             self.seekFinished.emit(self._time_at(event.position().x()))
+
+    def leaveEvent(self, event: QEvent) -> None:  # noqa: N802
+        self._hover = None
+        self.update()
+        super().leaveEvent(event)
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         """Ctrl + колесо — масштаб под курсором, просто колесо — сдвиг при увеличении."""

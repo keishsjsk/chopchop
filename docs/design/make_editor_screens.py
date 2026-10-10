@@ -112,6 +112,7 @@ def main() -> int:
                 snap(window, out / f"video-editor-{name}-idle-{w}x{h}.png")
             editor.select_tool("redact")
             snap(window, out / f"video-editor-{name}-{w}x{h}.png")
+            editor.session.mark_saved()  # без вопроса о несохранённом при закрытии
             window.close()
             wait(300)
     return 0

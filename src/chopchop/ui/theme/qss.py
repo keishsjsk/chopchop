@@ -197,7 +197,7 @@ QPushButton[variant="primary"] {{
 }}
 QPushButton[variant="primary"]:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
 QPushButton[variant="primary"]:pressed {{ background: {p.accent_pressed}; border-color: {p.accent_pressed}; }}
-QPushButton[variant="primary"]:disabled {{ background: {p.border}; color: {p.text_muted}; border-color: {p.border}; }}
+QPushButton[variant="primary"]:disabled {{ background: {p.bg}; color: {p.text_muted}; border-color: {p.border}; }}
 QPushButton[variant="primary"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
 QPushButton[variant="danger"] {{
     background: {p.danger}; color: {p.on_danger}; border-color: {p.danger};
@@ -214,10 +214,10 @@ QPushButton[variant="segment"], QPushButton[variant="chip"] {{
 QPushButton[variant="chip"] {{ padding: 0 {s2}px; }}
 QPushButton[variant="chip"][dense="true"] {{ min-height: {t.STATUS_H - 4 * b}px; padding: 0 {s2}px; }}
 QPushButton[variant="segment"]:checked, QPushButton[variant="chip"]:checked {{
-    background: {p.accent}; color: {p.on_accent}; border-color: {p.accent};
+    background: {p.accent_tint}; color: {p.text}; border-color: {p.accent};
 }}
-QPushButton[variant="segment"]:checked:hover, QPushButton[variant="chip"]:checked:hover {{ background: {p.accent_hover}; border-color: {p.accent_hover}; }}
-QPushButton[variant="segment"]:checked:disabled, QPushButton[variant="chip"]:checked:disabled {{ background: {p.border}; color: {p.text_muted}; border-color: {p.border}; }}
+QPushButton[variant="segment"]:checked:hover, QPushButton[variant="chip"]:checked:hover {{ border-color: {p.accent_hover}; }}
+QPushButton[variant="segment"]:checked:disabled, QPushButton[variant="chip"]:checked:disabled {{ background: {p.bg}; color: {p.text_muted}; border-color: {p.border}; }}
 QPushButton[variant="segment"]:focus, QPushButton[variant="chip"]:focus {{ border: {ring}px solid {p.focus_ring}; }}
 
 /* кнопки панелей: рейка инструментов и значки */
@@ -237,7 +237,7 @@ QToolButton[rail="true"] {{
     min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px; padding: 0;
 }}
 QToolButton[variant="ghost"] {{
-    min-width: {hit - 2 * b}px; min-height: {hit - 2 * b}px; padding: 0;
+    min-width: {rail - 2 * b}px; min-height: {rail - 2 * b}px; padding: 0;
 }}
 QToolButton[variant="ghost"][labelled="true"] {{ padding: 0 {s3}px; }}
 QToolButton::menu-indicator {{ image: none; width: 0; }}

@@ -10,7 +10,7 @@ from chopchop.core.tr_marks import QT_TRANSLATE_NOOP
 from chopchop.core.video import EffectEntry, VideoEffects, effect_entries
 from chopchop.ui.floating import FloatingPanel
 from chopchop.ui.theme import tokens
-from chopchop.ui.widgets import button, icon_button, set_icon
+from chopchop.ui.widgets import button, icon_button
 
 LABELS = {
     "crop": QT_TRANSLATE_NOOP("EffectsChip", "Кадр"),
@@ -70,7 +70,6 @@ class EffectsChip(QPushButton):
         self._effects = VideoEffects()
         self._popup: EffectsPopup | None = None
         self.clicked.connect(self.open_list)
-        set_icon(self, "chevron_up", 16)
         self.set_effects(VideoEffects())
 
     def entries(self) -> list[EffectEntry]:

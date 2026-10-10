@@ -20,6 +20,7 @@ PAIRS_TEXT = [
     ("danger", "surface"),
     ("success", "bg"),
     ("success", "surface"),
+    ("text", "accent_tint"),
     ("on_accent", "accent"),
     ("on_accent", "accent_hover"),
     ("on_accent", "accent_pressed"),

@@ -25,10 +25,11 @@ from chopchop.ui import anim
 from chopchop.ui.theme import current, tokens
 from chopchop.ui.widgets import icon_button, refresh_icons
 
-CHIP_H = tokens.MIN_HIT
-CHIP_W = 11 * tokens.SPACE_4  # 176
+CHIP_H = tokens.CLIP_STRIP_H
+CHIP_MIN_W = 14 * tokens.SPACE_2  # 112: чип не уже, даже у короткого имени
+CHIP_MAX_W = 14 * tokens.SPACE_4  # 224: длинное имя сокращается в середине
 GAP = tokens.SPACE_2
-MINI_BUTTON = tokens.ICON_LARGE
+MINI_BUTTON = tokens.RAIL_BUTTON - tokens.SPACE_2  # 32: значок 32 px, как у рейки
 DRAG_THRESHOLD = tokens.SPACE_2
 
 
@@ -48,11 +49,23 @@ class ClipChip(QWidget):
         self.info = info
         self.selected = False
         self.dragging = False
-        self.setFixedSize(CHIP_W, CHIP_H)
+        self.setFixedSize(self.fitted_width(), CHIP_H)
         self.setToolTip(info.tooltip)
         self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def fitted_width(self) -> int:
+        """Ширина по содержимому (номер, имя, длительность) в пределах минимума и максимума."""
+        metrics = QFontMetrics(self.font())
+        label = f"{self.index + 1}  {self.info.name}"
+        wanted = (
+            metrics.horizontalAdvance(label)
+            + metrics.horizontalAdvance(self.info.duration)
+            + 4 * tokens.SPACE_2
+            + 2 * tokens.BORDER_WIDTH
+        )
+        return min(max(wanted, CHIP_MIN_W), CHIP_MAX_W)
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
@@ -222,13 +235,13 @@ class ClipStrip(QScrollArea):
         return max(chip.y() for chip in self._chips) // (CHIP_H + GAP) + 1
 
     def _relayout(self) -> None:
-        width = max(self.viewport().width(), CHIP_W + tokens.MIN_HIT)
+        width = max(self.viewport().width(), CHIP_MAX_W + tokens.MIN_HIT)
         x = y = 0
         for chip in self._chips:
-            if not self._compact and x > 0 and x + CHIP_W > width:
+            if not self._compact and x > 0 and x + chip.width() > width:
                 x, y = 0, y + CHIP_H + GAP
             chip.move(x, y)
-            x += CHIP_W + GAP
+            x += chip.width() + GAP
         if not self._compact and x + tokens.MIN_HIT > width and x > 0:
             x, y = 0, y + CHIP_H + GAP
         self.add_button.move(x, y)
@@ -322,17 +335,21 @@ class ClipStrip(QScrollArea):
         best, best_distance = 0, 10**9
         for position in range(len(others) + 1):
             x, y = self._slot_position(position)
-            distance = (point.x() - (x + CHIP_W // 2)) ** 2 + (point.y() - (y + CHIP_H // 2)) ** 2
+            half = others[min(position, len(others) - 1)].width() // 2 if others else 0
+            distance = (point.x() - (x + half)) ** 2 + (point.y() - (y + CHIP_H // 2)) ** 2
             if distance < best_distance:
                 best, best_distance = position, distance
         return min(best, len(self._chips) - 1)
 
     def _slot_position(self, position: int) -> tuple[int, int]:
-        width = max(self.viewport().width(), CHIP_W + tokens.MIN_HIT)
+        """Где окажется чип, вставленный на место position среди остальных."""
+        width = max(self.viewport().width(), CHIP_MAX_W + tokens.MIN_HIT)
+        others = [c for c in self._chips if not c.dragging]
         x = y = 0
-        for _ in range(position):
-            x += CHIP_W + GAP
-            if not self._compact and x + CHIP_W > width:
+        for index in range(position):
+            x += others[index].width() + GAP
+            following = others[index + 1].width() if index + 1 < len(others) else CHIP_MIN_W
+            if not self._compact and x + following > width:
                 x, y = 0, y + CHIP_H + GAP
         return x, y
 

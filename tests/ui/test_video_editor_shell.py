@@ -10,7 +10,7 @@ from pytestqt.qtbot import QtBot
 from chopchop.core.geometry import Rect
 from chopchop.core.operations import Adjust, Redact, Text
 from chopchop.core.video import EffectEntry, VideoEffects, effect_entries, without_effect
-from chopchop.ui.clip_strip import CHIP_W, ClipInfo, ClipStrip
+from chopchop.ui.clip_strip import CHIP_MAX_W, CHIP_MIN_W, ClipInfo, ClipStrip
 from chopchop.ui.editor_shell import EditorShell
 from chopchop.ui.effects_chip import EffectsChip
 from chopchop.ui.theme import tokens
@@ -221,9 +221,9 @@ def test_clip_strip_selection_reorder_remove_and_mini_panel(qtbot: QtBot) -> Non
 
     left = Qt.MouseButton.LeftButton
     send(QEvent.Type.MouseButtonPress, 0, left)
-    send(QEvent.Type.MouseMove, 2.2 * (CHIP_W + 8), left)
+    send(QEvent.Type.MouseMove, 2.2 * (first.width() + 8), left)
     assert first.dragging
-    send(QEvent.Type.MouseButtonRelease, 2.2 * (CHIP_W + 8), Qt.MouseButton.NoButton)
+    send(QEvent.Type.MouseButtonRelease, 2.2 * (first.width() + 8), Qt.MouseButton.NoButton)
     assert moves[-1][0] == 0 and moves[-1][1] == 2
 
 
@@ -279,3 +279,86 @@ def test_thumbnails_are_placed_in_time_when_zoomed(qtbot: QtBot) -> None:
     bar.set_clip(10.0, 0.0, 10.0, [image] * 5)
     bar.zoom_by(4.0, 5.0)
     assert bar.grab().width() > 0
+
+
+def test_clip_chips_fit_their_content_within_limits(qtbot: QtBot) -> None:
+    strip = ClipStrip()
+    qtbot.addWidget(strip)
+    strip.resize(1400, 40)
+    strip.show()
+    strip.set_clips(
+        [
+            ClipInfo("a.mp4", "0:06"),
+            ClipInfo("очень_длинное_название_файла_для_проверки_предела_ширины.mp4", "10:06"),
+            ClipInfo("средний клип.mp4", "0:30"),
+        ],
+        0,
+    )
+    widths = [chip.width() for chip in strip.chips()]
+    assert CHIP_MIN_W <= widths[0] < widths[2] < widths[1] == CHIP_MAX_W  # по содержимому
+    assert strip.chips()[1].x() == widths[0] + 8 + 0  # чипы идут вплотную, а не растянуты на ряд
+
+
+def test_trim_bar_shows_time_only_at_a_hovered_handle(qtbot: QtBot) -> None:
+    bar = TrimBar()
+    qtbot.addWidget(bar)
+    bar.resize(800, 72)
+    bar.show()
+    bar.set_clip(60.0, 10.0, 40.0, [])
+    assert bar._hover is None
+    x = int(bar._x(10.0))
+    QTest.mouseMove(bar, QPointF(x, 36).toPoint())
+    assert bar._hover == "start"
+    with_time = bar.grab().toImage()
+    QTest.mouseMove(bar, QPointF(400, 36).toPoint())
+    assert bar._hover is None
+    assert bar.grab().toImage() != with_time  # плашки со временем без наведения нет
+
+
+def test_button_icons_use_whole_pixel_scales(qtbot: QtBot) -> None:
+    from PySide6.QtGui import QPixmap
+
+    from chopchop.ui.theme import current, icons
+
+    for ratio in (1.0, 1.5, 2.0, 3.0):
+        for name in ("undo", "play", "step_back", "zoom_in", "reset_trim", "add_clip"):
+            pix: QPixmap = icons.pixmap(name, current.palette(), logical=32, ratio=ratio)
+            assert pix.width() % 16 == 0, (name, ratio)  # целое число пикселей сетки на пиксель
+    button_ = icon_button("undo", "Отменить")
+    qtbot.addWidget(button_)
+    assert button_.iconSize().width() == 32  # как у рейки, а не 16 с растяжением
+
+
+def test_selected_segment_is_outlined_and_tinted_not_filled(qtbot: QtBot) -> None:
+    from PySide6.QtWidgets import QApplication
+
+    from chopchop.ui.theme import current
+    from chopchop.ui.theme.manager import ThemeManager
+
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+    previous = app.styleSheet()
+    manager = ThemeManager(app)
+    try:
+        manager.set_theme("light")
+        seg = Segmented()
+        qtbot.addWidget(seg)
+        seg.add("A", 1)
+        seg.add("B", 2)
+        seg.set_value(1)
+        seg.show()
+        p = current.palette()
+        image = seg.buttons()[0].grab().toImage()
+        centre = image.pixelColor(image.width() // 2, 6).name()
+        assert centre != p.accent.lower()  # сплошной акцентной заливки нет
+        assert centre == p.accent_tint.lower()  # лёгкая тонировка
+        assert image.pixelColor(1, image.height() // 2).name() == p.accent.lower()  # рамка
+        main = button("Экспорт", "primary")
+        qtbot.addWidget(main)
+        main.show()
+        assert (
+            main.grab().toImage().pixelColor(8, 8).name() == p.accent.lower()
+        )  # главная — заливка
+    finally:
+        manager.shutdown()
+        app.setStyleSheet(previous)
