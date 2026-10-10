@@ -35,6 +35,7 @@ SIDE = 8.0  # поле слева и справа
 RULER_H = 18  # линейка со временем
 EDGE_GRAB = 6.0  # зона захвата края блока, px
 DRAG_THRESHOLD = 5.0  # со скольких px движения нажатие на блоке превращается в перенос
+MIN_MARK_SECONDS = 0.04
 ZOOM_STEP = 1.5
 MAX_ZOOM = 64.0
 LABEL_PAD = 4
@@ -89,6 +90,7 @@ class Timeline(QWidget):
     trimCommitted = Signal(int, float, float)
     moveRequested = Signal(int, int)  # откуда и куда (индекс после удаления из старого места)
     zoomChanged = Signal(float)
+    rangeMarked = Signal(float, float)  # Shift + протягивание: выделенный участок итога
     menuRequested = Signal(QPoint, object)  # точка на экране и (блок, время итога) или None
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -105,6 +107,10 @@ class Timeline(QWidget):
         self._press: tuple[str, int, float] | None = None  # вид, блок, x нажатия
         self._drag: str | None = None  # scrub, edge, move
         self._edge: tuple[int, str] | None = None
+        self._marks: tuple[float, float] | None = None  # выделенный участок (время итога)
+        self._mark_anchor = 0.0
+        self._edge_scale = 0.0  # секунд на пиксель в момент нажатия на край
+        self._was_fit = False
         self._edge_override: dict[int, tuple[float, float]] = {}  # живые края при растяжении
         self._move_x = 0.0
         self._drop_slot: int | None = None
@@ -151,6 +157,14 @@ class Timeline(QWidget):
         else:
             self._view_span = min(self._view_span, self.duration)
             self._clamp_view()
+        self.update()
+
+    @property
+    def marks(self) -> tuple[float, float] | None:
+        return self._marks
+
+    def set_marks(self, marks: tuple[float, float] | None) -> None:
+        self._marks = marks
         self.update()
 
     def set_selected(self, index: int | None) -> None:
@@ -285,14 +299,17 @@ class Timeline(QWidget):
         return None
 
     def _edge_at(self, x: float) -> tuple[int, str] | None:
-        """Край блока под указателем: левый тянет начало, правый конец."""
+        """Ближайший к указателю край блока: левый тянет начало, правый конец."""
+        best: tuple[float, int, str] | None = None
         for index in range(len(self._blocks)):
             rect = self.block_rect(index)
-            if abs(x - rect.left()) <= EDGE_GRAB and rect.right() - rect.left() > 2 * EDGE_GRAB:
-                return index, "start"
-            if abs(x - rect.right()) <= EDGE_GRAB and rect.right() - rect.left() > 2 * EDGE_GRAB:
-                return index, "end"
-        return None
+            if rect.width() <= 2 * EDGE_GRAB:
+                continue  # узкий блок: края не отдельные цели, иначе его не взять за середину
+            for side, edge in (("start", rect.left()), ("end", rect.right())):
+                distance = abs(x - edge)
+                if distance <= EDGE_GRAB and (best is None or distance < best[0]):
+                    best = (distance, index, side)
+        return None if best is None else (best[1], best[2])
 
     # --- рисование ---------------------------------------------------------------------------
 
@@ -472,6 +489,13 @@ class Timeline(QWidget):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(p.text))
             painter.drawRect(QRectF(head - 4, 0, 8, 6))
+        if self._marks is not None:
+            tint = QColor(p.accent)
+            tint.setAlpha(110)
+            a, b = self._marks
+            painter.fillRect(
+                QRectF(self.x_of(a), track.top(), self.x_of(b) - self.x_of(a), track.height()), tint
+            )
         if self._drag == "move" and self._press is not None:
             index = self._press[1]
             rect = self.block_rect(index)
@@ -527,12 +551,24 @@ class Timeline(QWidget):
             self._drag = "scrub"
             self._scrub(x)
             return
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier and self.block_at(x) is not None:
+            self._drag = "mark"  # Shift + протягивание выделяет участок, который можно вырезать
+            self._mark_anchor = self.time_at(x)
+            self.set_marks(None)
+            return
+        if self._marks is not None:
+            self.set_marks(None)
         edge = self._edge_at(x)
         if edge is not None:
             index, side = edge
             self._drag = "edge"
             self._edge = edge
             self._press = ("edge", index, x)
+            # масштаб на время растяжения неподвижен: соседи сдвигаются, а не сжимаются
+            self._edge_scale = self._seconds_per_pixel()
+            self._was_fit = self._view_span <= 0
+            if self._was_fit:
+                self._view_span = self.duration
             self._edge_override[index] = self._shown(index)
             self._select(index)
             return
@@ -547,6 +583,9 @@ class Timeline(QWidget):
         x, y = event.position().x(), event.position().y()
         if self._drag == "scrub":
             self._scrub(x)
+        elif self._drag == "mark":
+            seconds = self.time_at(x)
+            self.set_marks((min(self._mark_anchor, seconds), max(self._mark_anchor, seconds)))
         elif self._drag == "edge" and self._press is not None and self._edge is not None:
             self._drag_edge(x)
         elif self._press is not None and self._press[0] == "body":
@@ -581,12 +620,21 @@ class Timeline(QWidget):
         self._scroll_timer.stop()
         self._drag, self._press = None, None
         x = event.position().x()
-        if drag == "scrub":
+        if drag == "mark":
+            marks = self._marks
+            if marks is not None and marks[1] - marks[0] >= MIN_MARK_SECONDS:
+                self.rangeMarked.emit(*marks)
+            else:
+                self.set_marks(None)
+        elif drag == "scrub":
             self.seekFinished.emit(self.time_at(x))
         elif drag == "edge" and self._edge is not None:
             index, _side = self._edge
             start, stop = self._shown(index)
             self._edge = None
+            if self._was_fit:
+                self._view_span = 0.0
+                self._view_start = 0.0
             self.trimCommitted.emit(index, start, stop)
             # раскладка обновится по сигналу сессии; если правка не прошла, край вернётся
             self._edge_override.clear()
@@ -627,7 +675,7 @@ class Timeline(QWidget):
         assert self._press is not None and self._edge is not None
         index, side = self._edge
         block = self._blocks[index]
-        delta = (x - self._press[2]) * self._seconds_per_pixel()
+        delta = (x - self._press[2]) * self._edge_scale
         start, stop = block.start, block.stop
         if side == "start":
             start = min(max(start + delta, 0.0), stop - MIN_CLIP_SECONDS)

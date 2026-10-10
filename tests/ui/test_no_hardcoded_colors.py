@@ -32,4 +32,4 @@ def test_ui_modules_use_only_theme_colours() -> None:
 
 def test_scan_actually_finds_modules() -> None:
     names = {path.name for path in _sources()}
-    assert {"canvas.py", "editor_page.py", "video_page.py", "trim_bar.py"} <= names
+    assert {"canvas.py", "editor_page.py", "video_page.py", "timeline.py"} <= names

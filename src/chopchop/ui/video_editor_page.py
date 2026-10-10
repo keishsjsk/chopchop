@@ -246,6 +246,7 @@ class VideoEditorPage(QWidget):
         self.timeline.seekRequested.connect(self._video_page.player.seek_to)  # по ключевым кадрам
         self.timeline.seekFinished.connect(lambda s: self._video_page.player.seek_to(s, exact=True))
         self.timeline.blockSelected.connect(self._on_block_selected)
+        self.timeline.rangeMarked.connect(self._on_range_marked)
         self.timeline.selectionCleared.connect(self._on_selection_cleared)
         self.timeline.trimming.connect(self._on_block_trimming)
         self.timeline.trimCommitted.connect(self._on_block_trimmed)
@@ -663,10 +664,30 @@ class VideoEditorPage(QWidget):
             return
         self.session.cut(SplitAt(seconds))
 
+    def _on_range_marked(self, _start: float, _stop: float) -> None:
+        self._selected = None
+        self.timeline.set_selected(None)
+        self._delete.setEnabled(True)
+
+    def cut_marks(self) -> None:
+        """Ctrl+X: вырезать участок, выделенный Shift + протягиванием по полосе."""
+        marks = self.timeline.marks
+        if marks is None:
+            self.message.emit(self.tr("Выделите участок на полосе с зажатым Shift"))
+            return
+        self.timeline.set_marks(None)
+        self.cut_range(*marks)
+
+    def has_marks(self) -> bool:
+        return self.timeline.marks is not None
+
     def delete_selected(self) -> None:
-        """Delete: удалить выбранный блок, остальные сдвигаются."""
+        """Delete: удалить выделенный участок или выбранный блок, остальные сдвигаются."""
+        if self.timeline.marks is not None:
+            self.cut_marks()
+            return
         if self._selected is None:
-            self.message.emit(self.tr("Выберите блок на полосе"))
+            self.message.emit(self.tr("Выберите блок на полосе или выделите участок с Shift"))
             return
         self.delete_block(self._selected)
 

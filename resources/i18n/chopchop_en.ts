@@ -33,13 +33,6 @@
     </message>
 </context>
 <context>
-    <name>ClipStrip</name>
-    <message>
-        <source>Добавить клип…</source>
-        <translation>Add clip…</translation>
-    </message>
-</context>
-<context>
     <name>ColorButton</name>
     <message>
         <source>Цвет</source>
@@ -132,8 +125,8 @@
         <translation>Clear selection</translation>
     </message>
     <message>
-        <source>Вернуть</source>
-        <translation>Restore</translation>
+        <source>Вернуть блок целиком</source>
+        <translation>Restore the whole block</translation>
     </message>
     <message>
         <source>Масштаб полосы</source>
@@ -144,12 +137,16 @@
         <translation>Move left</translation>
     </message>
     <message>
-        <source>Вправо</source>
-        <translation>Move right</translation>
+        <source>Разрезать здесь</source>
+        <translation>Split here</translation>
     </message>
     <message>
-        <source>Удалить клип</source>
-        <translation>Remove clip</translation>
+        <source>Удалить блок</source>
+        <translation>Delete block</translation>
+    </message>
+    <message>
+        <source>Вправо</source>
+        <translation>Move right</translation>
     </message>
     <message>
         <source>Показать в папке</source>
@@ -803,16 +800,28 @@
         <translation>Normal speed</translation>
     </message>
     <message>
-        <source>Удалить сегмент</source>
-        <translation>Delete segment</translation>
+        <source>Обрезать начало здесь</source>
+        <translation>Trim the start here</translation>
+    </message>
+    <message>
+        <source>Обрезать конец здесь</source>
+        <translation>Trim the end here</translation>
+    </message>
+    <message>
+        <source>Удалить блок</source>
+        <translation>Delete block</translation>
+    </message>
+    <message>
+        <source>Добавить клип…</source>
+        <translation>Add clip…</translation>
     </message>
     <message>
         <source>Вырезать выделение</source>
         <translation>Cut out the selection</translation>
     </message>
     <message>
-        <source>Сбросить обрезку</source>
-        <translation>Reset trim</translation>
+        <source>Вернуть блок целиком</source>
+        <translation>Restore the whole block</translation>
     </message>
     <message>
         <source>Увеличить полосу</source>
@@ -905,14 +914,6 @@
     <message>
         <source>Заполнить окно</source>
         <translation>Fill the window</translation>
-    </message>
-    <message>
-        <source>Начало здесь</source>
-        <translation>Start here</translation>
-    </message>
-    <message>
-        <source>Конец здесь</source>
-        <translation>End here</translation>
     </message>
     <message>
         <source>Разрезать здесь</source>
@@ -1017,21 +1018,6 @@
     <message>
         <source>Закрыть редактор без сохранения?</source>
         <translation>Close the editor without saving?</translation>
-    </message>
-</context>
-<context>
-    <name>MiniActions</name>
-    <message>
-        <source>Сдвинуть клип раньше</source>
-        <translation>Move clip earlier</translation>
-    </message>
-    <message>
-        <source>Сдвинуть клип позже</source>
-        <translation>Move clip later</translation>
-    </message>
-    <message>
-        <source>Удалить клип</source>
-        <translation>Remove clip</translation>
     </message>
 </context>
 <context>
@@ -1725,8 +1711,8 @@
         <translation>Window position</translation>
     </message>
     <message>
-        <source>Высота полосы обрезки</source>
-        <translation>Trim bar height</translation>
+        <source>Высота полосы блоков</source>
+        <translation>Block bar height</translation>
     </message>
 </context>
 <context>
@@ -2212,13 +2198,6 @@
     </message>
 </context>
 <context>
-    <name>TrimBar</name>
-    <message>
-        <source>Нажмите, чтобы вернуть удалённый участок</source>
-        <translation>Click to bring the removed part back</translation>
-    </message>
-</context>
-<context>
     <name>VideoColorPanel</name>
     <message>
         <source>Без фильтра</source>
@@ -2264,6 +2243,18 @@
         <translation>audio parameters</translation>
     </message>
     <message>
+        <source>фрагмент</source>
+        <translation>fragment</translation>
+    </message>
+    <message>
+        <source>фрагмента</source>
+        <translation>fragments</translation>
+    </message>
+    <message>
+        <source>фрагментов</source>
+        <translation>fragments</translation>
+    </message>
+    <message>
         <source>Отменить</source>
         <translation>Undo</translation>
     </message>
@@ -2276,8 +2267,44 @@
         <translation>Export…</translation>
     </message>
     <message>
-        <source>Сбросить обрезку</source>
-        <translation>Reset trim</translation>
+        <source>Начало, конец и длина выбранного блока в исходном файле</source>
+        <translation>Start, end and length of the selected block in the source file</translation>
+    </message>
+    <message>
+        <source>Обрезать начало блока здесь</source>
+        <translation>Trim the block start here</translation>
+    </message>
+    <message>
+        <source>Обрезать конец блока здесь</source>
+        <translation>Trim the block end here</translation>
+    </message>
+    <message>
+        <source>Вернуть блок целиком</source>
+        <translation>Restore the whole block</translation>
+    </message>
+    <message>
+        <source>Удалить выбранный блок</source>
+        <translation>Delete the selected block</translation>
+    </message>
+    <message>
+        <source>Добавить клип…</source>
+        <translation>Add clip…</translation>
+    </message>
+    <message>
+        <source>Выделите участок на полосе с зажатым Shift</source>
+        <translation>Select a stretch on the bar with Shift held</translation>
+    </message>
+    <message>
+        <source>Выберите блок на полосе или выделите участок с Shift</source>
+        <translation>Select a block on the bar or mark a stretch with Shift</translation>
+    </message>
+    <message>
+        <source>Итог {0} · {1}×{2} · блоков {3}</source>
+        <translation>Result {0} · {1}×{2} · blocks {3}</translation>
+    </message>
+    <message>
+        <source>Вырезано: </source>
+        <translation>Cut out: </translation>
     </message>
     <message>
         <source>Добавить клип</source>
@@ -2304,10 +2331,6 @@
         <translation>Clip added. It differs in: {0}; the video will be re-encoded on export</translation>
     </message>
     <message>
-        <source>Последний клип удалить нельзя</source>
-        <translation>The last clip cannot be removed</translation>
-    </message>
-    <message>
         <source>К просмотру</source>
         <translation>Back to viewer</translation>
     </message>
@@ -2332,24 +2355,8 @@
         <translation>Frame forward</translation>
     </message>
     <message>
-        <source>Начало, конец и длина фрагмента</source>
-        <translation>Start, end and length of the clip</translation>
-    </message>
-    <message>
-        <source>Начало фрагмента здесь</source>
-        <translation>Start the clip here</translation>
-    </message>
-    <message>
-        <source>Конец фрагмента здесь</source>
-        <translation>End the clip here</translation>
-    </message>
-    <message>
         <source>Разрезать здесь</source>
         <translation>Split here</translation>
-    </message>
-    <message>
-        <source>Удалить выбранное</source>
-        <translation>Delete selected</translation>
     </message>
     <message>
         <source>Быстрая</source>
@@ -2368,6 +2375,18 @@
         <translation>Fit the whole bar</translation>
     </message>
     <message>
+        <source>Блок {0} из {1} · </source>
+        <translation>Block {0} of {1} · </translation>
+    </message>
+    <message>
+        <source>Здесь уже шов между блоками</source>
+        <translation>There is already a seam between blocks here</translation>
+    </message>
+    <message>
+        <source>Последний блок удалить нельзя</source>
+        <translation>The last block cannot be deleted</translation>
+    </message>
+    <message>
         <source>Воспроизвести</source>
         <translation>Play</translation>
     </message>
@@ -2382,14 +2401,6 @@
     <message>
         <source>Время показа обрезано по длине итога: </source>
         <translation>The display time was cut to the length of the result: </translation>
-    </message>
-    <message>
-        <source>Выберите сегмент кликом или выделите диапазон с Shift</source>
-        <translation>Click a segment or Shift-drag a range first</translation>
-    </message>
-    <message>
-        <source>Выделите диапазон на полосе с зажатым Shift</source>
-        <translation>Shift-drag a range on the bar first</translation>
     </message>
     <message>
         <source>Быстрая резка: без перекодирования, по ключевым кадрам</source>
@@ -2418,10 +2429,6 @@
     <message>
         <source>Нажмите, чтобы сменить режим</source>
         <translation>Click to change the mode</translation>
-    </message>
-    <message>
-        <source>Итог {0} · {1}×{2} · клипов {3}</source>
-        <translation>Result {0} · {1}×{2} · clips {3}</translation>
     </message>
     <message>
         <source>Звёздочка: есть несохранённые изменения</source>
@@ -2515,8 +2522,8 @@
         <translation>Volume, replacement and muting apply on export</translation>
     </message>
     <message>
-        <source>Выберите инструмент слева. Пробел — пауза, I и O — границы фрагмента</source>
-        <translation>Pick a tool on the left. Space pauses, I and O set the clip bounds</translation>
+        <source>Выберите инструмент слева. Пробел — пауза, K — разрезать, Delete — удалить блок</source>
+        <translation>Pick a tool on the left. Space — pause, K — split, Delete — delete block</translation>
     </message>
     <message>
         <source>Применить</source>

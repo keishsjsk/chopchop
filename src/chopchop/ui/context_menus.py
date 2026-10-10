@@ -240,6 +240,7 @@ class ContextMenus(QObject):
                 icon="reset_trim",
                 enabled=editor.block_is_trimmed(index),
             )
+        self._add(menu, "cut_marks", enabled=editor.has_marks())
         menu.addSeparator()
         self._add(menu, "mark_in")
         self._add(menu, "mark_out")

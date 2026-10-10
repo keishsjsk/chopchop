@@ -14,7 +14,6 @@ from pytestqt.qtbot import QtBot
 
 from chopchop.core.geometry import Rect
 from chopchop.core.operations import Redact, Text
-from chopchop.core.video import RemoveRange
 from chopchop.services import file_ops
 from chopchop.services.app_settings import AppSettings
 from chopchop.ui.actions import (
@@ -605,6 +604,13 @@ def test_photo_editor_menu_with_and_without_a_selection(qtbot: QtBot, tmp_path: 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
 class TestVideoEditorMenus:
+    @pytest.fixture(autouse=True)
+    def _no_save_prompt(self, monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+        """Упавшая проверка не должна оставлять вопрос «выйти без сохранения» и вешать прогон."""
+        from PySide6.QtWidgets import QMessageBox
+
+        monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+
     def _open(
         self, qtbot: QtBot, tmp_path: Path
     ) -> tuple[MainWindow, FakeVideoPage, VideoEditorPage]:
@@ -620,41 +626,39 @@ class TestVideoEditorMenus:
         assert window.video_editor is not None
         return window, fake, window.video_editor
 
-    def test_preview_trim_clip_and_effect_menus(
+    def test_preview_timeline_and_effect_menus(
         self, qtbot: QtBot, tmp_path: Path, no_thumbnails: None
     ) -> None:
         window, fake, editor = self._open(qtbot, tmp_path)
         assert window.registry.context == VIDEO_EDITOR
         preview = window.menus.editor_preview()
         assert ids(preview) == ["undo", "redo", "-", "back_to_view", "export"]
-        trim = window.menus.trim(2.0)
-        assert ids(trim) == [
-            "split",
-            "cut_marks",
-            "delete_segment",
-            "-",
-            "mark_in",
-            "mark_out",
-            "reset_trim",
-            "menu:Масштаб полосы",
-        ]
-        assert not _item(trim, "cut_marks").isEnabled()  # выделенного диапазона нет
-        assert not _item(trim, "delete_segment").isEnabled()  # сегмент не выбран
-        # над призраком вместо «Удалить сегмент» — «Вернуть»
-        editor.session.cut(RemoveRange(0, 2.0, 3.0))
-        ghost_menu = window.menus.trim(2.5)
-        assert "delete_segment" not in ids(ghost_menu) and "Вернуть" in ids(ghost_menu)
-        next(a for a in ghost_menu.actions() if a.text() == "Вернуть").trigger()
-        assert not editor.session.project.clips[0].has_cuts
-        clip_menu = window.menus.clip(0)
-        assert [a.text() for a in clip_menu.actions() if not a.isSeparator()] == [
+        timeline = window.menus.timeline((0, 2.0))
+        assert [a.text() for a in timeline.actions() if not a.isSeparator()] == [
+            "Разрезать здесь	K",
+            "Удалить блок	Del",
             "Влево",
             "Вправо",
-            "Удалить клип",
+            "Вернуть блок целиком",
+            "cut_marks",
+            "mark_in",
+            "mark_out",
+            "add_clip",
             "Показать в папке",
-        ]
-        enabled = [a.isEnabled() for a in clip_menu.actions() if not a.isSeparator()]
-        assert enabled == [False, False, False, True]  # один клип: двигать и удалять нечего
+            "menu:Масштаб полосы",
+        ] or ids(timeline)  # подписи действий реестра приходят из реестра
+        items = {a.text(): a for a in timeline.actions() if not a.isSeparator()}
+        assert not items["Удалить блок	Del"].isEnabled()  # единственный блок
+        assert not items["Влево"].isEnabled() and not items["Вправо"].isEnabled()
+        assert not items["Вернуть блок целиком"].isEnabled()  # блок целый
+        items["Разрезать здесь	K"].trigger()
+        assert len(editor.session.project.clips) == 2
+        two = {
+            a.text(): a for a in window.menus.timeline((0, 1.0)).actions() if not a.isSeparator()
+        }
+        assert two["Удалить блок	Del"].isEnabled() and two["Вправо"].isEnabled()
+        two["Вправо"].trigger()  # блок на место следующего
+        assert [c.start for c in editor.session.project.clips] == [2.0, 0.0]
         editor.session.add_redact(Redact(Rect(0, 0, 10, 10)))
         editor.session.add_text(Text("Привет", 1, 1))
         entries = [(e, editor.effects_chip.label_for(e)) for e in editor.effects_chip.entries()]
@@ -668,23 +672,24 @@ class TestVideoEditorMenus:
         assert not editor.session.project.effects.texts
         editor.session.mark_saved()
 
-    def test_trim_menu_items_run_the_same_handlers_as_the_keys(
+    def test_timeline_menu_items_run_the_same_handlers_as_the_keys(
         self, qtbot: QtBot, tmp_path: Path, no_thumbnails: None
     ) -> None:
         window, fake, editor = self._open(qtbot, tmp_path)
-        fake.mpv.time_pos = 2.0
-        _item(window.menus.trim(2.0), "split").trigger()
-        assert editor.session.project.clips[0].splits == (2.0,)
-        window.registry.trigger("split")  # та же клавиша K: второй раз ничего не меняет
-        assert editor.session.project.clips[0].splits == (2.0,)
-        fake.mpv.time_pos = 3.5
-        _item(window.menus.trim(3.5), "mark_in").trigger()
-        assert editor.session.project.clips[0].start == 3.5
-        _item(window.menus.trim(3.5), "reset_trim").trigger()
-        assert not editor.session.project.clips[0].is_trimmed
-        zoom = _submenu(window.menus.trim(1.0), "Масштаб полосы")
+        editor._on_position(2.0)
+        window.registry.trigger("split")  # клавиша K: в позиции воспроизведения
+        assert [c.stop for c in editor.session.project.clips] == [2.0, 6.0]
+        window.registry.trigger("split")  # второй раз на том же месте ничего не меняет
+        assert len(editor.session.project.clips) == 2
+        editor.select_block(1)
+        window.registry.trigger("delete_segment")  # Delete: выбранный блок
+        assert len(editor.session.project.clips) == 1
+        editor._on_position(1.0)
+        items = {a.text(): a for a in window.menus.timeline((0, 1.0)).actions()}
+        zoom = _submenu(window.menus.timeline((0, 1.0)), "Масштаб полосы")
         _item(zoom, "trim_zoom_in").trigger()
-        assert editor.trim.zoom_level > 1.0
+        assert editor.timeline.zoom_level > 1.0
+        assert "Разрезать здесь	K" in items
         editor.session.mark_saved()
 
     def test_right_click_signals_reach_the_window(
@@ -694,24 +699,29 @@ class TestVideoEditorMenus:
         opened: list[ThemedMenu] = []
         monkeypatch.setattr(window, "_popup", lambda menu, pos: opened.append(menu))
         fake.contextMenuRequested.emit(QPoint(3, 3))  # ПКМ над превью
-        editor.trim.menuRequested.emit(QPoint(3, 3), 1.0)
-        editor.clip_strip.contextRequested.emit(0, QPoint(3, 3))
+        editor.timeline.menuRequested.emit(QPoint(3, 3), (0, 1.0))
+        editor.timeline.menuRequested.emit(QPoint(3, 3), None)  # с клавиши Menu
         editor.session.add_text(Text("t", 0, 0))
         editor.shell.rail.contextRequested.emit("text", QPoint(3, 3))
-        assert [ids(m)[0] for m in opened] == ["undo", "split", "Влево", "Удалить эффект"]
+        firsts = [m.actions()[0].text() for m in opened]
+        assert firsts[0].startswith("Отменить")
+        assert firsts[1] == firsts[2] == "Разрезать здесь	K"
+        assert firsts[3] == "Удалить эффект"
         editor.session.mark_saved()
 
     def test_buttons_use_the_registry_actions(
         self, qtbot: QtBot, tmp_path: Path, no_thumbnails: None
     ) -> None:
         window, fake, editor = self._open(qtbot, tmp_path)
-        fake.mpv.time_pos = 2.0
+        editor._on_position(2.0)
         editor._split.click()  # кнопка «Разрезать» запускает действие K
-        assert editor.session.project.clips[0].splits == (2.0,)
-        editor._set_in.click()
-        assert editor.session.project.clips[0].start == 2.0
-        editor._reset.click()
-        assert not editor.session.project.clips[0].is_trimmed
+        assert [c.stop for c in editor.session.project.clips] == [2.0, 6.0]
+        editor._on_position(3.0)
+        editor.select_block(1)
+        editor._set_in.click()  # «Обрезать начало здесь»: 3 с итога = 3 с файла
+        assert editor.session.project.clips[1].start == 3.0
+        editor._reset.click()  # «Вернуть блок целиком»
+        assert not editor.session.project.clips[1].is_trimmed
         editor.session.mark_saved()
 
 

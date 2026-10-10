@@ -1,0 +1,203 @@
+{
+  "size": "1440p",
+  "steps": {
+    "split x3": {
+      "reload_ms": 43.0,
+      "project_s": 40.0,
+      "mpv_s": 40.0,
+      "ok": true,
+      "blocks": 4
+    },
+    "delete block": {
+      "reload_ms": 376.5,
+      "project_s": 30.0,
+      "mpv_s": 30.0,
+      "ok": true,
+      "blocks": 3
+    },
+    "drag block": {
+      "events": {
+        "UpdateRequest:MainWindow": {
+          "n": 40,
+          "p50": 24.72,
+          "p95": 67.03,
+          "max": 81.34,
+          "over16": 32,
+          "total_ms": 1002
+        },
+        "Paint:Timeline": {
+          "n": 40,
+          "p50": 0.57,
+          "p95": 3.25,
+          "max": 7.93,
+          "over16": 0,
+          "total_ms": 36
+        },
+        "MetaCall:TracksPanel": {
+          "n": 4,
+          "p50": 1.89,
+          "p95": 4.21,
+          "max": 4.21,
+          "over16": 0,
+          "total_ms": 8
+        },
+        "Timer:QAbstractEventDispatcher": {
+          "n": 110,
+          "p50": 0.03,
+          "p95": 0.09,
+          "max": 0.18,
+          "over16": 0,
+          "total_ms": 4
+        },
+        "Paint:MpvWidget": {
+          "n": 1,
+          "p50": 2.73,
+          "p95": 2.73,
+          "max": 2.73,
+          "over16": 0,
+          "total_ms": 3
+        },
+        "Timer:QTimer": {
+          "n": 111,
+          "p50": 0.01,
+          "p95": 0.06,
+          "max": 0.1,
+          "over16": 0,
+          "total_ms": 2
+        },
+        "Paint:MainWindow": {
+          "n": 40,
+          "p50": 0.04,
+          "p95": 0.07,
+          "max": 0.12,
+          "over16": 0,
+          "total_ms": 2
+        },
+        "Paint:QStackedWidget": {
+          "n": 40,
+          "p50": 0.03,
+          "p95": 0.04,
+          "max": 0.07,
+          "over16": 0,
+          "total_ms": 1
+        }
+      },
+      "stalls_16": 27,
+      "stalls_50": 3,
+      "stall_max": 87.4,
+      "move_latency_p50": 0.0,
+      "move_latency_p95": 0.0,
+      "move_latency_max": 0.0,
+      "press_latency": [],
+      "paintgl_p50": 2.44,
+      "paintgl_p95": 2.44,
+      "paintgl_n": 1,
+      "cpu_share": 1.24,
+      "order": [
+        20,
+        30,
+        0
+      ]
+    },
+    "move block": {
+      "reload_ms": 435.9,
+      "project_s": 30.0,
+      "mpv_s": 30.0,
+      "ok": true,
+      "blocks": 3
+    },
+    "drag edge": {
+      "events": {
+        "UpdateRequest:MainWindow": {
+          "n": 20,
+          "p50": 25.09,
+          "p95": 175.72,
+          "max": 175.72,
+          "over16": 14,
+          "total_ms": 660
+        },
+        "Paint:Timeline": {
+          "n": 20,
+          "p50": 2.45,
+          "p95": 3.78,
+          "max": 3.78,
+          "over16": 0,
+          "total_ms": 53
+        },
+        "Paint:MpvWidget": {
+          "n": 2,
+          "p50": 42.02,
+          "p95": 42.02,
+          "max": 42.02,
+          "over16": 1,
+          "total_ms": 43
+        },
+        "MetaCall:TracksPanel": {
+          "n": 7,
+          "p50": 1.8,
+          "p95": 2.39,
+          "max": 2.39,
+          "over16": 0,
+          "total_ms": 12
+        },
+        "Paint:QLabel": {
+          "n": 11,
+          "p50": 0.18,
+          "p95": 0.2,
+          "max": 0.2,
+          "over16": 0,
+          "total_ms": 2
+        },
+        "Paint:MainWindow": {
+          "n": 20,
+          "p50": 0.04,
+          "p95": 0.13,
+          "max": 0.13,
+          "over16": 0,
+          "total_ms": 1
+        },
+        "Timer:QAbstractEventDispatcher": {
+          "n": 38,
+          "p50": 0.02,
+          "p95": 0.04,
+          "max": 0.05,
+          "over16": 0,
+          "total_ms": 1
+        },
+        "Polish:QLabel": {
+          "n": 6,
+          "p50": 0.1,
+          "p95": 0.19,
+          "max": 0.19,
+          "over16": 0,
+          "total_ms": 1
+        }
+      },
+      "stalls_16": 15,
+      "stalls_50": 4,
+      "stall_max": 178.5,
+      "move_latency_p50": 0.0,
+      "move_latency_p95": 0.0,
+      "move_latency_max": 0.0,
+      "press_latency": [],
+      "paintgl_p50": 1.05,
+      "paintgl_p95": 1.05,
+      "paintgl_n": 2,
+      "cpu_share": 1.32
+    },
+    "stretch edge": {
+      "reload_ms": 459.4,
+      "project_s": 30.95,
+      "mpv_s": 30.95,
+      "ok": true,
+      "blocks": 3
+    },
+    "undo all": {
+      "reload_ms": 200.1,
+      "project_s": 40.0,
+      "mpv_s": 40.0,
+      "ok": true,
+      "blocks": 1
+    }
+  }
+}

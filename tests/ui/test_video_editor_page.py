@@ -8,7 +8,7 @@ from pytestqt.qtbot import QtBot
 
 from chopchop.core.geometry import Rect
 from chopchop.core.operations import Redact, Text
-from chopchop.core.video import Clip, RemoveRange, SplitAt, VideoProject
+from chopchop.core.video import Clip, RemoveBlock, RemoveRange, SplitAt, VideoProject
 from chopchop.editor.video_session import VideoSession
 from chopchop.engines.probe import probe
 from chopchop.ui.video_editor_page import VideoEditorPage
@@ -36,10 +36,10 @@ def _page(
     return page, fake
 
 
-def test_opens_first_clip_in_player(qtbot: QtBot, tmp_path: Path) -> None:
+def test_opens_the_montage_in_the_player(qtbot: QtBot, tmp_path: Path) -> None:
     page, fake = _page(qtbot, tmp_path)
-    assert fake.mpv.loaded[0][0] == str(tmp_path / "a.mp4")
-    assert page.clip_strip.count() == 1
+    assert fake.mpv.loaded[0][0] == str(tmp_path / "a.mp4")  # один целый блок: просто файл
+    assert len(page.timeline.blocks) == 1
     assert "0:06" in page._summary.text()
     assert not page._undo_button.isEnabled()
     page.shutdown()
@@ -47,15 +47,15 @@ def test_opens_first_clip_in_player(qtbot: QtBot, tmp_path: Path) -> None:
 
 def test_set_in_and_out_use_playhead_position(qtbot: QtBot, tmp_path: Path) -> None:
     page, fake = _page(qtbot, tmp_path)
-    fake.mpv.time_pos = 2.0
+    page._on_position(2.0)
     page.set_in()
-    fake.mpv.time_pos = 5.0
+    page._on_position(3.0)  # итог теперь начинается с 2-й секунды файла: 3 с итога = 5 с файла
     page.set_out()
     clip = page.session.project.clips[0]
     assert (clip.start, clip.stop) == (2.0, 5.0)
     assert "0:03" in page._summary.text()
     assert "*" in page._summary.text()
-    assert (fake.mpv.ab_loop_a, fake.mpv.ab_loop_b) == (2.0, 5.0)  # предпросмотр зациклен
+    assert fake.mpv.loaded[-1][0].startswith("edl://")  # плеер играет уже обрезанный монтаж
     page.undo()
     page.undo()
     assert page.session.project.clips[0].start == 0.0
@@ -70,13 +70,24 @@ def test_reset_trim(qtbot: QtBot, tmp_path: Path) -> None:
     page.shutdown()
 
 
-def test_file_loaded_pauses_and_seeks_to_start(qtbot: QtBot, tmp_path: Path) -> None:
+def test_every_change_of_the_montage_reloads_the_player_at_the_same_picture(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
     page, fake = _page(qtbot, tmp_path)
-    page.session.set_trim(0, 3.0, 5.0)
+    count = len(fake.mpv.loaded)
+    page._on_position(4.0)
+    page.session.cut(SplitAt(2.0))  # разрез: показ не меняется, перезагрузки нет
+    assert len(fake.mpv.loaded) == count
+    page.session.cut(RemoveBlock(0))  # вырезали первые 2 секунды
+    source, options = fake.mpv.loaded[-1]
+    assert source.startswith("edl://") and ",2.000000,4.000000" in source
+    assert options == {"start": "2.000"}  # тот же кадр (4 с файла) теперь на 2 с итога
+    assert fake.mpv.pause is True  # состояние паузы сохранено
     fake.mpv.pause = False
-    fake.mpv.event_handlers[1](object())  # file-loaded
-    qtbot.waitUntil(lambda: fake.mpv.pause is True, timeout=2000)
-    assert fake.mpv.seeks[-1] == (3.0, "absolute", "exact")
+    fake.mpv.fire("pause", False)
+    page.session.undo()
+    assert fake.mpv.loaded[-1][0] == str(tmp_path / "a.mp4")  # всё целиком: снова просто файл
+    assert fake.mpv.pause is False
     page.shutdown()
 
 
@@ -113,8 +124,8 @@ def test_add_compatible_clip(qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a, **k: (str(other), ""))
     page.add_clip()
     qtbot.waitUntil(lambda: len(page.session.project.clips) == 2, timeout=10000)
-    qtbot.waitUntil(lambda: page.clip_strip.current == 1, timeout=2000)
-    assert fake.mpv.loaded[-1][0] == str(other)  # новый клип сразу открыт в плеере
+    qtbot.waitUntil(lambda: page.selected_block == 1, timeout=2000)
+    assert "b.mp4" in fake.mpv.loaded[-1][0]  # новый блок сразу в предпросмотре
     assert "0:10" in page._summary.text()
     page.shutdown()
 
@@ -134,17 +145,16 @@ def test_add_clip_with_other_parameters_is_allowed_with_a_warning(
     page.shutdown()
 
 
-def test_remove_and_reorder_clips(
-    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_remove_and_reorder_blocks(qtbot: QtBot, tmp_path: Path) -> None:
     page, _fake = _page(qtbot, tmp_path)
-    page._remove_clip()  # единственный клип остаётся
+    page.delete_block(0)  # единственный блок остаётся
     assert len(page.session.project.clips) == 1
     other = make_video(tmp_path / "b.mp4", seconds=2)
     page.session.add_clip(Clip(other, probe(other)))
-    page._on_row_changed(1)
-    page._move_clip(-1)
+    page.select_block(1)
+    page.move_block(1, 0)
     assert [c.path.name for c in page.session.project.clips] == ["b.mp4", "a.mp4"]
+    assert page.selected_block == 0  # выбор следует за блоком
     page.shutdown()
 
 
@@ -455,39 +465,37 @@ def test_audio_mark_follows_the_audio_settings(qtbot: QtBot, tmp_path: Path) -> 
     page.shutdown()
 
 
-def test_clip_strip_add_reorder_and_remove(
-    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_timeline_add_reorder_and_remove(qtbot: QtBot, tmp_path: Path) -> None:
     page, _fake = _page(qtbot, tmp_path)
     other = make_video(tmp_path / "b.mp4", seconds=2)
     page.session.add_clip(Clip(other, probe(other)))
-    assert page.clip_strip.count() == 2
-    page.clip_strip.moveRequested.emit(0, 1)  # перетаскивание
+    assert len(page.timeline.blocks) == 2
+    page.timeline.moveRequested.emit(0, 1)  # перетаскивание
     assert [c.path.name for c in page.session.project.clips] == ["b.mp4", "a.mp4"]
-    assert len(page.session.project.clips) == 2
     page.undo()  # перестановка отменяется одним шагом
     assert [c.path.name for c in page.session.project.clips] == ["a.mp4", "b.mp4"]
-    page.clip_strip.removeRequested.emit(1)
+    page.delete_block(1)
     assert [c.path.name for c in page.session.project.clips] == ["a.mp4"]
-    page.clip_strip.removeRequested.emit(0)  # последний клип остаётся
+    page.delete_block(0)  # последний блок остаётся
     assert len(page.session.project.clips) == 1
     page.shutdown()
 
 
 def test_transport_buttons_are_reachable(qtbot: QtBot, tmp_path: Path) -> None:
     page, fake = _page(qtbot, tmp_path)
-    fake.mpv.time_pos = 2.0
+    page._on_position(2.0)
     page._set_in.click()
-    fake.mpv.time_pos = 5.0
+    page._on_position(3.0)
     page._set_out.click()
     clip = page.session.project.clips[0]
     assert (clip.start, clip.stop) == (2.0, 5.0)
-    page._reset.click()
+    page.select_block(0)
+    page._reset.click()  # вернуть блок целиком
     assert not page.session.project.clips[0].is_trimmed
     page._step_forward.click()
     page._step_back.click()
     assert ("frame-step",) in fake.mpv.commands and ("frame-back-step",) in fake.mpv.commands
-    fake.mpv.time_pos = 3.0
+    page._on_position(3.0)
     page.step_seconds(1)
     assert fake.mpv.seeks[-1] == (4.0, "absolute", "exact")
     paused = fake.mpv.pause
@@ -499,14 +507,14 @@ def test_transport_buttons_are_reachable(qtbot: QtBot, tmp_path: Path) -> None:
     page.shutdown()
 
 
-def test_zoom_buttons_follow_the_trim_bar(qtbot: QtBot, tmp_path: Path) -> None:
+def test_zoom_buttons_follow_the_timeline(qtbot: QtBot, tmp_path: Path) -> None:
     page, _fake = _page(qtbot, tmp_path)
     assert not page._zoom_out.isEnabled() and not page._zoom_fit.isEnabled()
     page._zoom_in.click()
-    assert page.trim.zoom_level > 1.0
+    assert page.timeline.zoom_level > 1.0
     assert page._zoom_out.isEnabled() and page._zoom_fit.isEnabled()
     page._zoom_fit.click()
-    assert page.trim.zoom_level == 1.0 and not page._zoom_fit.isEnabled()
+    assert page.timeline.zoom_level == 1.0 and not page._zoom_fit.isEnabled()
     page.shutdown()
 
 
@@ -523,19 +531,10 @@ def test_trim_height_is_remembered(qtbot: QtBot, tmp_path: Path) -> None:
     qtbot.addWidget(page)
     page.resize(1100, 800)
     page.show()
-    qtbot.waitUntil(lambda: page._sized and abs(page.trim.height() - 120) <= 2, timeout=3000)
+    qtbot.waitUntil(lambda: page._sized and abs(page.timeline.height() - 120) <= 2, timeout=3000)
     page.splitter.setSizes([100, 700])
     page._save_trim_height()
-    assert settings.get_int("state.trim_height") == page.trim.height()
-    page.shutdown()
-
-
-def test_small_window_collapses_clip_strip_to_one_row(qtbot: QtBot, tmp_path: Path) -> None:
-    page, _fake = _page(qtbot, tmp_path)
-    page.resize(960, 600)
-    assert page.clip_strip._compact
-    page.resize(1200, 900)
-    assert not page.clip_strip._compact
+    assert settings.get_int("state.trim_height") == page.timeline.height()
     page.shutdown()
 
 
@@ -549,98 +548,81 @@ def test_theme_switch_recolours_the_editor(qtbot: QtBot, tmp_path: Path) -> None
 # --- вырезы из середины -------------------------------------------------------------------------
 
 
-def _click(bar, seconds: float, shift: bool = False) -> None:  # type: ignore[no-untyped-def]
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtTest import QTest
-
-    modifier = Qt.KeyboardModifier.ShiftModifier if shift else Qt.KeyboardModifier.NoModifier
-    QTest.mouseClick(
-        bar,
-        Qt.MouseButton.LeftButton,
-        modifier,
-        QPointF(bar._x(seconds), bar.height() / 2).toPoint(),
-    )
-
-
-def test_split_select_segment_and_delete_with_undo(qtbot: QtBot, tmp_path: Path) -> None:
-    page, fake = _page(qtbot, tmp_path)
+def test_split_select_block_and_delete_with_undo(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
     page.resize(1100, 800)
-    fake.mpv.time_pos = 2.0
+    page._on_position(2.0)
     page.split_here()
-    fake.mpv.time_pos = 4.0
+    page._on_position(4.0)
     page.split_here()
-    clip = page.session.project.clips[0]
-    assert clip.splits == (2.0, 4.0) and clip.length == pytest.approx(6.0, abs=0.1)
-    assert not page._delete.isEnabled()
-    _click(page.trim, 3.0)  # клик по среднему сегменту выбирает его
-    assert page._segment == (2.0, 4.0) and page._delete.isEnabled()
+    blocks = page.session.project.clips
+    assert [(c.start, c.stop) for c in blocks] == [(0.0, 2.0), (2.0, 4.0), (4.0, 6.0)]
+    assert not page._delete.isEnabled()  # ничего не выбрано
+    page.select_block(1)  # так же выбирает щелчок по блоку
+    assert page._delete.isEnabled() and "Блок 2 из 3" in page._range.text()
     page.delete_selected()
-    clip = page.session.project.clips[0]
-    assert clip.ranges[0] == (0.0, 2.0) and clip.ranges[1][0] == 4.0
+    assert [(c.start, c.stop) for c in page.session.project.clips] == [(0.0, 2.0), (4.0, 6.0)]
     assert "0:04" in page.shell.status.summary()  # длина итога обновилась
-    assert clip.ghosts() == ((2.0, 4.0),)
+    assert "Вырезано: 1 фрагмент, −0:02" in page.shell.status.summary()
     page.undo()  # одна операция — один шаг
-    assert page.session.project.clips[0].splits == (2.0, 4.0)
-    assert page.session.project.clips[0].ranges[0][1] == pytest.approx(6.0, abs=0.1)
+    assert len(page.session.project.clips) == 3
+    assert "Вырезано" not in page.shell.status.summary()
     page.shutdown()
 
 
-def test_shift_drag_marks_a_range_and_ctrl_x_cuts_it(qtbot: QtBot, tmp_path: Path) -> None:
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtTest import QTest
-
+def test_k_splits_where_the_playhead_is_and_refuses_on_a_seam(qtbot: QtBot, tmp_path: Path) -> None:
     page, _fake = _page(qtbot, tmp_path)
-    page.resize(1100, 800)
-    page.cut_marks()  # выделения нет: подсказка, ничего не меняется
-    assert len(page.session.project.clips[0].ranges) == 1
-    bar = page.trim
-    y = bar.height() // 2
-    shift = Qt.KeyboardModifier.ShiftModifier
-    QTest.mousePress(bar, Qt.MouseButton.LeftButton, shift, QPointF(bar._x(1.0), y).toPoint())
-    QTest.mouseMove(bar, QPointF(bar._x(3.0), y).toPoint())
-    QTest.mouseRelease(bar, Qt.MouseButton.LeftButton, shift, QPointF(bar._x(3.0), y).toPoint())
-    assert bar.marks is not None and bar.marks[0] == pytest.approx(1.0, abs=0.1)
-    page.cut_marks()
-    clip = page.session.project.clips[0]
-    assert len(clip.ranges) == 2 and clip.length == pytest.approx(4.0, abs=0.2)
-    assert bar.marks is None
+    notes: list[str] = []
+    page.message.connect(notes.append)
+    page._on_position(0.0)
+    page.split_here()  # в самом начале шва нет смысла делить
+    assert len(page.session.project.clips) == 1 and notes
+    page._on_position(3.0)
+    page.split_here()
+    page.split_here()  # то же место ещё раз: шов уже есть
+    assert len(page.session.project.clips) == 2
     page.shutdown()
 
 
-def test_clicking_a_ghost_restores_it_and_reset_clears_everything(
-    qtbot: QtBot, tmp_path: Path
-) -> None:
+def test_deleting_without_a_selection_asks_to_pick_a_block(qtbot: QtBot, tmp_path: Path) -> None:
     page, _fake = _page(qtbot, tmp_path)
-    page.resize(1100, 800)
-    page.session.cut(SplitAt(0, 3.0))
-    page.session.cut(RemoveRange(0, 2.0, 3.0))
-    assert page.session.project.clips[0].has_cuts
-    _click(page.trim, 2.5)  # клик по заштрихованному призраку
-    assert not page.session.project.clips[0].has_cuts
-    page.session.cut(RemoveRange(0, 1.0, 2.0))
-    page._reset.click()
-    assert page.session.project.clips[0] == page.session.project.clips[0].reset()
-    assert not page.session.project.clips[0].is_trimmed and not page.session.project.clips[0].splits
+    notes: list[str] = []
+    page.message.connect(notes.append)
+    page.delete_selected()
+    assert notes == ["Выберите блок на полосе или выделите участок с Shift"]
     page.shutdown()
 
 
-def test_preview_skips_removed_parts_only_while_playing(qtbot: QtBot, tmp_path: Path) -> None:
+def test_cut_range_removes_a_stretch_of_the_result(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.cut_range(1.0, 3.0)
+    assert [(c.start, c.stop) for c in page.session.project.clips] == [(0.0, 1.0), (3.0, 6.0)]
+    page.shutdown()
+
+
+def test_stretching_an_edge_brings_back_what_was_cut(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    page.session.cut(SplitAt(3.0))
+    page.delete_block(1)  # вырезали 3-6
+    assert page.session.project.duration == pytest.approx(3.0)
+    page.timeline.trimCommitted.emit(0, 0.0, 5.0)  # край блока вытянули вправо
+    assert page.session.project.clips[0].stop == 5.0
+    page.select_block(0)
+    page._reset.click()  # или вернули блок целиком
+    assert not page.session.project.clips[0].is_trimmed
+    page.shutdown()
+
+
+def test_moving_a_block_reloads_the_preview_in_the_new_order(qtbot: QtBot, tmp_path: Path) -> None:
     page, fake = _page(qtbot, tmp_path)
-    page.session.cut(RemoveRange(0, 2.0, 4.0))
-    fake.mpv.pause = True
-    page._on_position(1.99)
-    assert not any(
-        s[0] == 4.0 for s in fake.mpv.seeks
-    )  # на паузе не прыгаем: можно шагать по кадрам
-    fake.mpv.pause = False
-    page._on_position(1.99)
-    assert fake.mpv.seeks[-1] == (4.0, "absolute", "exact")
-    count = len(fake.mpv.seeks)
-    page._on_position(2.01)  # ещё внутри выреза: второго прыжка нет
-    assert len(fake.mpv.seeks) == count
-    page._on_position(4.5)
-    page._on_position(1.99)  # вернулись к вырезу снова — прыжок снова возможен
-    assert len(fake.mpv.seeks) == count + 1
+    page.session.cut(SplitAt(2.0))
+    page.session.cut(SplitAt(4.0))
+    page.move_block(1, 2)  # середину в конец
+    source = fake.mpv.loaded[-1][0]
+    assert source.startswith("edl://")
+    # куски файла в порядке 0-2, 4-6, 2-4
+    starts = [float(part.split(",")[1]) for part in source[len("edl://") :].split(";")]
+    assert starts == [0.0, 4.0, 2.0]
     page.shutdown()
 
 
@@ -648,11 +630,9 @@ def test_cut_mode_badge_cycles_and_warns_about_junctions(qtbot: QtBot, tmp_path:
     page, _fake = _page(qtbot, tmp_path)
     settings = page._app
     settings.set("editor.cut_mode", "fast")
-    path = page.clip.path
+    path = page.session.project.clips[0].path
     page._keyframes[path] = (0.0, 2.0, 4.0)
-    page.session.cut(
-        RemoveRange(0, 1.0, 3.0)
-    )  # второй кусок начинается на 3.0, не на ключевом кадре
+    page.session.cut(RemoveRange(1.0, 3.0))  # второй блок начинается на 3.0, не на ключевом кадре
     assert page.precise_junctions() == 1
     assert page._mode.property("warn") is True and "(1)" in page._mode.toolTip()
     page.cycle_cut_mode()
@@ -669,8 +649,7 @@ def test_export_dialog_follows_the_cut_mode_setting(qtbot: QtBot, tmp_path: Path
     from chopchop.services.app_settings import AppSettings
 
     source = make_video(tmp_path / "a.mp4", seconds=3)
-    clip = Clip(source, probe(source)).remove_span(0.5, 1.5)
-    project = VideoProject((clip,))
+    project = RemoveRange(0.5, 1.5).apply(VideoProject((Clip(source, probe(source)),)))
     for mode, enabled, checked in (
         ("ask", True, False),
         ("fast", False, False),
@@ -688,7 +667,7 @@ def test_export_dialog_follows_the_cut_mode_setting(qtbot: QtBot, tmp_path: Path
         )  # предупреждение только при копировании
 
 
-def test_display_time_is_set_in_the_panel_stored_in_result_time_and_previewed_in_file_time(
+def test_display_time_is_set_in_the_panel_and_previewed_in_result_time(
     qtbot: QtBot, tmp_path: Path
 ) -> None:
     page, fake = _page(qtbot, tmp_path)
@@ -705,14 +684,14 @@ def test_display_time_is_set_in_the_panel_stored_in_result_time_and_previewed_in
     assert panel.redact_time.values() == (0.0, -1.0)  # после применения окно снова на весь ролик
     graph = str(_vf_commands(fake)[-1][2])
     assert "enable='between(t,3.000,5.000)'" in graph
-    page.session.cut(RemoveRange(0, 1.0, 2.0))  # вырез до окна: итог короче, окно уезжает
+    page.session.cut(RemoveRange(1.0, 2.0))  # вырез до окна: итог короче, окно уезжает
     redact = page.session.project.effects.redacts[0]
     assert (redact.show_from, redact.show_to) == (2.0, 4.0)
     graph = str(_vf_commands(fake)[-1][2])
-    assert "enable='between(t,3.000,5.000)'" in graph  # в файле те же секунды, что и раньше
+    assert "enable='between(t,2.000,4.000)'" in graph  # плеер играет итог: времена те же
     notes: list[str] = []
     page.message.connect(notes.append)
-    page.session.cut(RemoveRange(0, 3.0, 5.0))  # вырезано всё окно целиком
+    page.session.cut(RemoveRange(2.0, 4.0))  # вырезано всё окно целиком
     assert any("сжалось" in n for n in notes)
     page.shutdown()
 
@@ -727,4 +706,20 @@ def test_text_panel_has_the_same_time_window(qtbot: QtBot, tmp_path: Path) -> No
     page.apply_pending()
     text = page.session.project.effects.texts[0]
     assert (text.show_from, text.show_to) == (1.0, -1.0)
+    page.shutdown()
+
+
+def test_marked_range_is_cut_with_ctrl_x_and_delete(qtbot: QtBot, tmp_path: Path) -> None:
+    page, _fake = _page(qtbot, tmp_path)
+    notes: list[str] = []
+    page.message.connect(notes.append)
+    page.cut_marks()  # выделения нет: подсказка, ничего не меняется
+    assert notes and len(page.session.project.clips) == 1
+    page.timeline.set_marks((1.0, 3.0))
+    page.cut_marks()
+    assert [(c.start, c.stop) for c in page.session.project.clips] == [(0.0, 1.0), (3.0, 6.0)]
+    assert page.timeline.marks is None
+    page.timeline.set_marks((0.5, 1.5))
+    page.delete_selected()  # Delete тоже режет выделение, если оно есть
+    assert page.session.project.duration == pytest.approx(3.0)
     page.shutdown()

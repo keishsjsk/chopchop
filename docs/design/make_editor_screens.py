@@ -26,7 +26,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from chopchop import i18n  # noqa: E402
 from chopchop.core.geometry import Rect  # noqa: E402
 from chopchop.core.operations import Redact, Text  # noqa: E402
-from chopchop.core.video import Clip, RemoveRange, SplitAt  # noqa: E402
+from chopchop.core.video import Clip  # noqa: E402
 from chopchop.engines.probe import probe  # noqa: E402
 from chopchop.services.app_settings import AppSettings  # noqa: E402
 from chopchop.ui.main_window import MainWindow  # noqa: E402
@@ -56,17 +56,18 @@ def prepare(window: MainWindow, video: Path, second: Path) -> None:
     until(lambda: window.video_editor is not None)
     editor = window.video_editor
     assert editor is not None and FFPROBE is not None
-    editor.session.set_trim(0, 1.0, 9.5)
     width, height = editor.session.project.frame_size
     editor.session.add_redact(Redact(Rect(width * 0.08, height * 0.12, width * 0.2, height * 0.16)))
     editor.session.add_text(Text("CHOPCHOP", width * 0.55, height * 0.78, height * 0.07))
     editor.session.set_volume(0.8)
-    editor.session.cut(RemoveRange(0, 5.0, 6.5))  # вырез из середины: призрак на полосе
-    editor.session.cut(SplitAt(0, 8.0))
+    # монтаж блоками: разрезы, удалённая середина, перестановка и второй ролик в конце
+    for at in (3.0, 6.0, 9.0):
+        editor.split_at(at)
+    editor.delete_block(1)  # вырезали 3-6
+    editor.move_block(0, 1)  # первый блок после следующего
     editor.session.add_clip(Clip(second, probe(second, FFPROBE)))
-    editor.clip_strip.set_current(0)
-    editor._on_row_changed(0)
-    wait(600)
+    editor.select_block(1)
+    wait(800)
     editor._video_page.player.seek_to(4.0, exact=True)
     wait(500)
 

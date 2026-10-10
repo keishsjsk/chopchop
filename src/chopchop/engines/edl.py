@@ -28,8 +28,9 @@ def edl_entries(project: VideoProject) -> list[Entry]:
 def edl_source(project: VideoProject) -> str:
     """Что загрузить в mpv: сам файл, если показывается он весь, иначе `edl://`."""
     entries = edl_entries(project)
-    if len(entries) == 1 and not project.clips[0].is_trimmed and len(project.clips) == 1:
-        return str(entries[0][0])
+    duration = project.clips[0].info.duration
+    if len(entries) == 1 and entries[0][1] <= EPS and entries[0][2] >= duration - EPS:
+        return str(entries[0][0])  # весь файл целиком, как есть
     parts = []
     for path, start, stop in entries:
         text = str(path)

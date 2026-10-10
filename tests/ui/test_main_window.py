@@ -204,7 +204,7 @@ def test_video_editor_opens_edits_and_returns_player(
     assert "редактор" in window.windowTitle()
     assert editor.isAncestorOf(fake)  # плеер переехал в редактор
 
-    fake.mpv.time_pos = 2.0
+    editor._on_position(2.0)
     window._with_editor(lambda e: e.set_in() if isinstance(e, VideoEditorPage) else None)
     assert editor.session.project.clips[0].start == 2.0
     window._with_editor(lambda e: e.undo())
@@ -215,7 +215,7 @@ def test_video_editor_opens_edits_and_returns_player(
     assert ("frame-step",) in fake.mpv.commands
     window._horizontal(-1)
     assert ("frame-back-step",) in fake.mpv.commands
-    fake.mpv.time_pos = 3.0
+    editor._on_position(3.0)
     window._seek_long(1)  # Shift + стрелка — секунда
     assert fake.mpv.seeks[-1] == (4.0, "absolute", "exact")
 
@@ -223,7 +223,7 @@ def test_video_editor_opens_edits_and_returns_player(
     assert window.video_editor is None
     assert window._stack.currentWidget() is fake
     assert window.current_path == source
-    assert fake.mpv.ab_loop_a == "no"  # цикл предпросмотра снят
+    assert fake.mpv.loaded[-1][0] == str(source)  # снова исходный файл, а не монтаж
 
 
 @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg не установлен")
@@ -262,17 +262,14 @@ def test_cut_keys_reach_the_video_editor(qtbot: QtBot, tmp_path: Path, no_thumbn
     qtbot.waitUntil(lambda: window.video_editor is not None, timeout=10000)
     editor = window.video_editor
     assert editor is not None
-    fake.mpv.time_pos = 2.0
+    editor._on_position(2.0)
     window._with_video_editor(lambda e: e.split_here())  # клавиша K
-    assert editor.session.project.clips[0].splits == (2.0,)
-    fake.mpv.time_pos = 4.0
+    assert [c.stop for c in editor.session.project.clips] == [2.0, 6.0]
+    editor._on_position(4.0)
     window._with_video_editor(lambda e: e.split_here())
-    editor._segment = editor.clip.segments()[1]  # средний сегмент: вырез, а не обрезка края
+    editor.select_block(1)  # средний блок
     try:
         window._with_video_editor(lambda e: e.delete_selected())  # клавиша Delete
-        assert editor.session.project.clips[0].has_cuts
-        cuts = editor.session.project.clips[0].cuts
-        window._with_video_editor(lambda e: e.cut_marks())  # Ctrl+X без выделения: без изменений
-        assert editor.session.project.clips[0].cuts == cuts
+        assert [(c.start, c.stop) for c in editor.session.project.clips] == [(0.0, 2.0), (4.0, 6.0)]
     finally:
         editor.session.mark_saved()  # иначе закрытие окна спросит про несохранённое

@@ -365,6 +365,14 @@ def build_registry(window: "MainWindow") -> ActionRegistry:
         contexts={VIDEO_EDITOR},
     )
     add(
+        "cut_marks",
+        QCoreApplication.translate("MainWindow", "Вырезать выделение"),
+        "Ctrl+X",
+        ve(lambda e: e.cut_marks()),
+        icon="trim",
+        contexts={VIDEO_EDITOR},
+    )
+    add(
         "reset_trim",
         QCoreApplication.translate("MainWindow", "Вернуть блок целиком"),
         "",

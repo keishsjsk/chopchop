@@ -128,9 +128,11 @@ def test_offsets_and_flat_ranges_follow_block_order() -> None:
 def test_cut_summary_counts_gaps_in_each_source() -> None:
     assert cut_summary(_project()) == (0, 0.0)
     cut = RemoveBlock(1).apply(_project().split_at(20).split_at(40))
-    assert cut_summary(cut) == (1, pytest.approx(20.0))
+    count, seconds = cut_summary(cut)
+    assert count == 1 and seconds == pytest.approx(20.0)
     trimmed = _project(_clip().with_trim(10, 50))
-    assert cut_summary(trimmed) == (2, pytest.approx(20.0))  # начало и хвост
+    count, seconds = cut_summary(trimmed)  # начало и хвост
+    assert count == 2 and seconds == pytest.approx(20.0)
     reordered = MoveBlock(0, 1).apply(_project().split_at(30))
     assert cut_summary(reordered) == (0, 0.0)  # ничего не потеряно, только порядок
 
