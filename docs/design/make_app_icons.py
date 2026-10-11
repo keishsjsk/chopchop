@@ -17,8 +17,8 @@ from PySide6.QtSvg import QSvgRenderer
 OUT = Path(__file__).resolve().parent / "icons"
 BG, INK, ACCENT, ON_ACCENT = "#F8EDE3", "#4B2A21", "#B04F33", "#FFF8F0"
 ACCENT_DARK = "#E8804A"
-PAGE_LIGHT, PAGE_DARK = "#EFE2D2", "#241713"
-TEXT_LIGHT, TEXT_DARK = "#4B2A21", "#F6E6CB"
+PAGE_LIGHT, PAGE_DARK = "#EFE2D2", "#1B1B1B"
+TEXT_LIGHT, TEXT_DARK = "#4B2A21", "#ECECEC"
 
 Rect = tuple[int, int, int, int, str]
 
@@ -81,7 +81,7 @@ VARIANTS = {"a": variant_a, "b": variant_b, "c": variant_c, "d": variant_d}
 
 
 def svg_text(rects: list[Rect], dark: bool = False) -> str:
-    swap = {BG: "#2E1F19", INK: "#F6E6CB", ACCENT: ACCENT_DARK, ON_ACCENT: "#2B0F1A"}
+    swap = {BG: "#242424", INK: "#ECECEC", ACCENT: ACCENT_DARK, ON_ACCENT: "#2B0F1A"}
     body = "\n".join(
         f'  <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{swap.get(c, c) if dark else c}"/>'
         for x, y, w, h, c in rects

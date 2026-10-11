@@ -64,7 +64,8 @@ OVERLAY_LIGHT = (255, 255, 255)
 RGBA = tuple[int, int, int, int]
 
 
-TINT_AMOUNT = 0.2  # доля акцента в тонировке выбранного сегмента
+TINT_AMOUNT = 0.2  # доля акцента в тонировке выбранного сегмента (светлая тема)
+TINT_AMOUNT_DARK = 0.05  # в тёмной серой теме тонировка тоньше: серый с едва заметным оттенком
 
 
 def blend(foreground: Color, background: Color, amount: float) -> Color:
@@ -102,11 +103,12 @@ class Palette:
     focus_ring: Color
     shadow: Color  # жёсткая тень рамок
     accent_tint: Color = ""  # лёгкая тонировка выбранного сегмента: акцент поверх поверхности
+    tint_amount: float = TINT_AMOUNT  # доля акцента в тонировке при пересчёте под другой акцент
 
     def __post_init__(self) -> None:
         if not self.accent_tint:
             object.__setattr__(
-                self, "accent_tint", blend(self.accent, self.surface_raised, TINT_AMOUNT)
+                self, "accent_tint", blend(self.accent, self.surface_raised, self.tint_amount)
             )
 
     def with_accent(self, accent: "AccentSet") -> "Palette":
@@ -225,15 +227,17 @@ LIGHT = Palette(  # «Ember Cream»: тёплый крем и терракота
     accent_tint="#F4D9C8",
 )
 
-DARK = Palette(  # «Ember Night»: тёплая ночь, терракота и шалфей
+# «Ember Night»: тёмно-серые нейтрали, терракота и шалфей. Рамка полей `border_strong` светлее
+# присланных #505050: 3:1 к самой светлой поверхности (#2E2E2E) даёт не меньше #787878.
+DARK = Palette(
     name="dark",
-    bg="#241713",
-    surface="#2E1F19",
-    surface_raised="#3A2A22",
-    border="#4A372D",
-    border_strong="#83746A",
-    text="#F6E6CB",
-    text_muted="#BFA993",
+    bg="#1B1B1B",
+    surface="#242424",
+    surface_raised="#2E2E2E",
+    border="#3A3A3A",
+    border_strong="#787878",
+    text="#ECECEC",
+    text_muted="#A6A6A6",
     accent="#E8804A",
     accent_hover="#EA8D5C",
     accent_pressed="#DB7746",
@@ -243,10 +247,11 @@ DARK = Palette(  # «Ember Night»: тёплая ночь, терракота и
     danger="#E5806F",
     on_danger="#2B0F1A",
     success="#9FC088",
-    scrim=(10, 5, 3, 170),
+    scrim=(0, 0, 0, 170),
     focus_ring="#F4C25B",
-    shadow="#150D0A",
-    accent_tint="#4A2E22",
+    shadow="#101010",
+    accent_tint="#352E2A",
+    tint_amount=TINT_AMOUNT_DARK,
 )
 
 PALETTES = {"light": LIGHT, "dark": DARK}

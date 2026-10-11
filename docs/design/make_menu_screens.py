@@ -93,30 +93,9 @@ def snap_with_menu(window: MainWindow, name: str, out: Path) -> None:
 
 
 def right_click(window: MainWindow, widget, point: QPoint) -> None:  # type: ignore[no-untyped-def]
-    """Настоящий правый щелчок мыши средствами ОС (Windows), иначе событие меню вручную.
-
-    Так проверяется путь «ОС → окно Qt → OpenGL-виджет → обработчик». Перед щелчком проверяем,
-    что под точкой наше окно, чтобы не нажать в чужую программу.
-    """
-    global_point = widget.mapToGlobal(point)
-    top = QApplication.widgetAt(global_point)
-    if sys.platform == "win32" and top is not None and window.isAncestorOf(top):
-        import ctypes
-
-        window.activateWindow()
-        wait(150)
-        ratio = widget.devicePixelRatioF()
-        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-        user32.SetCursorPos(round(global_point.x() * ratio), round(global_point.y() * ratio))
-        wait(100)
-        user32.mouse_event(0x0008, 0, 0, 0, 0)  # RIGHTDOWN
-        user32.mouse_event(0x0010, 0, 0, 0, 0)  # RIGHTUP
-        wait(300)
-        if QApplication.activePopupWidget() is not None:
-            return
-    event = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, global_point)
+    """Меню по правому щелчку: событие Qt прямо в виджет. Настоящая мышь не используется."""
+    event = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, widget.mapToGlobal(point))
     QApplication.sendEvent(widget, event)
-    print("предупреждение: меню открыто искусственным событием, а не щелчком ОС")
 
 
 def capture(
@@ -149,20 +128,21 @@ def capture(
     right_click(window, window.video_page.video, window.video_page.video.rect().center())
     snap_with_menu(window, f"video-{name}", out)
 
-    # --- редактор: меню на полосе обрезки, над призраком вырезанного
+    # --- редактор: меню на полосе блоков
     window.toggle_editor()
     until(lambda: window.video_editor is not None)
     editor = window.video_editor
     assert editor is not None
-    editor.session.cut(SplitAt(0, 8.0))
-    editor.session.cut(RemoveRange(0, 4.0, 6.0))
+    editor.session.cut(SplitAt(8.0))
+    editor.session.cut(RemoveRange(4.0, 6.0))
     editor.session.add_redact(Redact(Rect(100, 80, 260, 140)))
     editor.session.add_text(Text("CHOPCHOP", 700, 560, 52))
     wait(800)
     editor._video_page.player.seek_to(2.0, exact=True)
     wait(400)
-    point = QPoint(int(editor.trim._x(2.0)), editor.trim.height() // 2)
-    right_click(window, editor.trim, point)
+    timeline = editor.timeline
+    point = QPoint(int(timeline.block_rect(0).center().x()), int(timeline._track().center().y()))
+    right_click(window, timeline, point)
     snap_with_menu(window, f"editor-{name}", out)
     editor.session.mark_saved()
     window.close()

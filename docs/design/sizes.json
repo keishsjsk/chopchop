@@ -13,7 +13,7 @@
     "player_icon": 16,
     "player_time_font_px": 18,
     "player_top": [
-      1068,
+      118,
       32
     ],
     "player_bar_fullscreen": [
@@ -46,7 +46,7 @@
     "player_icon": 21,
     "player_time_font_px": 18,
     "player_top": [
-      1068,
+      142,
       32
     ],
     "player_bar_fullscreen": [
@@ -67,7 +67,7 @@
   },
   {
     "scale": 200,
-    "dpr": 1.9999995000000002,
+    "dpr": 2.0,
     "player_bar": [
       560,
       40
@@ -79,7 +79,7 @@
     "player_icon": 16,
     "player_time_font_px": 18,
     "player_top": [
-      1068,
+      118,
       32
     ],
     "player_bar_fullscreen": [
@@ -112,7 +112,7 @@
     "player_icon": 16,
     "player_time_font_px": 18,
     "player_top": [
-      1068,
+      118,
       32
     ],
     "player_bar_fullscreen": [
@@ -145,7 +145,7 @@
     "player_icon": 21,
     "player_time_font_px": 18,
     "player_top": [
-      1068,
+      142,
       32
     ],
     "player_bar_fullscreen": [
@@ -166,7 +166,7 @@
   },
   {
     "scale": 200,
-    "dpr": 1.9999995000000002,
+    "dpr": 2.0,
     "player_bar": [
       560,
       40
@@ -178,7 +178,7 @@
     "player_icon": 16,
     "player_time_font_px": 18,
     "player_top": [
-      1068,
+      118,
       32
     ],
     "player_bar_fullscreen": [

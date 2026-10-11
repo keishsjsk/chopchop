@@ -348,3 +348,47 @@ def test_buttons_get_styles_and_variants(qtbot: QtBot) -> None:
     finally:
         manager.shutdown()
         app.setStyleSheet(previous)
+
+
+BROWN_DARK = ("#241713", "#2E1F19", "#3A2A22", "#4A372D", "#5E4A3E", "#BFA993", "#F6E6CB")
+
+
+def test_dark_theme_is_neutral_grey_without_the_old_brown_colours() -> None:
+    root = resource_dir().parent / "src"
+    offenders = [
+        f"{path.name}: {colour}"
+        for path in root.rglob("*.py")
+        for colour in BROWN_DARK
+        if colour.lower() in path.read_text(encoding="utf-8").lower()
+    ]
+    assert offenders == []
+    dark = tokens.DARK
+    for name in (
+        "bg",
+        "surface",
+        "surface_raised",
+        "border",
+        "border_strong",
+        "text",
+        "text_muted",
+    ):
+        red, green, blue = (int(getattr(dark, name)[i : i + 2], 16) for i in (1, 3, 5))
+        assert max(red, green, blue) - min(red, green, blue) <= 2, name  # нейтральный серый
+    assert (dark.bg, dark.surface, dark.surface_raised) == ("#1B1B1B", "#242424", "#2E2E2E")
+
+
+def test_dark_accents_keep_their_colours_and_tint_is_mixed_with_grey() -> None:
+    from chopchop.ui.theme.tokens import ACCENTS, make_palette
+
+    dark = make_palette("dark", "ember")
+    assert (dark.accent, dark.secondary, dark.danger, dark.focus_ring) == (
+        "#E8804A",
+        "#9FC088",
+        "#E5806F",
+        "#F4C25B",
+    )
+    for name in ACCENTS:
+        palette = make_palette("dark", name)
+        # тонировка близка к серой поверхности: канал отличается от #2E2E2E не больше чем на 12
+        for index in (1, 3, 5):
+            assert abs(int(palette.accent_tint[index : index + 2], 16) - 0x2E) <= 12, name
