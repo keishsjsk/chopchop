@@ -136,7 +136,7 @@ def test_pixel_font_ships_with_license() -> None:
     assert (folder / "Monocraft.ttf").is_file()
     licence = (folder / "Monocraft-LICENSE.txt").read_text(encoding="utf-8")
     assert "SIL OPEN FONT LICENSE" in licence and "Idrees Hassan" in licence
-    assert not (folder / "Tiny5.ttf").exists()  # прежний шрифт заголовков убран
+    assert sorted(p.name for p in folder.glob("*.ttf")) == ["Monocraft.ttf"]  # других шрифтов нет
     assert (root_docs() / "licenses" / "Monocraft-OFL-1.1.txt").is_file()
 
 

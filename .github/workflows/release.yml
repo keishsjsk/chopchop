@@ -1,6 +1,7 @@
 name: Release
 
 # Релиз выпускается по тегу вида v0.1.0: git tag v0.1.0 && git push origin v0.1.0
+# Релиз на GitHub создаётся черновиком (draft): его публикует владелец после ручной проверки.
 on:
   push:
     tags: ["v*"]
@@ -90,6 +91,10 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Лицензии (шрифт Monocraft OFL и сторонние компоненты)
+        run: |
+          cp docs/licenses/Monocraft-OFL-1.1.txt artifacts/
+          cp THIRD_PARTY_NOTICES.md artifacts/
       - name: Контрольные суммы
         working-directory: artifacts
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
@@ -100,7 +105,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # тег с дефисом (v0.1.0-beta.1, v0.2.0-rc.1) — пре-релиз
-          flags=""
-          case "${{ github.ref_name }}" in *-*) flags="--prerelease" ;; esac
+          # релиз создаётся черновиком: его проверяют и публикуют вручную
+          flags="--draft"
+          case "${{ github.ref_name }}" in *-*) flags="--draft --prerelease" ;; esac
           gh release create "${{ github.ref_name }}" artifacts/* $flags \
             --title "CHOPCHOP ${{ github.ref_name }}" --notes-file notes.md
