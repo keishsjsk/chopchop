@@ -34,6 +34,17 @@ def _set_windows_app_id() -> None:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
 
 
+def app_icon() -> QIcon:
+    """Значок окна из всех размеров 16–512: каждый размер берётся готовым, без сглаживания."""
+    folder = resource_dir() / "icons"
+    icon = QIcon()
+    for path in sorted(folder.glob("chopchop-*.png")):
+        icon.addFile(str(path))
+    if icon.isNull() and (folder / "chopchop.png").is_file():
+        icon.addFile(str(folder / "chopchop.png"))
+    return icon
+
+
 def load_settings(path: Path | None, legacy: QSettings | None) -> AppSettings:
     """Настройки из файла; при первом запуске язык берётся из системы, старое переносится."""
     settings = AppSettings(path)
@@ -69,9 +80,7 @@ def run(initial: Path | None = None) -> int:
     app_class = ProfiledApplication if enabled() else QApplication  # время обработчиков событий
     app = app_class(sys.argv[:1])
     app.setApplicationVersion(__version__)
-    icon = resource_dir() / "icons" / "chopchop.png"
-    if icon.is_file():
-        app.setWindowIcon(QIcon(str(icon)))
+    app.setWindowIcon(app_icon())
 
     logs.setup(settings.get_str("advanced.log_level"))
     logs.install_excepthook()

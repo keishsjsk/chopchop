@@ -139,7 +139,9 @@ bash packaging/build_appimage.sh                 # AppImage (Linux, нужен l
 (`.github/workflows/release.yml`) собирает установщик, zip и AppImage, прикладывает SBOM
 (`sbom.cdx.json`) и `SHA256SUMS.txt`, а заметки берёт из `CHANGELOG.md`.
 
-Значок приложения рисует `packaging/make_icon.py`, демо-GIF записывает `docs/make_demo.py`,
+Значок приложения (вариант «a»: кадр плёнки с «плеем», палитра Ember) исходно лежит в
+`docs/design/icons/app-a.svg`, а `packaging/make_icon.py` собирает из него `.ico` (16–256), PNG 16–512 и
+SVG в `resources/icons/`; демо-GIF записывает `docs/make_demo.py`,
 скриншоты редактора и меню — `docs/design/make_editor_screens.py` и `make_menu_screens.py`.
 
 ## Документация

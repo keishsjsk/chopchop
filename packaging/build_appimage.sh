@@ -32,7 +32,10 @@ PY
 
 # каталог AppDir: программа целиком в usr/lib/chopchop, запуск через AppRun
 mkdir -p AppDir/usr/lib AppDir/usr/bin AppDir/usr/share/applications \
-         AppDir/usr/share/icons/hicolor/256x256/apps
+         AppDir/usr/share/icons/hicolor/scalable/apps
+for size in 16 24 32 48 64 128 256 512; do
+  mkdir -p "AppDir/usr/share/icons/hicolor/${size}x${size}/apps"
+done
 cp -a dist/CHOPCHOP AppDir/usr/lib/chopchop
 cp packaging/AppRun AppDir/AppRun
 chmod +x AppDir/AppRun
@@ -41,7 +44,11 @@ chmod +x AppDir/usr/bin/chopchop
 cp packaging/chopchop.desktop AppDir/chopchop.desktop
 cp packaging/chopchop.desktop AppDir/usr/share/applications/chopchop.desktop
 cp resources/icons/chopchop.png AppDir/chopchop.png
-cp resources/icons/chopchop.png AppDir/usr/share/icons/hicolor/256x256/apps/chopchop.png
+for size in 16 24 32 48 64 128 256 512; do
+  cp "resources/icons/chopchop-${size}.png" \
+     "AppDir/usr/share/icons/hicolor/${size}x${size}/apps/chopchop.png"
+done
+cp resources/icons/chopchop.svg AppDir/usr/share/icons/hicolor/scalable/apps/chopchop.svg
 ln -sf chopchop.png AppDir/.DirIcon
 
 TOOL="build/appimagetool.AppImage"

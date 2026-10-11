@@ -87,6 +87,8 @@ REQUIRED_RESOURCES = (
     "fonts/Monocraft-LICENSE.txt",
     "i18n/chopchop_en.ts",
     "icons/chopchop.png",
+    "icons/chopchop.ico",
+    "icons/chopchop.svg",
 )
 
 

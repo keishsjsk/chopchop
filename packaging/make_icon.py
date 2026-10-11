@@ -1,58 +1,66 @@
-"""Рисует значок приложения: python packaging/make_icon.py → resources/icons/."""
+"""Значок приложения из SVG варианта «a»: python packaging/make_icon.py → resources/icons/.
 
+Исходник `docs/design/icons/app-a.svg` собран из квадратов на сетке 32×32 (кадр плёнки с
+«плеем», палитра Ember). Скрипт читает прямоугольники и рисует их в Pillow:
+  - размеры, кратные 32 (64, 128, 256, 512), увеличиваются «по ближайшему», клетки остаются резкими;
+  - 16, 24 и 48 px собираются усреднением из увеличенной копии, поэтому нет рваных клеток.
+Результат: `chopchop.svg`, `chopchop.ico` (16, 24, 32, 48, 64, 128, 256), `chopchop-<размер>.png`
+(16–512) и `chopchop.png` (256, как раньше).
+"""
+
+import re
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image
 
-SIZE = 1024
-TOP = (30, 58, 138)
-BOTTOM = (14, 165, 233)
-WHITE = (255, 255, 255, 255)
-OUT = Path(__file__).resolve().parents[1] / "resources" / "icons"
-ICO_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-
-
-def _gradient() -> Image.Image:
-    """Диагональный градиент от тёмно-синего (слева сверху) к голубому (справа снизу)."""
-    vertical = Image.linear_gradient("L").resize((SIZE, SIZE))
-    horizontal = vertical.transpose(Image.Transpose.ROTATE_90).transpose(
-        Image.Transpose.FLIP_LEFT_RIGHT
-    )
-    mask = ImageChops.add(vertical, horizontal, scale=2)
-    return Image.composite(
-        Image.new("RGB", (SIZE, SIZE), BOTTOM), Image.new("RGB", (SIZE, SIZE), TOP), mask
-    )
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "docs" / "design" / "icons" / "app-a.svg"
+OUT = ROOT / "resources" / "icons"
+GRID = 32
+PNG_SIZES = (16, 24, 32, 48, 64, 128, 256, 512)
+ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
+RECT = re.compile(
+    r'<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" fill="(#[0-9A-Fa-f]{6})"/>'
+)
 
 
-def draw_icon() -> Image.Image:
-    canvas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    radius = SIZE // 5
-    shape = Image.new("L", (SIZE, SIZE), 0)
-    ImageDraw.Draw(shape).rounded_rectangle((0, 0, SIZE - 1, SIZE - 1), radius, fill=255)
-    canvas.paste(_gradient(), mask=shape)
+def read_rects(svg: str) -> list[tuple[int, int, int, int, str]]:
+    return [(int(x), int(y), int(w), int(h), colour) for x, y, w, h, colour in RECT.findall(svg)]
 
-    draw = ImageDraw.Draw(canvas)
-    # треугольник «плей» чуть левее центра: плеер
-    cx, cy, half = SIZE * 0.47, SIZE * 0.5, SIZE * 0.2
-    draw.polygon(
-        [(cx - half * 0.8, cy - half), (cx - half * 0.8, cy + half), (cx + half * 1.2, cy)],
-        fill=WHITE,
-    )
-    # уголки рамки кадрирования: редактор
-    margin, arm, width = SIZE * 0.16, SIZE * 0.17, SIZE * 0.045
-    far = SIZE - margin
-    for (x, y), (dx, dy) in (((margin, margin), (1, 1)), ((far, far), (-1, -1))):
-        draw.line([(x, y), (x + dx * arm, y)], fill=WHITE, width=int(width))
-        draw.line([(x, y), (x, y + dy * arm)], fill=WHITE, width=int(width))
-        draw.ellipse((x - width / 2, y - width / 2, x + width / 2, y + width / 2), fill=WHITE)
-    return canvas
+
+def base_image(svg: str) -> Image.Image:
+    """Значок 32×32: клетки как в SVG, углы плитки прозрачные."""
+    image = Image.new("RGBA", (GRID, GRID), (0, 0, 0, 0))
+    for x, y, w, h, colour in read_rects(svg):
+        image.paste(Image.new("RGBA", (w, h), colour), (x, y))
+    return image
+
+
+def render(base: Image.Image, size: int) -> Image.Image:
+    """Значок нужного размера: целые кратные «по ближайшему», остальные усреднением."""
+    if size % GRID == 0:
+        return base.resize((size, size), Image.Resampling.NEAREST)
+    big = base.resize((GRID * 8, GRID * 8), Image.Resampling.NEAREST)
+    return big.resize((size, size), Image.Resampling.BOX)
 
 
 def main() -> None:
+    svg = SOURCE.read_text(encoding="utf-8")
+    base = base_image(svg)
     OUT.mkdir(parents=True, exist_ok=True)
-    icon = draw_icon()
-    icon.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "chopchop.png", optimize=True)
-    icon.resize((256, 256), Image.Resampling.LANCZOS).save(OUT / "chopchop.ico", sizes=ICO_SIZES)
+    (OUT / "chopchop.svg").write_text(svg, encoding="utf-8")
+    images = {size: render(base, size) for size in PNG_SIZES}
+    for size, image in images.items():
+        image.save(OUT / f"chopchop-{size}.png", optimize=True)
+    images[256].save(OUT / "chopchop.png", optimize=True)
+    largest = images[256]
+    largest.save(
+        OUT / "chopchop.ico",
+        format="ICO",
+        sizes=[(s, s) for s in ICO_SIZES],
+        append_images=[images[s] for s in ICO_SIZES if s != 256],
+        bitmap_format="png",
+    )
     print("saved", OUT)
 
 
