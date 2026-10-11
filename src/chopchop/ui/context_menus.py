@@ -61,6 +61,13 @@ class ContextMenus(QObject):
         for action_id in ("reveal", "copy_path", "rename", "delete_file", "properties"):
             self._add(menu, action_id)
 
+    def file_menu(self) -> ThemedMenu:
+        """Меню плашки с названием файла: переименовать, показать в папке, путь, свойства."""
+        menu = self._menu()
+        for action_id in ("rename", "reveal", "copy_path", "properties"):
+            self._add(menu, action_id)
+        return menu
+
     def for_context(self) -> ThemedMenu | None:
         """Меню для текущего экрана (клавиша Menu): там, где мыши нет, — основное меню экрана."""
         context = self.w.registry.context

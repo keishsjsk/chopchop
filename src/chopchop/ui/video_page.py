@@ -5,6 +5,8 @@
 компактнее, а когда она спрятана, остаётся тонкая линия прогресса.
 """
 
+import contextlib
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -12,13 +14,15 @@ from PySide6.QtCore import QPoint, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QContextMenuEvent, QImage, QPainter, QPaintEvent, QResizeEvent
 from PySide6.QtWidgets import QApplication, QWidget
 
+from chopchop import i18n
 from chopchop.engines.ffmpeg import find_ffmpeg
 from chopchop.player.mpv_widget import create_video_widget
 from chopchop.player.player import Player
+from chopchop.services import file_ops
 from chopchop.services.app_settings import AppSettings
 from chopchop.services.sub_presets import PresetStore
 from chopchop.ui.context_gate import menu_allowed
-from chopchop.ui.player_controls import PlayerControls, PreviewBubble
+from chopchop.ui.player_controls import PlayerControls, PreviewBubble, format_time
 from chopchop.ui.theme import current, tokens
 from chopchop.ui.top_bar import TopBar
 from chopchop.ui.tracks_panel import TracksPanel
@@ -59,6 +63,8 @@ class VideoPage(QWidget):
     fullscreenRequested = Signal()
     subtitleSettingsRequested = Signal()
     contextMenuRequested = Signal(QPoint)  # ПКМ над видео или его панелями
+    renameRequested = Signal()  # двойной щелчок по плашке с названием
+    nameMenuRequested = Signal(QPoint)  # ПКМ по плашке с названием
 
     def __init__(
         self,
@@ -73,6 +79,8 @@ class VideoPage(QWidget):
         self._fullscreen = False
         self._editor_mode = False
         self._duration = 0.0
+        self._file_size: int | None = None
+        self._frame_size: tuple[int, int] | None = None
         self._thumb_path: str | None = None
         self._thumbs: list[QImage | None] = []
         ffmpeg = find_ffmpeg()
@@ -98,6 +106,10 @@ class VideoPage(QWidget):
         self._hide_timer.timeout.connect(self._hide_idle)
 
         self.video.renderContextRecreated.connect(self.player.restore_video)
+        self.top.renameRequested.connect(self.renameRequested)
+        self.top.menuRequested.connect(self.nameMenuRequested)
+        self.player.videoSizeChanged.connect(self._on_frame_size)
+        self.player.pausedChanged.connect(self.top.set_paused)
         self.video.clicked.connect(self._on_click)
         self.video.doubleClicked.connect(self._on_double_click)
         self.video.mouseMoved.connect(self.wake)
@@ -117,8 +129,33 @@ class VideoPage(QWidget):
 
     # --- состояние ---------------------------------------------------------------------------
 
-    def set_title(self, name: str) -> None:
+    def set_title(self, name: str, path: Path | None = None) -> None:
         self.top.set_name(name)
+        self._file_size = None
+        if path is not None:
+            with contextlib.suppress(OSError):
+                self._file_size = path.stat().st_size
+        self._frame_size = None
+        self._duration = 0.0
+        self._refresh_info()
+        self._place()
+
+    def _refresh_info(self) -> None:
+        """Вторая строка плашки: «1920×1080 · 1:42:10 · 2,1 ГБ» (что известно на сейчас)."""
+        parts: list[str] = []
+        if self._frame_size is not None:
+            parts.append(f"{self._frame_size[0]}×{self._frame_size[1]}")
+        if self._duration > 0:
+            parts.append(format_time(self._duration))
+        if self._file_size is not None:
+            size = file_ops.human_size(self._file_size)
+            parts.append(size.replace(".", ",") if i18n.current_language() == "ru" else size)
+        self.top.set_info(" · ".join(parts))
+        self._place()
+
+    def _on_frame_size(self, width: int, height: int) -> None:
+        self._frame_size = (width, height)
+        self._refresh_info()
 
     @property
     def fullscreen(self) -> bool:
@@ -172,7 +209,8 @@ class VideoPage(QWidget):
             panel_width,
             bottom,
         )
-        self.top.setGeometry(GAP, GAP, max(width - 2 * GAP, 0), self.top.height())
+        top_gap = tokens.SPACE_3  # плашка с названием: слева сверху, по ширине текста
+        self.top.setGeometry(top_gap, top_gap, self.top.plate_width(width), self.top.height())
         drawer_top = self.top.y() + self.top.height() + tokens.SPACE_2
         drawer_height = max(self.controls.y() - tokens.SPACE_2 - drawer_top, 120)
         self.tracks.setGeometry(
@@ -223,6 +261,7 @@ class VideoPage(QWidget):
 
     def _on_duration(self, seconds: float) -> None:
         self._duration = seconds
+        self._refresh_info()
         self.mini.set_fraction(0.0)
         self._request_thumbs()
 

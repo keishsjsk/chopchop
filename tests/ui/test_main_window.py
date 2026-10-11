@@ -273,3 +273,17 @@ def test_cut_keys_reach_the_video_editor(qtbot: QtBot, tmp_path: Path, no_thumbn
         assert [(c.start, c.stop) for c in editor.session.project.clips] == [(0.0, 2.0), (4.0, 6.0)]
     finally:
         editor.session.mark_saved()  # иначе закрытие окна спросит про несохранённое
+
+
+def test_video_title_does_not_repeat_the_file_name(qtbot: QtBot, tmp_path: Path) -> None:
+    """Имя видео показывает плашка плеера, а заголовок окна остаётся простым «CHOPCHOP»."""
+    window = _window(qtbot, tmp_path)
+    video = tmp_path / "кино.mkv"
+    window.current_path = video
+    window._video_path = video
+    window._update_title()
+    assert window.windowTitle() == "CHOPCHOP"
+    photo = tmp_path / "photo.png"
+    window.current_path = photo
+    window._update_title()
+    assert "photo.png" in window.windowTitle()  # у фото плашки нет: имя в заголовке один раз

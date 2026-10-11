@@ -230,6 +230,15 @@ class MainWindow(QMainWindow):
         elif context == VIDEO_EDITOR:
             self._popup(self.menus.editor_preview(), pos)
 
+    def _rename_current(self) -> None:
+        """Переименование из плашки с названием (двойной щелчок)."""
+        if self._screen_context() == VIDEO:
+            self.registry["rename"].trigger()
+
+    def _on_video_name_menu(self, pos: QPoint) -> None:
+        if self._screen_context() == VIDEO:
+            self._popup(self.menus.file_menu(), pos)
+
     def _on_editor_menu(self, pos: QPoint) -> None:
         if self._screen_context() == PHOTO_EDITOR:
             self._popup(self.menus.editor_preview(), pos)
@@ -402,6 +411,8 @@ class MainWindow(QMainWindow):
             return None
         page = VideoPage(module, mpv, settings=self._app, presets=self._presets)
         page.contextMenuRequested.connect(self._on_video_menu)
+        page.renameRequested.connect(self._rename_current)
+        page.nameMenuRequested.connect(self._on_video_name_menu)
         page.subtitleSettingsRequested.connect(lambda: self.show_settings("subtitles"))
         page.fullscreenRequested.connect(self.toggle_fullscreen)
         page.player.errorOccurred.connect(self._on_video_error)
@@ -455,7 +466,7 @@ class MainWindow(QMainWindow):
         self.statusBar().clearMessage()
         self._zoom_label.clear()
         self._stack.setCurrentWidget(page)
-        page.set_title(path.name)
+        page.set_title(path.name, path)
         resume = self._resume.load(path)
         if resume is not None and not self._app.get_bool("playback.remember_position"):
             resume.position = 0.0  # позицию не возобновляем; дорожки и громкость остаются
@@ -854,6 +865,10 @@ class MainWindow(QMainWindow):
 
     def _update_title(self) -> None:
         if self.current_path is None:
+            return
+        if self._video_path is not None and self.current_path == self._video_path:
+            # видео: имя файла показывает плашка плеера, в заголовке окна оно не повторяется
+            self.setWindowTitle("CHOPCHOP")
             return
         position = ""
         if self._nav is not None:

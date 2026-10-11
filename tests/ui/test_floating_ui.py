@@ -199,7 +199,9 @@ def test_panels_fill_the_window_and_sit_at_the_edges(
     assert page.controls.height() == tokens.PLAYER_BAR_H == 40
     visual_bottom = page.controls.geometry().bottom() + 1 - page.controls.reserve
     assert page.height() - visual_bottom == tokens.SPACE_4  # отступ от нижнего края окна 16 px
-    assert page.top.geometry().top() == tokens.SPACE_4
+    assert (
+        page.top.geometry().top() == tokens.SPACE_3
+    )  # плашка названия: слева сверху, отступ 12 px
     assert (
         page.controls.width() == tokens.PLAYER_BAR_MAX_W
     )  # узкая панель по центру, а не во всё окно

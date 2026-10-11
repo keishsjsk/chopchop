@@ -42,6 +42,7 @@ class Player(QObject):
     tracksChanged = Signal()
     ended = Signal()
     fileLoaded = Signal()
+    videoSizeChanged = Signal(int, int)  # размер кадра: ширина, высота
     errorOccurred = Signal(str)
     _positionRaw = Signal(float)  # из потока mpv; наружу уходит через ограничитель
 
@@ -70,6 +71,9 @@ class Player(QObject):
         mpv.observe_property("pause", self._on_pause)
         mpv.observe_property("mute", lambda _n, v: self.muteChanged.emit(bool(v)))
         mpv.observe_property("eof-reached", self._on_eof)
+        self._frame_size: dict[str, int] = {}
+        for name in ("width", "height"):
+            mpv.observe_property(name, self._on_frame_size)
         for name in ("track-list", "aid", "sid", "secondary-sid"):
             mpv.observe_property(name, self._on_track_property)
         mpv.event_callback("end-file")(self._on_end_file)
@@ -88,6 +92,13 @@ class Player(QObject):
         if name in self._track_cache:
             return self._track_cache[name]
         return read()
+
+    def _on_frame_size(self, name: str, value: object) -> None:
+        """Размер кадра из наблюдателей (опрос ядра во время загрузки держит интерфейс)."""
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            self._frame_size[name] = value
+            if len(self._frame_size) == 2:
+                self.videoSizeChanged.emit(self._frame_size["width"], self._frame_size["height"])
 
     def _on_pause(self, _name: str, value: object) -> None:
         self._paused = bool(value)  # запоминаем: опрос ядра во время перемотки блокирует интерфейс
