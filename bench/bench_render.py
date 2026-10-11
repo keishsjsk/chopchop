@@ -171,6 +171,12 @@ def child(args: argparse.Namespace) -> int:
         )
         QApplication.sendEvent(widget, event)
 
+    def wake_panels() -> None:
+        """Плавающие панели плеера прячутся через 2,5 с без движения мыши: будим, как мышь."""
+        page = window.video_page
+        if page is not None and window.video_editor is None:
+            page.wake()
+
     def hold_and_sweep(widget: QWidget, points: list[QPoint], seconds: float, steps: int) -> None:
         """Нажать в первой точке, идти по маршруту шагом 8 мс (мышь 120 Гц), отпустить там же."""
         send(widget, QEvent.Type.MouseButtonPress, points[0])
@@ -182,6 +188,7 @@ def child(args: argparse.Namespace) -> int:
                     x = a.x() + (b.x() - a.x()) * i / steps
                     y = a.y() + (b.y() - a.y()) * i / steps
                     send(widget, QEvent.Type.MouseMove, QPoint(round(x), round(y)))
+                    wake_panels()
                     QTest.qWait(8)
         send(widget, QEvent.Type.MouseMove, points[0])
         send(widget, QEvent.Type.MouseButtonRelease, points[0])

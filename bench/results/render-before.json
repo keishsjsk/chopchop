@@ -1,0 +1,682 @@
+{
+  "gl-default": {
+    "info": {
+      "mode": "gl-default",
+      "plan": "hardware/system",
+      "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+      "dpr": 1.5
+    },
+    "runs": [
+      {
+        "info": {
+          "mode": "gl-default",
+          "plan": "hardware/system",
+          "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 16.3,
+          "frame_max": 29.5,
+          "stalls_16": 16,
+          "stalls_50": 0,
+          "stall_max": 32.0,
+          "paint_p95": 1.95,
+          "paint_max": 3.93,
+          "mousemove_p95": 0.31,
+          "mousemove_max": 0.54,
+          "cpu_share": 0.19
+        },
+        "stretch_edge": {
+          "frames": 272,
+          "frame_p50": 15.6,
+          "frame_p95": 16.4,
+          "frame_max": 44.8,
+          "stalls_16": 17,
+          "stalls_50": 0,
+          "stall_max": 32.4,
+          "paint_p95": 1.51,
+          "paint_max": 2.09,
+          "mousemove_p95": 0.32,
+          "mousemove_max": 0.38,
+          "cpu_share": 0.22
+        },
+        "drag_seek": {
+          "frames": 347,
+          "frame_p50": 11.6,
+          "frame_p95": 25.2,
+          "frame_max": 32.5,
+          "stalls_16": 98,
+          "stalls_50": 0,
+          "stall_max": 48.3,
+          "paint_p95": 1.25,
+          "paint_max": 1.41,
+          "mousemove_p95": 0.52,
+          "mousemove_max": 0.74,
+          "cpu_share": 1.24
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.7,
+          "frame_p95": 16.4,
+          "frame_max": 45.0,
+          "stalls_16": 17,
+          "stalls_50": 0,
+          "stall_max": 45.9,
+          "paint_p95": 1.3,
+          "paint_max": 2.15,
+          "mousemove_p95": 0.33,
+          "mousemove_max": 0.51,
+          "cpu_share": 0.19
+        }
+      },
+      {
+        "info": {
+          "mode": "gl-default",
+          "plan": "hardware/system",
+          "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 21.6,
+          "frame_max": 43.9,
+          "stalls_16": 27,
+          "stalls_50": 0,
+          "stall_max": 46.8,
+          "paint_p95": 3.87,
+          "paint_max": 5.31,
+          "mousemove_p95": 0.58,
+          "mousemove_max": 0.94,
+          "cpu_share": 0.15
+        },
+        "stretch_edge": {
+          "frames": 362,
+          "frame_p50": 14.9,
+          "frame_p95": 23.7,
+          "frame_max": 44.5,
+          "stalls_16": 30,
+          "stalls_50": 0,
+          "stall_max": 47.5,
+          "paint_p95": 3.61,
+          "paint_max": 3.85,
+          "mousemove_p95": 0.68,
+          "mousemove_max": 1.0,
+          "cpu_share": 0.52
+        },
+        "drag_seek": {
+          "frames": 359,
+          "frame_p50": 10.7,
+          "frame_p95": 23.9,
+          "frame_max": 46.3,
+          "stalls_16": 69,
+          "stalls_50": 0,
+          "stall_max": 40.3,
+          "paint_p95": 1.27,
+          "paint_max": 1.61,
+          "mousemove_p95": 0.57,
+          "mousemove_max": 0.78,
+          "cpu_share": 1.24
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.6,
+          "frame_p95": 23.1,
+          "frame_max": 31.2,
+          "stalls_16": 27,
+          "stalls_50": 0,
+          "stall_max": 32.5,
+          "paint_p95": 3.12,
+          "paint_max": 3.36,
+          "mousemove_p95": 0.77,
+          "mousemove_max": 1.18,
+          "cpu_share": 0.24
+        }
+      },
+      {
+        "info": {
+          "mode": "gl-default",
+          "plan": "hardware/system",
+          "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 22.0,
+          "frame_max": 44.2,
+          "stalls_16": 30,
+          "stalls_50": 0,
+          "stall_max": 48.3,
+          "paint_p95": 4.13,
+          "paint_max": 5.39,
+          "mousemove_p95": 0.69,
+          "mousemove_max": 1.12,
+          "cpu_share": 0.22
+        },
+        "stretch_edge": {
+          "frames": 362,
+          "frame_p50": 14.9,
+          "frame_p95": 23.3,
+          "frame_max": 44.1,
+          "stalls_16": 30,
+          "stalls_50": 0,
+          "stall_max": 33.0,
+          "paint_p95": 3.72,
+          "paint_max": 4.18,
+          "mousemove_p95": 0.65,
+          "mousemove_max": 0.99,
+          "cpu_share": 0.4
+        },
+        "drag_seek": {
+          "frames": 346,
+          "frame_p50": 10.3,
+          "frame_p95": 23.0,
+          "frame_max": 47.4,
+          "stalls_16": 58,
+          "stalls_50": 0,
+          "stall_max": 38.8,
+          "paint_p95": 1.37,
+          "paint_max": 1.79,
+          "mousemove_p95": 0.55,
+          "mousemove_max": 0.88,
+          "cpu_share": 1.36
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.4,
+          "frame_p95": 23.2,
+          "frame_max": 45.5,
+          "stalls_16": 30,
+          "stalls_50": 0,
+          "stall_max": 47.2,
+          "paint_p95": 3.25,
+          "paint_max": 3.83,
+          "mousemove_p95": 0.8,
+          "mousemove_max": 1.13,
+          "cpu_share": 0.43
+        }
+      }
+    ]
+  },
+  "gl-igpu": {
+    "info": {
+      "mode": "gl-igpu",
+      "plan": "hardware/integrated",
+      "renderer": "Intel(R) Iris(R) Xe Graphics",
+      "dpr": 1.5
+    },
+    "runs": [
+      {
+        "info": {
+          "mode": "gl-igpu",
+          "plan": "hardware/integrated",
+          "renderer": "Intel(R) Iris(R) Xe Graphics",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 17.3,
+          "frame_max": 30.3,
+          "stalls_16": 14,
+          "stalls_50": 0,
+          "stall_max": 32.4,
+          "paint_p95": 3.76,
+          "paint_max": 5.09,
+          "mousemove_p95": 0.65,
+          "mousemove_max": 1.16,
+          "cpu_share": 0.17
+        },
+        "stretch_edge": {
+          "frames": 272,
+          "frame_p50": 15.5,
+          "frame_p95": 23.1,
+          "frame_max": 44.6,
+          "stalls_16": 23,
+          "stalls_50": 0,
+          "stall_max": 47.1,
+          "paint_p95": 3.35,
+          "paint_max": 3.96,
+          "mousemove_p95": 0.64,
+          "mousemove_max": 0.94,
+          "cpu_share": 0.15
+        },
+        "drag_seek": {
+          "frames": 418,
+          "frame_p50": 10.5,
+          "frame_p95": 20.8,
+          "frame_max": 31.5,
+          "stalls_16": 51,
+          "stalls_50": 0,
+          "stall_max": 39.3,
+          "paint_p95": 1.44,
+          "paint_max": 1.94,
+          "mousemove_p95": 0.82,
+          "mousemove_max": 1.65,
+          "cpu_share": 1.15
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.4,
+          "frame_p95": 16.6,
+          "frame_max": 45.9,
+          "stalls_16": 11,
+          "stalls_50": 0,
+          "stall_max": 32.0,
+          "paint_p95": 2.94,
+          "paint_max": 3.51,
+          "mousemove_p95": 0.69,
+          "mousemove_max": 1.04,
+          "cpu_share": 0.49
+        }
+      },
+      {
+        "info": {
+          "mode": "gl-igpu",
+          "plan": "hardware/integrated",
+          "renderer": "Intel(R) Iris(R) Xe Graphics",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 16.8,
+          "frame_max": 42.7,
+          "stalls_16": 12,
+          "stalls_50": 0,
+          "stall_max": 47.3,
+          "paint_p95": 3.36,
+          "paint_max": 5.35,
+          "mousemove_p95": 0.61,
+          "mousemove_max": 1.02,
+          "cpu_share": 0.28
+        },
+        "stretch_edge": {
+          "frames": 362,
+          "frame_p50": 15.4,
+          "frame_p95": 23.1,
+          "frame_max": 45.0,
+          "stalls_16": 18,
+          "stalls_50": 0,
+          "stall_max": 32.7,
+          "paint_p95": 3.05,
+          "paint_max": 3.87,
+          "mousemove_p95": 0.62,
+          "mousemove_max": 1.27,
+          "cpu_share": 0.39
+        },
+        "drag_seek": {
+          "frames": 412,
+          "frame_p50": 10.5,
+          "frame_p95": 20.5,
+          "frame_max": 30.9,
+          "stalls_16": 40,
+          "stalls_50": 0,
+          "stall_max": 36.0,
+          "paint_p95": 1.29,
+          "paint_max": 1.54,
+          "mousemove_p95": 0.76,
+          "mousemove_max": 1.52,
+          "cpu_share": 1.14
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.6,
+          "frame_p95": 17.3,
+          "frame_max": 32.3,
+          "stalls_16": 7,
+          "stalls_50": 0,
+          "stall_max": 32.6,
+          "paint_p95": 2.96,
+          "paint_max": 3.28,
+          "mousemove_p95": 0.76,
+          "mousemove_max": 1.03,
+          "cpu_share": 0.31
+        }
+      },
+      {
+        "info": {
+          "mode": "gl-igpu",
+          "plan": "hardware/integrated",
+          "renderer": "Intel(R) Iris(R) Xe Graphics",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.7,
+          "frame_p95": 16.6,
+          "frame_max": 30.9,
+          "stalls_16": 19,
+          "stalls_50": 0,
+          "stall_max": 32.8,
+          "paint_p95": 2.17,
+          "paint_max": 6.24,
+          "mousemove_p95": 0.46,
+          "mousemove_max": 0.75,
+          "cpu_share": 0.35
+        },
+        "stretch_edge": {
+          "frames": 362,
+          "frame_p50": 15.4,
+          "frame_p95": 23.5,
+          "frame_max": 43.6,
+          "stalls_16": 27,
+          "stalls_50": 0,
+          "stall_max": 46.3,
+          "paint_p95": 3.29,
+          "paint_max": 3.79,
+          "mousemove_p95": 0.65,
+          "mousemove_max": 1.08,
+          "cpu_share": 0.29
+        },
+        "drag_seek": {
+          "frames": 414,
+          "frame_p50": 10.9,
+          "frame_p95": 20.8,
+          "frame_max": 41.1,
+          "stalls_16": 47,
+          "stalls_50": 0,
+          "stall_max": 38.6,
+          "paint_p95": 1.41,
+          "paint_max": 2.41,
+          "mousemove_p95": 0.86,
+          "mousemove_max": 1.41,
+          "cpu_share": 1.13
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.6,
+          "frame_p95": 16.4,
+          "frame_max": 46.4,
+          "stalls_16": 11,
+          "stalls_50": 0,
+          "stall_max": 33.6,
+          "paint_p95": 2.62,
+          "paint_max": 3.87,
+          "mousemove_p95": 0.67,
+          "mousemove_max": 1.33,
+          "cpu_share": 0.76
+        }
+      }
+    ]
+  },
+  "gl-software": {
+    "info": {
+      "mode": "gl-software",
+      "plan": "hardware/system",
+      "renderer": "Gallium 0.4 on llvmpipe (LLVM 3.6, 256 bits)",
+      "dpr": 1.5
+    },
+    "runs": [
+      {
+        "info": {
+          "mode": "gl-software",
+          "plan": "hardware/system",
+          "renderer": "Gallium 0.4 on llvmpipe (LLVM 3.6, 256 bits)",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 362,
+          "frame_p50": 10.1,
+          "frame_p95": 15.4,
+          "frame_max": 828.4,
+          "stalls_16": 29,
+          "stalls_50": 1,
+          "stall_max": 828.4,
+          "paint_p95": 2.05,
+          "paint_max": 3.8,
+          "mousemove_p95": 0.27,
+          "mousemove_max": 0.47,
+          "cpu_share": 4.9
+        },
+        "stretch_edge": {
+          "frames": 362,
+          "frame_p50": 10.2,
+          "frame_p95": 12.8,
+          "frame_max": 365.2,
+          "stalls_16": 7,
+          "stalls_50": 1,
+          "stall_max": 364.9,
+          "paint_p95": 2.44,
+          "paint_max": 3.46,
+          "mousemove_p95": 0.3,
+          "mousemove_max": 0.62,
+          "cpu_share": 3.97
+        },
+        "drag_seek": {
+          "frames": 82,
+          "frame_p50": 112.3,
+          "frame_p95": 511.0,
+          "frame_max": 546.9,
+          "stalls_16": 82,
+          "stalls_50": 82,
+          "stall_max": 522.4,
+          "paint_p95": 93.7,
+          "paint_max": 99.79,
+          "mousemove_p95": 1.44,
+          "mousemove_max": 1.82,
+          "cpu_share": 6.78
+        },
+        "photo_crop": {
+          "frames": 402,
+          "frame_p50": 10.7,
+          "frame_p95": 16.3,
+          "frame_max": 46.3,
+          "stalls_16": 26,
+          "stalls_50": 0,
+          "stall_max": 35.5,
+          "paint_p95": 2.16,
+          "paint_max": 3.43,
+          "mousemove_p95": 0.54,
+          "mousemove_max": 1.87,
+          "cpu_share": 3.55
+        }
+      },
+      {
+        "info": {
+          "mode": "gl-software",
+          "plan": "hardware/system",
+          "renderer": "Gallium 0.4 on llvmpipe (LLVM 3.6, 256 bits)",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 11.5,
+          "frame_p95": 23.4,
+          "frame_max": 224.4,
+          "stalls_16": 24,
+          "stalls_50": 1,
+          "stall_max": 223.8,
+          "paint_p95": 1.98,
+          "paint_max": 3.59,
+          "mousemove_p95": 0.42,
+          "mousemove_max": 0.56,
+          "cpu_share": 2.59
+        },
+        "stretch_edge": {
+          "frames": 452,
+          "frame_p50": 10.1,
+          "frame_p95": 13.5,
+          "frame_max": 43.6,
+          "stalls_16": 6,
+          "stalls_50": 0,
+          "stall_max": 27.6,
+          "paint_p95": 2.55,
+          "paint_max": 3.9,
+          "mousemove_p95": 0.28,
+          "mousemove_max": 0.89,
+          "cpu_share": 4.37
+        },
+        "drag_seek": {
+          "frames": 82,
+          "frame_p50": 94.1,
+          "frame_p95": 508.9,
+          "frame_max": 535.2,
+          "stalls_16": 82,
+          "stalls_50": 82,
+          "stall_max": 521.5,
+          "paint_p95": 94.03,
+          "paint_max": 98.07,
+          "mousemove_p95": 1.12,
+          "mousemove_max": 1.9,
+          "cpu_share": 7.56
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 10.7,
+          "frame_p95": 16.5,
+          "frame_max": 488.3,
+          "stalls_16": 22,
+          "stalls_50": 1,
+          "stall_max": 488.3,
+          "paint_p95": 2.19,
+          "paint_max": 3.81,
+          "mousemove_p95": 0.52,
+          "mousemove_max": 1.69,
+          "cpu_share": 2.58
+        }
+      }
+    ]
+  },
+  "raster": {
+    "info": {
+      "mode": "raster",
+      "plan": "software/system",
+      "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+      "dpr": 1.5
+    },
+    "runs": [
+      {
+        "info": {
+          "mode": "raster",
+          "plan": "software/system",
+          "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 16.4,
+          "frame_max": 142.7,
+          "stalls_16": 9,
+          "stalls_50": 1,
+          "stall_max": 142.6,
+          "paint_p95": 4.17,
+          "paint_max": 5.74,
+          "mousemove_p95": 0.65,
+          "mousemove_max": 0.96,
+          "cpu_share": 0.12
+        },
+        "stretch_edge": {
+          "frames": 272,
+          "frame_p50": 15.5,
+          "frame_p95": 16.8,
+          "frame_max": 42.3,
+          "stalls_16": 3,
+          "stalls_50": 0,
+          "stall_max": 46.0,
+          "paint_p95": 4.11,
+          "paint_max": 4.65,
+          "mousemove_p95": 0.96,
+          "mousemove_max": 1.7,
+          "cpu_share": 0.44
+        },
+        "drag_seek": {
+          "frames": 520,
+          "frame_p50": 6.0,
+          "frame_p95": 24.8,
+          "frame_max": 27.7,
+          "stalls_16": 59,
+          "stalls_50": 0,
+          "stall_max": 50.6,
+          "paint_p95": 3.41,
+          "paint_max": 4.8,
+          "mousemove_p95": 0.64,
+          "mousemove_max": 1.59,
+          "cpu_share": 2.93
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.5,
+          "frame_p95": 16.4,
+          "frame_max": 44.7,
+          "stalls_16": 5,
+          "stalls_50": 0,
+          "stall_max": 31.1,
+          "paint_p95": 4.08,
+          "paint_max": 5.37,
+          "mousemove_p95": 0.9,
+          "mousemove_max": 1.55,
+          "cpu_share": 0.43
+        }
+      },
+      {
+        "info": {
+          "mode": "raster",
+          "plan": "software/system",
+          "renderer": "NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2",
+          "dpr": 1.5
+        },
+        "drag_block": {
+          "frames": 302,
+          "frame_p50": 15.6,
+          "frame_p95": 16.8,
+          "frame_max": 40.4,
+          "stalls_16": 12,
+          "stalls_50": 0,
+          "stall_max": 45.2,
+          "paint_p95": 4.17,
+          "paint_max": 5.83,
+          "mousemove_p95": 0.77,
+          "mousemove_max": 1.3,
+          "cpu_share": 0.25
+        },
+        "stretch_edge": {
+          "frames": 272,
+          "frame_p50": 15.6,
+          "frame_p95": 17.0,
+          "frame_max": 44.9,
+          "stalls_16": 5,
+          "stalls_50": 0,
+          "stall_max": 47.3,
+          "paint_p95": 4.1,
+          "paint_max": 4.88,
+          "mousemove_p95": 0.95,
+          "mousemove_max": 1.09,
+          "cpu_share": 0.55
+        },
+        "drag_seek": {
+          "frames": 531,
+          "frame_p50": 6.0,
+          "frame_p95": 23.0,
+          "frame_max": 28.6,
+          "stalls_16": 58,
+          "stalls_50": 0,
+          "stall_max": 42.8,
+          "paint_p95": 3.49,
+          "paint_max": 5.54,
+          "mousemove_p95": 0.66,
+          "mousemove_max": 0.89,
+          "cpu_share": 2.1
+        },
+        "photo_crop": {
+          "frames": 322,
+          "frame_p50": 15.5,
+          "frame_p95": 16.5,
+          "frame_max": 44.5,
+          "stalls_16": 6,
+          "stalls_50": 0,
+          "stall_max": 30.9,
+          "paint_p95": 4.1,
+          "paint_max": 5.85,
+          "mousemove_p95": 0.94,
+          "mousemove_max": 1.37,
+          "cpu_share": 0.46
+        }
+      }
+    ]
+  }
+}

@@ -179,7 +179,7 @@ class _Module:
 def _page(
     qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, **settings: object
 ) -> tuple[VideoPage, FakeMpv]:
-    monkeypatch.setattr("chopchop.ui.video_page.MpvWidget", FakeMpvWidget)
+    monkeypatch.setattr("chopchop.ui.video_page.create_video_widget", FakeMpvWidget)
     monkeypatch.setattr("chopchop.ui.video_page.find_ffmpeg", lambda: None)
     app = AppSettings(None)
     for key, value in settings.items():

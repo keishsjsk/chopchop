@@ -120,6 +120,12 @@ ui/         окна, страницы, панели, меню; ui/theme — д�
 Каталог `resources/i18n/chopchop_en.ts` читается напрямую, сборка `.qm` не нужна;
 `packaging/update_translations.py` обновляет каталог, тест проверяет, что непереведённых строк нет.
 
+## Графика
+
+`services/graphics.py` до создания `QApplication` выбирает режим рендера (аппаратный OpenGL через
+`QOpenGLWidget` или программный `SoftwareMpvWidget` без OpenGL) и видеокарту, `HangGuard` следит за
+зависаниями для авто-отката. Подробности и замеры: [`performance.md`](performance.md).
+
 ## Профилирование и бенчмарки
 
 `CHOPCHOP_PROFILE=1` печатает время стадий и стек потока интерфейса при зависании дольше 50 мс
