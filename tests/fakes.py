@@ -137,7 +137,7 @@ class FakeVideoPage(QWidget):
     def wake(self) -> None:
         pass
 
-    def set_title(self, _name: str) -> None:
+    def set_title(self, _name: str, _path: object = None) -> None:
         pass
 
     def set_fullscreen(self, value: bool) -> None:

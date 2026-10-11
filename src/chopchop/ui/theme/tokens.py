@@ -66,6 +66,7 @@ RGBA = tuple[int, int, int, int]
 
 TINT_AMOUNT = 0.2  # доля акцента в тонировке выбранного сегмента (светлая тема)
 TINT_AMOUNT_DARK = 0.05  # в тёмной серой теме тонировка тоньше: серый с едва заметным оттенком
+TINT_AMOUNTS = {"dark": TINT_AMOUNT_DARK}  # по названию темы; остальные берут TINT_AMOUNT
 
 
 def blend(foreground: Color, background: Color, amount: float) -> Color:
@@ -103,12 +104,13 @@ class Palette:
     focus_ring: Color
     shadow: Color  # жёсткая тень рамок
     accent_tint: Color = ""  # лёгкая тонировка выбранного сегмента: акцент поверх поверхности
-    tint_amount: float = TINT_AMOUNT  # доля акцента в тонировке при пересчёте под другой акцент
 
     def __post_init__(self) -> None:
         if not self.accent_tint:
             object.__setattr__(
-                self, "accent_tint", blend(self.accent, self.surface_raised, self.tint_amount)
+                self,
+                "accent_tint",
+                blend(self.accent, self.surface_raised, TINT_AMOUNTS.get(self.name, TINT_AMOUNT)),
             )
 
     def with_accent(self, accent: "AccentSet") -> "Palette":
@@ -251,7 +253,6 @@ DARK = Palette(
     focus_ring="#F4C25B",
     shadow="#101010",
     accent_tint="#352E2A",
-    tint_amount=TINT_AMOUNT_DARK,
 )
 
 PALETTES = {"light": LIGHT, "dark": DARK}
