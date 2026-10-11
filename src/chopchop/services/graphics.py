@@ -83,7 +83,12 @@ def adapters() -> list[str]:
                     with contextlib.suppress(OSError), winreg.OpenKey(root, sub) as key:
                         names.append(str(winreg.QueryValueEx(key, "DriverDesc")[0]))
     else:
-        vendors = {"0x8086": "Intel", "0x10de": "NVIDIA", "0x1002": "AMD"}
+        # названия в тех же словах, что у драйверов Windows: по ним `is_hybrid` одинаков на обеих ОС
+        vendors = {
+            "0x8086": "Intel(R) UHD Graphics",
+            "0x10de": "NVIDIA GeForce",
+            "0x1002": "AMD Radeon Graphics",
+        }
         for card in sorted(Path("/sys/class/drm").glob("card[0-9]")):
             with contextlib.suppress(OSError):
                 vendor = (card / "device" / "vendor").read_text().strip()
@@ -95,8 +100,6 @@ def is_hybrid(names: list[str] | None = None) -> bool:
     """Есть и встроенная, и дискретная видеокарта (типичный ноутбук Intel + NVIDIA)."""
     names = adapters() if names is None else names
     lowered = [name.lower() for name in names]
-    if sys.platform != "win32":
-        return len(set(lowered)) > 1 and any(n in ("nvidia", "amd") for n in lowered)
     discrete = any(any(word in n for word in DISCRETE_WORDS) for n in lowered)
     integrated = any(any(word in n for word in INTEGRATED_WORDS) for n in lowered)
     return discrete and integrated

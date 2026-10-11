@@ -106,3 +106,27 @@ def test_gpu_preference_round_trip_in_the_registry() -> None:
     finally:
         graphics.write_gpu_preference(None, image)
     assert graphics.read_gpu_preference(image) is None
+
+
+def test_hybrid_detection_is_the_same_on_linux_adapter_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert graphics.is_hybrid(["Intel(R) UHD Graphics", "NVIDIA GeForce"])
+    assert not graphics.is_hybrid(["NVIDIA GeForce"])
+
+
+def test_linux_picks_the_gpu_with_prime_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
+    for name in ("DRI_PRIME", "__NV_PRIME_RENDER_OFFLOAD", "__GLX_VENDOR_LIBRARY_NAME"):
+        monkeypatch.delenv(name, raising=False)
+    saved = graphics.current()
+    try:
+        graphics.apply(graphics.Plan("hardware", "discrete", True, "t"))
+        import os
+
+        assert os.environ["DRI_PRIME"] == "1" and os.environ["__NV_PRIME_RENDER_OFFLOAD"] == "1"
+    finally:
+        graphics.apply(saved)
+        for name in ("DRI_PRIME", "__NV_PRIME_RENDER_OFFLOAD", "__GLX_VENDOR_LIBRARY_NAME"):
+            monkeypatch.delenv(name, raising=False)
